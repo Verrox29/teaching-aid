@@ -475,34 +475,43 @@ export async function saveGroupsAction(formData: FormData): Promise<never> {
     }
   }
 
-  await db.transaction(async (tx) => {
-    await Promise.all(
-      parsedGroups.data.groups.map((group) =>
-        tx
-          .update(groups)
-          .set({
-            name: normalizeText(group.name),
-            capacity: group.capacity,
-            updatedAt: new Date()
-          })
-          .where(and(eq(groups.id, group.id), eq(groups.sessionId, parsed.data.sessionId)))
-      )
+  try {
+    await db.transaction(async (tx) => {
+      await Promise.all(
+        parsedGroups.data.groups.map((group) =>
+          tx
+            .update(groups)
+            .set({
+              name: normalizeText(group.name),
+              capacity: group.capacity,
+              updatedAt: new Date()
+            })
+            .where(and(eq(groups.id, group.id), eq(groups.sessionId, parsed.data.sessionId)))
+        )
+      );
+
+      await tx.delete(groupMembers).where(eq(groupMembers.sessionId, parsed.data.sessionId));
+
+      const memberRows = parsedGroups.data.groups.flatMap((group) =>
+        group.memberIds.map((sessionStudentId) => ({
+          sessionId: parsed.data.sessionId,
+          groupId: group.id,
+          sessionStudentId
+        }))
+      );
+
+      if (memberRows.length > 0) {
+        await tx.insert(groupMembers).values(memberRows);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to save groups', error);
+    redirectWithMessage(
+      parsed.data.sessionId,
+      'error',
+      'Could not save group changes. Please try again.'
     );
-
-    await tx.delete(groupMembers).where(eq(groupMembers.sessionId, parsed.data.sessionId));
-
-    const memberRows = parsedGroups.data.groups.flatMap((group) =>
-      group.memberIds.map((sessionStudentId) => ({
-        sessionId: parsed.data.sessionId,
-        groupId: group.id,
-        sessionStudentId
-      }))
-    );
-
-    if (memberRows.length > 0) {
-      await tx.insert(groupMembers).values(memberRows);
-    }
-  });
+  }
 
   revalidatePath(groupsPath(parsed.data.sessionId));
   redirectWithMessage(

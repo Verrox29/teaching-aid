@@ -59,9 +59,8 @@ export default async function SessionGroupsPage({
 
   const membershipRows = await db
     .select({
-      id: groupMembers.id,
+      id: sessionStudents.id,
       groupId: groupMembers.groupId,
-      sessionStudentId: sessionStudents.id,
       firstName: sessionStudents.firstName,
       lastName: sessionStudents.lastName,
       schoolEmail: sessionStudents.schoolEmail
@@ -89,7 +88,7 @@ export default async function SessionGroupsPage({
     membersByGroup.set(member.groupId, currentMembers);
   }
 
-  const assignedStudentIds = new Set(membershipRows.map((member) => member.sessionStudentId));
+  const assignedStudentIds = new Set(membershipRows.map((member) => member.id));
   const unassignedStudents = studentRows.filter((student) => !assignedStudentIds.has(student.id));
 
   const groupsWithMembers = groupRows.map((group) => ({
