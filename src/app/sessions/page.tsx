@@ -47,12 +47,13 @@ export default async function SessionsPage() {
               <th className="px-4 py-3 font-medium">Group Selection Locked</th>
               <th className="px-4 py-3 font-medium">Presentation Order Locked</th>
               <th className="px-4 py-3 font-medium">Created At</th>
+              <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {sessionList.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-slate-500" colSpan={6}>
+                <td className="px-4 py-6 text-slate-500" colSpan={7}>
                   No sessions yet. Create the first one to get started.
                 </td>
               </tr>
@@ -77,6 +78,14 @@ export default async function SessionsPage() {
                       dateStyle: 'medium',
                       timeStyle: 'short'
                     })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      className="text-sm font-medium text-slate-700 underline-offset-4 hover:text-slate-900 hover:underline"
+                      href={`/sessions/${session.id}/students`}
+                    >
+                      Students
+                    </Link>
                   </td>
                 </tr>
               ))
