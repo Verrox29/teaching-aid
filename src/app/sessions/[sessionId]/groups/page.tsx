@@ -50,7 +50,8 @@ export default async function SessionGroupsPage({
       id: groups.id,
       name: groups.name,
       capacity: groups.capacity,
-      createdAt: groups.createdAt
+      createdAt: groups.createdAt,
+      updatedAt: groups.updatedAt
     })
     .from(groups)
     .where(eq(groups.sessionId, sessionId))
@@ -97,6 +98,13 @@ export default async function SessionGroupsPage({
     capacity: group.capacity,
     members: membersByGroup.get(group.id) ?? []
   }));
+  const boardRevision = JSON.stringify(
+    groupRows.map((group) => ({
+      id: group.id,
+      updatedAt: group.updatedAt.toISOString(),
+      memberCount: membersByGroup.get(group.id)?.length ?? 0
+    }))
+  );
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
@@ -158,6 +166,7 @@ export default async function SessionGroupsPage({
       ) : null}
 
       <SessionGroupsBoard
+        key={boardRevision}
         defaultGroupCapacity={session.defaultGroupCapacity}
         error={error}
         errorGroupId={errorGroupId}

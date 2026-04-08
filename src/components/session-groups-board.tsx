@@ -118,6 +118,7 @@ export function SessionGroupsBoard({
   sessionTitle,
   unassignedStudents: initialUnassignedStudents
 }: SessionGroupsBoardProps) {
+  const isDebugMode = process.env.NODE_ENV !== 'production';
   const [groups, setGroups] = useState<GroupRecord[]>(() => copyGroups(initialGroups));
   const [unassignedStudents, setUnassignedStudents] = useState<StudentRecord[]>(() =>
     sortStudentsStable(initialUnassignedStudents)
@@ -148,6 +149,18 @@ export function SessionGroupsBoard({
     groupId: errorGroupId,
     studentId: errorStudentId
   } : null);
+  const debugState = isDebugMode
+    ? {
+        groupsJson,
+        groups: groups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          capacity: group.capacity,
+          memberIds: group.members.map((student) => student.id)
+        })),
+        unassignedStudentIds: unassignedStudents.map((student) => student.id)
+      }
+    : null;
 
   const totalStudents = groups.reduce((count, group) => count + group.members.length, 0) +
     unassignedStudents.length;
@@ -439,7 +452,7 @@ export function SessionGroupsBoard({
           </p>
         </div>
 
-        {groups.length > 0 ? (
+      {groups.length > 0 ? (
           <form
             action={saveGroupsAction}
             className="flex items-center gap-2"
@@ -458,6 +471,26 @@ export function SessionGroupsBoard({
           <p className="text-sm text-slate-500">Create default groups to unlock saving.</p>
         )}
       </div>
+
+      {isDebugMode && debugState ? (
+        <details className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <summary className="cursor-pointer font-medium text-slate-800">Debug payload</summary>
+          <div className="mt-3 grid gap-3">
+            <div>
+              <div className="font-medium text-slate-700">Unassigned IDs</div>
+              <code className="block whitespace-pre-wrap break-words rounded-md bg-white px-3 py-2">
+                {debugState.unassignedStudentIds.join(', ') || 'none'}
+              </code>
+            </div>
+            <div>
+              <div className="font-medium text-slate-700">Serialized save payload</div>
+              <code className="block whitespace-pre-wrap break-words rounded-md bg-white px-3 py-2">
+                {debugState.groupsJson}
+              </code>
+            </div>
+          </div>
+        </details>
+      ) : null}
 
       <div
         id="error-targets"
