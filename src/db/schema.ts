@@ -42,16 +42,17 @@ export const sessionStudents = pgTable(
     sessionId: uuid('session_id')
       .notNull()
       .references(() => sessions.id, { onDelete: 'cascade' }),
-    displayName: varchar('display_name', { length: 160 }).notNull(),
-    studentRef: varchar('student_ref', { length: 120 }),
+    firstName: varchar('first_name', { length: 120 }).notNull(),
+    lastName: varchar('last_name', { length: 120 }).notNull(),
+    schoolEmail: varchar('school_email', { length: 320 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
     bySessionIdx: index('session_students_session_id_idx').on(table.sessionId),
-    uniqueStudentRefInSession: unique('session_students_session_id_student_ref_uk').on(
+    uniqueStudentEmailInSession: unique('session_students_session_id_school_email_uk').on(
       table.sessionId,
-      table.studentRef
+      table.schoolEmail
     )
   })
 );
