@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { DragEvent } from 'react';
+import type { DragEvent, FormEvent } from 'react';
 
 import {
   assignStudentAction,
@@ -171,7 +171,11 @@ export function SessionGroupsBoard({
     return null;
   }
 
-  function moveStudent(sessionStudentId: string, sourceGroupId: string | null, targetGroupId: string | null) {
+  function moveStudent(
+    sessionStudentId: string,
+    sourceGroupId: string | null,
+    targetGroupId: string | null
+  ) {
     setLocalAlert(null);
 
     if (sourceGroupId === targetGroupId) {
@@ -190,7 +194,11 @@ export function SessionGroupsBoard({
     if (targetGroupId) {
       const targetGroup = groups.find((group) => group.id === targetGroupId);
       if (!targetGroup) {
-        setLocalAlert({ kind: 'error', message: 'Destination group not found.' });
+        setLocalAlert({
+          kind: 'error',
+          message: 'Destination group not found.',
+          studentId: sessionStudentId
+        });
         return;
       }
 
@@ -242,6 +250,57 @@ export function SessionGroupsBoard({
     } else {
       setUnassignedStudents((currentStudents) => sortStudentsStable([...currentStudents, student]));
     }
+  }
+
+  function handleAssignSubmit(
+    event: FormEvent<HTMLFormElement>,
+    studentId: string,
+    sourceGroupId: string | null
+  ) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const groupId = String(formData.get('groupId') ?? '');
+
+    if (!groupId) {
+      setLocalAlert({
+        kind: 'error',
+        message: 'Pick a destination group.',
+        studentId
+      });
+      return;
+    }
+
+    moveStudent(studentId, sourceGroupId, groupId);
+  }
+
+  function handleMoveSubmit(
+    event: FormEvent<HTMLFormElement>,
+    studentId: string,
+    sourceGroupId: string
+  ) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const groupId = String(formData.get('groupId') ?? '');
+
+    if (!groupId) {
+      setLocalAlert({
+        kind: 'error',
+        message: 'Pick a destination group.',
+        studentId
+      });
+      return;
+    }
+
+    moveStudent(studentId, sourceGroupId, groupId);
+  }
+
+  function handleRemoveSubmit(
+    event: FormEvent<HTMLFormElement>,
+    studentId: string,
+    sourceGroupId: string
+  ) {
+    event.preventDefault();
+    moveStudent(studentId, sourceGroupId, null);
   }
 
   function handleDragStart(event: DragEvent<HTMLElement>, sessionStudentId: string, sourceGroupId: string | null) {
@@ -421,11 +480,14 @@ export function SessionGroupsBoard({
                 {unassignedStudents.map((student) => (
                   <article
                     key={student.id}
-                    className={`rounded-lg border bg-slate-50 px-4 py-3 transition ${
+                    className={`cursor-grab rounded-lg border bg-slate-50 px-4 py-3 transition ${
                       alert?.kind === 'error' && alert.studentId === student.id
                         ? 'border-rose-300 ring-1 ring-rose-100'
                         : 'border-slate-200'
                     }`}
+                    draggable
+                    onDragEnd={handleDragEnd}
+                    onDragStart={(event) => handleDragStart(event, student.id, null)}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -434,22 +496,13 @@ export function SessionGroupsBoard({
                         </div>
                         <div className="text-sm text-slate-500">{student.schoolEmail}</div>
                       </div>
-                      <button
-                        className="cursor-grab rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100"
-                        draggable
-                        onDragEnd={handleDragEnd}
-                        onDragStart={(event) => handleDragStart(event, student.id, null)}
-                        type="button"
-                        aria-label={`Drag ${student.firstName} ${student.lastName}`}
-                      >
-                        Drag
-                      </button>
                     </div>
 
                     {groups.length > 0 ? (
                       <form
                         action={assignStudentAction}
                         className="mt-3 flex flex-wrap items-center gap-2"
+                        onSubmit={(event) => handleAssignSubmit(event, student.id, null)}
                       >
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="sessionStudentId" type="hidden" value={student.id} />
@@ -583,35 +636,32 @@ export function SessionGroupsBoard({
                         {group.members.map((member) => (
                           <article
                             key={member.id}
-                            className={`rounded-lg border px-4 py-3 transition ${
-                              alert?.kind === 'error' && alert.studentId === member.id
-                                ? 'border-rose-300 ring-1 ring-rose-100'
-                                : 'border-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
+                    className={`cursor-grab rounded-lg border px-4 py-3 transition ${
+                      alert?.kind === 'error' && alert.studentId === member.id
+                        ? 'border-rose-300 ring-1 ring-rose-100'
+                        : 'border-slate-200'
+                    }`}
+                    draggable
+                    onDragEnd={handleDragEnd}
+                    onDragStart={(event) => handleDragStart(event, member.id, group.id)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
                                 <div className="text-sm font-medium text-slate-900">
                                   {member.firstName} {member.lastName}
                                 </div>
                                 <div className="text-sm text-slate-500">{member.schoolEmail}</div>
                               </div>
-                              <button
-                                className="cursor-grab rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100"
-                                draggable
-                                onDragEnd={handleDragEnd}
-                                onDragStart={(event) =>
-                                  handleDragStart(event, member.id, group.id)
-                                }
-                                type="button"
-                                aria-label={`Drag ${member.firstName} ${member.lastName}`}
-                              >
-                                Drag
-                              </button>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                              <form action={moveStudentAction} className="flex flex-wrap items-center gap-2">
+                              <form
+                                action={moveStudentAction}
+                                className="flex flex-wrap items-center gap-2"
+                                onSubmit={(event) =>
+                                  handleMoveSubmit(event, member.id, group.id)
+                                }
+                              >
                                 <input name="sessionId" type="hidden" value={sessionId} />
                                 <input
                                   name="sessionStudentId"
@@ -637,7 +687,10 @@ export function SessionGroupsBoard({
                                 </button>
                               </form>
 
-                              <form action={removeStudentAction}>
+                              <form
+                                action={removeStudentAction}
+                                onSubmit={(event) => handleRemoveSubmit(event, member.id, group.id)}
+                              >
                                 <input name="sessionId" type="hidden" value={sessionId} />
                                 <input name="sessionStudentId" type="hidden" value={member.id} />
                                 <button
