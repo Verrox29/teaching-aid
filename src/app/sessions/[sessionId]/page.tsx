@@ -29,6 +29,13 @@ export default async function SessionPage({ params }: SessionPageProps) {
         </Link>
         <Link
           className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+          href={`/sessions/${sessionId}/groups`}
+        >
+          <div className="text-sm font-medium text-slate-900">Groups</div>
+          <div className="text-sm text-slate-600">Create groups and manage memberships.</div>
+        </Link>
+        <Link
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
           href="/sessions"
         >
           <div className="text-sm font-medium text-slate-900">Back to sessions</div>

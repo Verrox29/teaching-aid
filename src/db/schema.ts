@@ -65,6 +65,7 @@ export const groups = pgTable(
       .notNull()
       .references(() => sessions.id, { onDelete: 'cascade' }),
     name: varchar('name', { length: 120 }).notNull(),
+    capacity: integer('capacity').notNull().default(1),
     presentationOrder: integer('presentation_order'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
