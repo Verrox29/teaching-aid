@@ -1,4 +1,4 @@
-import { PagePlaceholder } from '@/components/page-placeholder';
+import Link from 'next/link';
 
 type SessionPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -8,9 +8,33 @@ export default async function SessionPage({ params }: SessionPageProps) {
   const { sessionId } = await params;
 
   return (
-    <PagePlaceholder
-      title={`Session ${sessionId}`}
-      description="Session overview and quick navigation to admin workflows."
-    />
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-8">
+      <div className="space-y-2">
+        <p className="text-sm text-slate-500">Session</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+          {sessionId}
+        </h1>
+        <p className="text-sm text-slate-600">
+          Use the links below to move into the session workflows.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+          href={`/sessions/${sessionId}/students`}
+        >
+          <div className="text-sm font-medium text-slate-900">Students</div>
+          <div className="text-sm text-slate-600">Import and review the student roster.</div>
+        </Link>
+        <Link
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+          href="/sessions"
+        >
+          <div className="text-sm font-medium text-slate-900">Back to sessions</div>
+          <div className="text-sm text-slate-600">Return to the sessions list.</div>
+        </Link>
+      </div>
+    </main>
   );
 }
