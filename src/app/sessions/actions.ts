@@ -48,18 +48,6 @@ export type CreateSessionFormState = {
   values: CreateSessionFormValues;
 };
 
-export const initialCreateSessionFormState: CreateSessionFormState = {
-  errors: {},
-  values: {
-    title: '',
-    language: 'fr',
-    instruction_text: '',
-    default_group_capacity: '',
-    group_count: '',
-    admin_access_code: ''
-  }
-};
-
 function slugify(value: string) {
   const normalized = value
     .normalize('NFKD')
