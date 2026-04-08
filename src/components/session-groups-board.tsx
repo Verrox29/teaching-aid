@@ -1,12 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { DragEvent, FormEvent } from 'react';
+import type { DragEvent } from 'react';
 
 import {
-  assignStudentAction,
-  moveStudentAction,
-  removeStudentAction,
   saveGroupsAction
 } from '@/app/sessions/[sessionId]/groups/actions';
 
@@ -252,13 +249,17 @@ export function SessionGroupsBoard({
     }
   }
 
-  function handleAssignSubmit(
-    event: FormEvent<HTMLFormElement>,
+  function handleAssignClick(
+    event: React.MouseEvent<HTMLButtonElement>,
     studentId: string,
     sourceGroupId: string | null
   ) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget.form;
+    if (!form) {
+      return;
+    }
+
+    const formData = new FormData(form);
     const groupId = String(formData.get('groupId') ?? '');
 
     if (!groupId) {
@@ -273,13 +274,17 @@ export function SessionGroupsBoard({
     moveStudent(studentId, sourceGroupId, groupId);
   }
 
-  function handleMoveSubmit(
-    event: FormEvent<HTMLFormElement>,
+  function handleMoveClick(
+    event: React.MouseEvent<HTMLButtonElement>,
     studentId: string,
     sourceGroupId: string
   ) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget.form;
+    if (!form) {
+      return;
+    }
+
+    const formData = new FormData(form);
     const groupId = String(formData.get('groupId') ?? '');
 
     if (!groupId) {
@@ -294,13 +299,15 @@ export function SessionGroupsBoard({
     moveStudent(studentId, sourceGroupId, groupId);
   }
 
-  function handleRemoveSubmit(
-    event: FormEvent<HTMLFormElement>,
-    studentId: string,
-    sourceGroupId: string
-  ) {
-    event.preventDefault();
+  function handleRemoveClick(studentId: string, sourceGroupId: string) {
     moveStudent(studentId, sourceGroupId, null);
+  }
+
+  function syncGroupsJsonInput(form: HTMLFormElement) {
+    const input = form.elements.namedItem('groupsJson');
+    if (input instanceof HTMLInputElement) {
+      input.value = saveAllPayload(groups);
+    }
   }
 
   function handleDragStart(event: DragEvent<HTMLElement>, sessionStudentId: string, sourceGroupId: string | null) {
@@ -433,7 +440,11 @@ export function SessionGroupsBoard({
         </div>
 
         {groups.length > 0 ? (
-          <form action={saveGroupsAction} className="flex items-center gap-2">
+          <form
+            action={saveGroupsAction}
+            className="flex items-center gap-2"
+            onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
+          >
             <input name="sessionId" type="hidden" value={sessionId} />
             <input name="groupsJson" type="hidden" value={groupsJson} />
             <button
@@ -499,11 +510,7 @@ export function SessionGroupsBoard({
                     </div>
 
                     {groups.length > 0 ? (
-                      <form
-                        action={assignStudentAction}
-                        className="mt-3 flex flex-wrap items-center gap-2"
-                        onSubmit={(event) => handleAssignSubmit(event, student.id, null)}
-                      >
+                      <form className="mt-3 flex flex-wrap items-center gap-2">
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="sessionStudentId" type="hidden" value={student.id} />
                         <select
@@ -519,7 +526,8 @@ export function SessionGroupsBoard({
                         </select>
                         <button
                           className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                          type="submit"
+                          type="button"
+                          onClick={(event) => handleAssignClick(event, student.id, null)}
                         >
                           Assign
                         </button>
@@ -585,7 +593,11 @@ export function SessionGroupsBoard({
                       </p>
                     </div>
 
-                    <form action={saveGroupsAction} className="flex items-center gap-2">
+                    <form
+                      action={saveGroupsAction}
+                      className="flex items-center gap-2"
+                      onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
+                    >
                       <input name="sessionId" type="hidden" value={sessionId} />
                       <input name="groupsJson" type="hidden" value={groupsJson} />
                       <input name="sourceGroupId" type="hidden" value={group.id} />
@@ -655,13 +667,7 @@ export function SessionGroupsBoard({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                              <form
-                                action={moveStudentAction}
-                                className="flex flex-wrap items-center gap-2"
-                                onSubmit={(event) =>
-                                  handleMoveSubmit(event, member.id, group.id)
-                                }
-                              >
+                              <form className="flex flex-wrap items-center gap-2">
                                 <input name="sessionId" type="hidden" value={sessionId} />
                                 <input
                                   name="sessionStudentId"
@@ -681,25 +687,20 @@ export function SessionGroupsBoard({
                                 </select>
                                 <button
                                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                                  type="submit"
+                                  type="button"
+                                  onClick={(event) => handleMoveClick(event, member.id, group.id)}
                                 >
                                   Move
                                 </button>
                               </form>
 
-                              <form
-                                action={removeStudentAction}
-                                onSubmit={(event) => handleRemoveSubmit(event, member.id, group.id)}
+                              <button
+                                className="rounded-md border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
+                                type="button"
+                                onClick={() => handleRemoveClick(member.id, group.id)}
                               >
-                                <input name="sessionId" type="hidden" value={sessionId} />
-                                <input name="sessionStudentId" type="hidden" value={member.id} />
-                                <button
-                                  className="rounded-md border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
-                                  type="submit"
-                                >
-                                  Remove
-                                </button>
-                              </form>
+                                Remove
+                              </button>
                             </div>
                           </article>
                         ))}
