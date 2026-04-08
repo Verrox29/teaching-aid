@@ -1,10 +1,12 @@
-'use client';
+"use client";
 
 import { useActionState, useMemo, useState } from 'react';
+import type { ChangeEvent, DragEvent } from 'react';
 
 import { importStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
 import {
-  parseStudentCsv,
+  parseStudentImportFile,
+  parseStudentImportText,
   revalidateStudentImportRows,
   type StudentImportPreviewRow
 } from '@/app/sessions/[sessionId]/students/import-utils';
@@ -26,8 +28,10 @@ export function SessionStudentImport({
   sessionId
 }: SessionStudentImportProps) {
   const [rows, setRows] = useState<StudentImportPreviewRow[]>([]);
+  const [pastedText, setPastedText] = useState('');
   const [parseMessage, setParseMessage] = useState<string>();
   const [parseError, setParseError] = useState<string>();
+  const [isDragging, setIsDragging] = useState(false);
   const [actionState, formAction, isPending] = useActionState(
     importStudentsAction,
     initialImportActionState
@@ -36,7 +40,33 @@ export function SessionStudentImport({
   const validRows = useMemo(() => rows.filter((row) => row.isValid), [rows]);
   const hasInvalidRows = rows.some((row) => !row.isValid);
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function setParsedRowsFromResult(
+    result: Awaited<ReturnType<typeof parseStudentImportFile>>
+  ) {
+    if (!result.ok) {
+      setRows(result.rows);
+      setParseMessage(undefined);
+      setParseError(result.message);
+      return;
+    }
+
+    setRows(result.rows);
+    setParseError(undefined);
+    setParseMessage(result.message);
+  }
+
+  async function handleFile(file: File) {
+    try {
+      const result = await parseStudentImportFile(file, existingEmails);
+      await setParsedRowsFromResult(result);
+    } catch {
+      setRows([]);
+      setParseMessage(undefined);
+      setParseError('Unable to read the selected file.');
+    }
+  }
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -46,25 +76,33 @@ export function SessionStudentImport({
       return;
     }
 
-    try {
-      const csvText = await file.text();
-      const result = parseStudentCsv(csvText, existingEmails);
+    await handleFile(file);
+  }
 
-      if (!result.ok) {
-        setRows(result.rows);
-        setParseMessage(undefined);
-        setParseError(result.message);
-        return;
-      }
+  async function handlePasteParse() {
+    const result = parseStudentImportText(pastedText, existingEmails);
+    await setParsedRowsFromResult(result);
+  }
 
-      setRows(result.rows);
-      setParseError(undefined);
-      setParseMessage(result.message);
-    } catch {
-      setRows([]);
-      setParseMessage(undefined);
-      setParseError('Unable to read the selected CSV file.');
+  async function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+
+    const file = event.dataTransfer.files?.[0];
+    if (!file) {
+      return;
     }
+
+    await handleFile(file);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave() {
+    setIsDragging(false);
   }
 
   function updateRowValue(
@@ -100,22 +138,57 @@ export function SessionStudentImport({
       <div className="space-y-1">
         <h2 className="text-xl font-semibold text-slate-900">Import students</h2>
         <p className="text-sm text-slate-600">
-          Upload a CSV with first name, last name, and school email columns.
+          Upload a Boostcamp `.xlsx` file, paste roster text, or use a CSV with first name, last name, school email, and optional user ID columns.
         </p>
       </div>
 
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-slate-900" htmlFor="studentCsv">
-          CSV file
-        </label>
+      <div
+        className={`grid gap-3 rounded-xl border border-dashed px-4 py-4 transition ${
+          isDragging ? 'border-slate-900 bg-slate-50' : 'border-slate-300 bg-slate-50/40'
+        }`}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-900" htmlFor="studentFile">
+            File upload
+          </label>
+          <p className="text-sm text-slate-600">
+            Drag and drop a `.xlsx` or `.csv` file here, or choose one manually.
+          </p>
+        </div>
         <input
-          accept=".csv,text/csv"
-          className="block rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
-          id="studentCsv"
-          name="studentCsv"
+          accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+          id="studentFile"
+          name="studentFile"
           onChange={handleFileChange}
           type="file"
         />
+      </div>
+
+      <div className="grid gap-3">
+        <label className="text-sm font-medium text-slate-900" htmlFor="pastedText">
+          Or paste Boostcamp roster text
+        </label>
+        <textarea
+          className="min-h-40 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+          id="pastedText"
+          name="pastedText"
+          onChange={(event) => setPastedText(event.target.value)}
+          value={pastedText}
+        />
+        <div className="flex justify-end">
+          <button
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            type="button"
+            onClick={handlePasteParse}
+            disabled={!pastedText.trim()}
+          >
+            Parse pasted text
+          </button>
+        </div>
       </div>
 
       {parseError ? <p className="text-sm text-rose-600">{parseError}</p> : null}
@@ -140,6 +213,7 @@ export function SessionStudentImport({
               <thead className="bg-slate-50 text-left text-slate-600">
                 <tr>
                   <th className="px-3 py-2 font-medium">Row</th>
+                  <th className="px-3 py-2 font-medium">User ID</th>
                   <th className="px-3 py-2 font-medium">First name</th>
                   <th className="px-3 py-2 font-medium">Last name</th>
                   <th className="px-3 py-2 font-medium">School email</th>
@@ -150,6 +224,9 @@ export function SessionStudentImport({
                 {rows.map((row) => (
                   <tr key={row.id} className={row.isValid ? 'bg-white' : 'bg-rose-50'}>
                     <td className="px-3 py-3 align-top text-slate-500">{row.rowNumber}</td>
+                    <td className="px-3 py-3 align-top text-slate-700">
+                      {row.values.userId || '—'}
+                    </td>
                     <td className="px-3 py-3 align-top">
                       <input
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"

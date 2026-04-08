@@ -71,6 +71,7 @@ export async function importStudentsAction(
   }
 
   const normalizedRows = parsedPayload.data.rows.map((row) => ({
+    userId: row.userId?.trim() ?? '',
     firstName: row.firstName.trim(),
     lastName: row.lastName.trim(),
     schoolEmail: row.schoolEmail.trim().toLowerCase()
