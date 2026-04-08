@@ -86,6 +86,13 @@ export default async function SessionsPage() {
                     >
                       Students
                     </Link>
+                    <span className="px-2 text-slate-300">·</span>
+                    <Link
+                      className="text-sm font-medium text-slate-700 underline-offset-4 hover:text-slate-900 hover:underline"
+                      href={`/sessions/${session.id}/groups`}
+                    >
+                      Groups
+                    </Link>
                   </td>
                 </tr>
               ))

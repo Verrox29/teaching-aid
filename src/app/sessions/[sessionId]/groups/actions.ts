@@ -34,12 +34,40 @@ const removeMembershipSchema = z.object({
   sessionStudentId: z.string().uuid('Invalid student id')
 });
 
+const saveGroupsSchema = z.object({
+  sessionId: z.string().uuid('Invalid session id'),
+  groupsJson: z.string().min(1, 'Groups payload is required'),
+  sourceGroupId: z.string().uuid().optional()
+});
+
+const savedGroupSchema = z.object({
+  id: z.string().uuid('Invalid group id'),
+  name: z.string().trim().min(1, 'Group name is required'),
+  capacity: z.coerce
+    .number({ invalid_type_error: 'Capacity is required' })
+    .int('Capacity must be a whole number')
+    .positive('Capacity must be greater than 0'),
+  memberIds: z.array(z.string().uuid('Invalid student id'))
+});
+
+const savedGroupsPayloadSchema = z.object({
+  groups: z.array(savedGroupSchema).min(1, 'At least one group is required')
+});
+
 function redirectWithMessage(
   sessionId: string,
   kind: 'notice' | 'error',
   message: string
 ): never {
   redirect(`${groupsPath(sessionId)}?${kind}=${encodeURIComponent(message)}`);
+}
+
+function normalizeText(value: string) {
+  return value.trim();
+}
+
+function uniqueBy<T>(values: T[]) {
+  return new Set(values).size === values.length;
 }
 
 async function getSession(sessionId: string) {
@@ -338,4 +366,125 @@ export async function removeStudentAction(formData: FormData): Promise<never> {
 
   revalidatePath(groupsPath(parsed.data.sessionId));
   redirectWithMessage(parsed.data.sessionId, 'notice', 'Student removed from the group.');
+}
+
+export async function saveGroupsAction(formData: FormData): Promise<never> {
+  const parsed = saveGroupsSchema.safeParse({
+    sessionId: String(formData.get('sessionId') ?? ''),
+    groupsJson: String(formData.get('groupsJson') ?? ''),
+    sourceGroupId: String(formData.get('sourceGroupId') ?? '') || undefined
+  });
+
+  if (!parsed.success) {
+    redirectWithMessage(
+      String(formData.get('sessionId') ?? 'invalid'),
+      'error',
+      'Please review the groups before saving.'
+    );
+  }
+
+  const session = await getSession(parsed.data.sessionId);
+  if (!session) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
+  }
+
+  let groupsPayload: unknown;
+  try {
+    groupsPayload = JSON.parse(parsed.data.groupsJson);
+  } catch {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Could not read the groups payload.');
+  }
+
+  const parsedGroups = savedGroupsPayloadSchema.safeParse(groupsPayload);
+  if (!parsedGroups.success) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Please correct the group data and try again.');
+  }
+
+  const existingGroups = await db
+    .select({
+      id: groups.id
+    })
+    .from(groups)
+    .where(eq(groups.sessionId, parsed.data.sessionId));
+
+  const existingGroupIds = new Set(existingGroups.map((group) => group.id));
+  const submittedGroupIds = new Set(parsedGroups.data.groups.map((group) => group.id));
+
+  if (
+    existingGroupIds.size !== submittedGroupIds.size ||
+    [...existingGroupIds].some((groupId) => !submittedGroupIds.has(groupId))
+  ) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'The group list is out of date. Reload the page and try again.');
+  }
+
+  const normalizedNames = parsedGroups.data.groups.map((group) => normalizeText(group.name));
+  if (!uniqueBy(normalizedNames)) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Group names must be unique.');
+  }
+
+  const sessionStudentRows = await db
+    .select({
+      id: sessionStudents.id
+    })
+    .from(sessionStudents)
+    .where(eq(sessionStudents.sessionId, parsed.data.sessionId));
+
+  const validStudentIds = new Set(sessionStudentRows.map((row) => row.id));
+  const memberIds = parsedGroups.data.groups.flatMap((group) => group.memberIds);
+
+  if (!uniqueBy(memberIds)) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'A student can only belong to one group.');
+  }
+
+  if (memberIds.some((studentId) => !validStudentIds.has(studentId))) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'One or more students are invalid.');
+  }
+
+  for (const group of parsedGroups.data.groups) {
+    if (group.memberIds.length > group.capacity) {
+      redirectWithMessage(
+        parsed.data.sessionId,
+        'error',
+        'A group capacity cannot be smaller than the number of students in it.'
+      );
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    await Promise.all(
+      parsedGroups.data.groups.map((group) =>
+        tx
+          .update(groups)
+          .set({
+            name: normalizeText(group.name),
+            capacity: group.capacity,
+            updatedAt: new Date()
+          })
+          .where(and(eq(groups.id, group.id), eq(groups.sessionId, parsed.data.sessionId)))
+      )
+    );
+
+    await tx.delete(groupMembers).where(eq(groupMembers.sessionId, parsed.data.sessionId));
+
+    const memberRows = parsedGroups.data.groups.flatMap((group) =>
+      group.memberIds.map((sessionStudentId) => ({
+        sessionId: parsed.data.sessionId,
+        groupId: group.id,
+        sessionStudentId
+      }))
+    );
+
+    if (memberRows.length > 0) {
+      await tx.insert(groupMembers).values(memberRows);
+    }
+  });
+
+  revalidatePath(groupsPath(parsed.data.sessionId));
+  redirectWithMessage(
+    parsed.data.sessionId,
+    'notice',
+    parsed.data.sourceGroupId
+      ? 'Group changes saved.'
+      : 'All group changes saved.'
+  );
 }
