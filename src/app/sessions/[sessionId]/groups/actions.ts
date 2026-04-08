@@ -57,9 +57,15 @@ const savedGroupsPayloadSchema = z.object({
 function redirectWithMessage(
   sessionId: string,
   kind: 'notice' | 'error',
-  message: string
+  message: string,
+  params?: Record<string, string>
 ): never {
-  redirect(`${groupsPath(sessionId)}?${kind}=${encodeURIComponent(message)}`);
+  const searchParams = new URLSearchParams({
+    [kind]: message,
+    ...(params ?? {})
+  });
+
+  redirect(`${groupsPath(sessionId)}?${searchParams.toString()}`);
 }
 
 function normalizeText(value: string) {
@@ -131,7 +137,10 @@ async function getMembership(sessionId: string, sessionStudentId: string) {
 async function getStudent(sessionId: string, sessionStudentId: string) {
   const matches = await db
     .select({
-      id: sessionStudents.id
+      id: sessionStudents.id,
+      firstName: sessionStudents.firstName,
+      lastName: sessionStudents.lastName,
+      schoolEmail: sessionStudents.schoolEmail
     })
     .from(sessionStudents)
     .where(
@@ -273,7 +282,9 @@ export async function assignStudentAction(formData: FormData): Promise<never> {
 
   const currentCount = await getGroupMemberCount(parsed.data.groupId);
   if (currentCount >= group.capacity) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'That group is already full.');
+    redirectWithMessage(parsed.data.sessionId, 'error', 'That group is already full.', {
+      errorGroupId: parsed.data.groupId
+    });
   }
 
   await db.insert(groupMembers).values({
@@ -317,7 +328,9 @@ export async function moveStudentAction(formData: FormData): Promise<never> {
 
   const currentCount = await getGroupMemberCount(parsed.data.groupId);
   if (currentCount >= group.capacity) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'That destination group is already full.');
+    redirectWithMessage(parsed.data.sessionId, 'error', 'That destination group is already full.', {
+      errorGroupId: parsed.data.groupId
+    });
   }
 
   await db
@@ -352,7 +365,19 @@ export async function removeStudentAction(formData: FormData): Promise<never> {
 
   const membership = await getMembership(parsed.data.sessionId, parsed.data.sessionStudentId);
   if (!membership) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Student is not assigned to a group.');
+    const student = await getStudent(parsed.data.sessionId, parsed.data.sessionStudentId);
+    if (!student) {
+      redirectWithMessage(parsed.data.sessionId, 'error', 'Student not found.');
+    }
+
+    redirectWithMessage(
+      parsed.data.sessionId,
+      'notice',
+      `${student.firstName} ${student.lastName} is already unassigned.`,
+      {
+        errorStudentId: student.id
+      }
+    );
   }
 
   await db

@@ -25,6 +25,8 @@ export default async function SessionGroupsPage({
   const search = searchParams ? await searchParams : {};
   const notice = getSingleValue(search.notice);
   const error = getSingleValue(search.error);
+  const errorStudentId = getSingleValue(search.errorStudentId);
+  const errorGroupId = getSingleValue(search.errorGroupId);
 
   const sessionRows = await db
     .select({
@@ -158,6 +160,8 @@ export default async function SessionGroupsPage({
       <SessionGroupsBoard
         defaultGroupCapacity={session.defaultGroupCapacity}
         error={error}
+        errorGroupId={errorGroupId}
+        errorStudentId={errorStudentId}
         groupCount={session.groupCount}
         groups={groupsWithMembers}
         notice={notice}

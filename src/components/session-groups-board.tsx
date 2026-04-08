@@ -34,6 +34,8 @@ type GroupRecord = {
 type SessionGroupsBoardProps = {
   defaultGroupCapacity: number;
   error?: string;
+  errorGroupId?: string;
+  errorStudentId?: string;
   groupCount: number;
   groups: InitialGroupRecord[];
   notice?: string;
@@ -45,6 +47,13 @@ type SessionGroupsBoardProps = {
 type DragState = {
   sessionStudentId: string;
   sourceGroupId: string | null;
+};
+
+type AlertState = {
+  kind: 'error' | 'notice';
+  message: string;
+  groupId?: string;
+  studentId?: string;
 };
 
 function compareStudents(left: StudentRecord, right: StudentRecord) {
@@ -103,6 +112,8 @@ function copyGroups(groups: InitialGroupRecord[]) {
 export function SessionGroupsBoard({
   defaultGroupCapacity,
   error,
+  errorGroupId,
+  errorStudentId,
   groupCount,
   groups: initialGroups,
   notice,
@@ -115,7 +126,7 @@ export function SessionGroupsBoard({
     sortStudentsStable(initialUnassignedStudents)
   );
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [localError, setLocalError] = useState<string>();
+  const [localAlert, setLocalAlert] = useState<AlertState | null>(null);
 
   const initialSnapshots = useMemo(
     () =>
@@ -134,6 +145,12 @@ export function SessionGroupsBoard({
   );
 
   const groupsJson = useMemo(() => saveAllPayload(groups), [groups]);
+  const alert = localAlert ?? (error || notice ? {
+    kind: error ? 'error' : 'notice',
+    message: error ?? notice ?? '',
+    groupId: errorGroupId,
+    studentId: errorStudentId
+  } : null);
 
   const totalStudents = groups.reduce((count, group) => count + group.members.length, 0) +
     unassignedStudents.length;
@@ -155,7 +172,7 @@ export function SessionGroupsBoard({
   }
 
   function moveStudent(sessionStudentId: string, sourceGroupId: string | null, targetGroupId: string | null) {
-    setLocalError(undefined);
+    setLocalAlert(null);
 
     if (sourceGroupId === targetGroupId) {
       return;
@@ -166,14 +183,14 @@ export function SessionGroupsBoard({
       : unassignedStudents.find((entry) => entry.id === sessionStudentId) ?? null;
 
     if (!student) {
-      setLocalError('That student could not be found.');
+      setLocalAlert({ kind: 'error', message: 'That student could not be found.' });
       return;
     }
 
     if (targetGroupId) {
       const targetGroup = groups.find((group) => group.id === targetGroupId);
       if (!targetGroup) {
-        setLocalError('Destination group not found.');
+        setLocalAlert({ kind: 'error', message: 'Destination group not found.' });
         return;
       }
 
@@ -183,7 +200,11 @@ export function SessionGroupsBoard({
           : targetGroup.members.length + 1;
 
       if (targetGroup.id !== sourceGroupId && targetMemberCount > Number(targetGroup.capacity)) {
-        setLocalError('That group is already full.');
+        setLocalAlert({
+          kind: 'error',
+          message: `That group is already full.`,
+          groupId: targetGroup.id
+        });
         return;
       }
     }
@@ -273,7 +294,7 @@ export function SessionGroupsBoard({
   }
 
   function updateGroupField(groupId: string, field: 'name' | 'capacity', value: string) {
-    setLocalError(undefined);
+    setLocalAlert(null);
     setGroups((currentGroups) =>
       currentGroups.map((group) =>
         group.id === groupId
@@ -288,6 +309,7 @@ export function SessionGroupsBoard({
 
   const dirtyGroups = groups.filter((group) => isGroupDirty(group));
   const hasDirtyGroups = dirtyGroups.length > 0;
+  const highlightErrorSection = alert?.kind === 'error';
 
   return (
     <section className="grid gap-6">
@@ -320,17 +342,27 @@ export function SessionGroupsBoard({
         </div>
       </div>
 
-      {(notice || error || localError) && (
+      {alert ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
-            error || localError
+            alert.kind === 'error'
               ? 'border-rose-200 bg-rose-50 text-rose-700'
               : 'border-emerald-200 bg-emerald-50 text-emerald-700'
           }`}
         >
-          {localError ?? error ?? notice}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{alert.message}</span>
+            {alert.kind === 'error' ? (
+              <a
+                className="inline-flex items-center rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+                href="#error-targets"
+              >
+                Go to error(s)
+              </a>
+            ) : null}
+          </div>
         </div>
-      )}
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="space-y-1">
@@ -357,10 +389,19 @@ export function SessionGroupsBoard({
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+      <div
+        id="error-targets"
+        className={`grid gap-6 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] ${
+          highlightErrorSection ? 'scroll-mt-24' : ''
+        }`}
+      >
         <aside className="lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
           <section
-            className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+            className={`grid gap-4 rounded-xl border bg-white p-5 shadow-sm ${
+              alert?.kind === 'error' && !alert.groupId && !alert.studentId
+                ? 'border-rose-300 ring-1 ring-rose-100'
+                : 'border-slate-200'
+            }`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleUnassignedDrop}
           >
@@ -380,18 +421,29 @@ export function SessionGroupsBoard({
                 {unassignedStudents.map((student) => (
                   <article
                     key={student.id}
-                    className={`cursor-grab rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 transition ${
-                      dragState?.sessionStudentId === student.id ? 'ring-2 ring-slate-900' : ''
+                    className={`rounded-lg border bg-slate-50 px-4 py-3 transition ${
+                      alert?.kind === 'error' && alert.studentId === student.id
+                        ? 'border-rose-300 ring-1 ring-rose-100'
+                        : 'border-slate-200'
                     }`}
-                    draggable
-                    onDragEnd={handleDragEnd}
-                    onDragStart={(event) => handleDragStart(event, student.id, null)}
                   >
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">
-                        {student.firstName} {student.lastName}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-slate-900">
+                          {student.firstName} {student.lastName}
+                        </div>
+                        <div className="text-sm text-slate-500">{student.schoolEmail}</div>
                       </div>
-                      <div className="text-sm text-slate-500">{student.schoolEmail}</div>
+                      <button
+                        className="cursor-grab rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100"
+                        draggable
+                        onDragEnd={handleDragEnd}
+                        onDragStart={(event) => handleDragStart(event, student.id, null)}
+                        type="button"
+                        aria-label={`Drag ${student.firstName} ${student.lastName}`}
+                      >
+                        Drag
+                      </button>
                     </div>
 
                     {groups.length > 0 ? (
@@ -447,7 +499,11 @@ export function SessionGroupsBoard({
                 <article
                   key={group.id}
                   className={`grid gap-4 rounded-xl border bg-white p-5 shadow-sm transition ${
-                    dirty ? 'border-amber-200 ring-1 ring-amber-100' : 'border-slate-200'
+                    alert?.kind === 'error' && alert.groupId === group.id
+                      ? 'border-rose-300 ring-1 ring-rose-100'
+                      : dirty
+                        ? 'border-amber-200 ring-1 ring-amber-100'
+                      : 'border-slate-200'
                   }`}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => handleGroupDrop(event, group.id)}
@@ -527,20 +583,31 @@ export function SessionGroupsBoard({
                         {group.members.map((member) => (
                           <article
                             key={member.id}
-                            className={`flex cursor-grab flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-4 py-3 transition ${
-                              dragState?.sessionStudentId === member.id ? 'ring-2 ring-slate-900' : ''
+                            className={`rounded-lg border px-4 py-3 transition ${
+                              alert?.kind === 'error' && alert.studentId === member.id
+                                ? 'border-rose-300 ring-1 ring-rose-100'
+                                : 'border-slate-200'
                             }`}
-                            draggable
-                            onDragEnd={handleDragEnd}
-                            onDragStart={(event) =>
-                              handleDragStart(event, member.id, group.id)
-                            }
                           >
-                            <div>
-                              <div className="text-sm font-medium text-slate-900">
-                                {member.firstName} {member.lastName}
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-medium text-slate-900">
+                                  {member.firstName} {member.lastName}
+                                </div>
+                                <div className="text-sm text-slate-500">{member.schoolEmail}</div>
                               </div>
-                              <div className="text-sm text-slate-500">{member.schoolEmail}</div>
+                              <button
+                                className="cursor-grab rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100"
+                                draggable
+                                onDragEnd={handleDragEnd}
+                                onDragStart={(event) =>
+                                  handleDragStart(event, member.id, group.id)
+                                }
+                                type="button"
+                                aria-label={`Drag ${member.firstName} ${member.lastName}`}
+                              >
+                                Drag
+                              </button>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
