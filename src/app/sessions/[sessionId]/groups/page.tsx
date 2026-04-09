@@ -1,7 +1,11 @@
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
-import { createDefaultGroupsAction } from './actions';
+import {
+  createDefaultGroupsAction,
+  lockGroupSelectionAction,
+  unlockGroupSelectionAction
+} from './actions';
 
 import { SessionGroupsBoard } from '@/components/session-groups-board';
 import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
@@ -31,9 +35,11 @@ export default async function SessionGroupsPage({
   const sessionRows = await db
     .select({
       id: sessions.id,
+      slug: sessions.slug,
       title: sessions.title,
       defaultGroupCapacity: sessions.defaultGroupCapacity,
-      groupCount: sessions.groupCount
+      groupCount: sessions.groupCount,
+      groupSelectionLocked: sessions.groupSelectionLocked
     })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
@@ -123,15 +129,30 @@ export default async function SessionGroupsPage({
             <span className="rounded-full bg-slate-100 px-3 py-1">
               Current groups: {groupRows.length}
             </span>
+            <span
+              className={`rounded-full px-3 py-1 ${
+                session.groupSelectionLocked
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-emerald-50 text-emerald-700'
+              }`}
+            >
+              {session.groupSelectionLocked ? 'Group selection locked' : 'Group selection open'}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <a
             className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
             href={`/sessions/${sessionId}`}
           >
             Session hub
+          </a>
+          <a
+            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
+            href={`/s/${session.slug}`}
+          >
+            Public page
           </a>
           <a
             className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
@@ -141,6 +162,39 @@ export default async function SessionGroupsPage({
           </a>
         </div>
       </div>
+
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-slate-900">Group selection</h2>
+          <p className="text-sm text-slate-600">
+            {session.groupSelectionLocked
+              ? 'Students can view the public page, but cannot join or switch groups.'
+              : 'Students can join or switch groups on the public page.'}
+          </p>
+        </div>
+
+        {session.groupSelectionLocked ? (
+          <form action={unlockGroupSelectionAction}>
+            <input name="sessionId" type="hidden" value={sessionId} />
+            <button
+              className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+              type="submit"
+            >
+              Unlock group selection
+            </button>
+          </form>
+        ) : (
+          <form action={lockGroupSelectionAction}>
+            <input name="sessionId" type="hidden" value={sessionId} />
+            <button
+              className="inline-flex items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100"
+              type="submit"
+            >
+              Lock group selection
+            </button>
+          </form>
+        )}
+      </section>
 
       {groupRows.length === 0 ? (
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

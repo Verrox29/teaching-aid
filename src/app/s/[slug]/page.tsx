@@ -23,7 +23,6 @@ export default async function PublicSessionPage({ params }: PublicSessionPagePro
       count + Math.max(0, group.capacity - group.members.length),
     0
   );
-  const joinCtaLabel = session.groupSelectionLocked ? 'View groups' : 'Join or switch group';
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 sm:p-8">
@@ -43,23 +42,36 @@ export default async function PublicSessionPage({ params }: PublicSessionPagePro
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link
-            className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-            href={`/s/${slug}/join`}
-          >
-            {joinCtaLabel}
-          </Link>
           {session.groupSelectionLocked ? (
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">
+            <span className="inline-flex items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">
               Groups are locked
             </span>
           ) : (
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
-              Groups are open
-            </span>
+            <Link
+              className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+              href={`/s/${slug}/join`}
+            >
+              Join or switch group
+            </Link>
           )}
+          <span
+            className={`rounded-full px-3 py-1 text-sm font-medium ${
+              session.groupSelectionLocked
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-emerald-50 text-emerald-700'
+            }`}
+          >
+            {session.groupSelectionLocked ? 'View only mode' : 'Groups are open'}
+          </span>
         </div>
       </header>
+
+      {session.groupSelectionLocked ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Group selection is locked for this session. Students can view the groups, but they
+          cannot join or switch until the teacher unlocks selection.
+        </section>
+      ) : null}
 
       <section className="grid gap-4">
         <div className="flex items-center justify-between gap-3">

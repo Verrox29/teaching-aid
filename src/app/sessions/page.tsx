@@ -82,6 +82,13 @@ export default async function SessionsPage() {
                   <td className="px-4 py-3">
                     <Link
                       className="text-sm font-medium text-slate-700 underline-offset-4 hover:text-slate-900 hover:underline"
+                      href={`/sessions/${session.id}`}
+                    >
+                      Hub
+                    </Link>
+                    <span className="px-2 text-slate-300">·</span>
+                    <Link
+                      className="text-sm font-medium text-slate-700 underline-offset-4 hover:text-slate-900 hover:underline"
                       href={`/s/${session.slug}`}
                     >
                       Public

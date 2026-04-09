@@ -13,6 +13,10 @@ const createGroupsSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
 
+const toggleGroupSelectionSchema = z.object({
+  sessionId: z.string().uuid('Invalid session id')
+});
+
 const updateGroupSchema = z.object({
   sessionId: z.string().uuid('Invalid session id'),
   groupId: z.string().uuid('Invalid group id'),
@@ -80,9 +84,11 @@ async function getSession(sessionId: string) {
   const matches = await db
     .select({
       id: sessions.id,
+      slug: sessions.slug,
       title: sessions.title,
       defaultGroupCapacity: sessions.defaultGroupCapacity,
-      groupCount: sessions.groupCount
+      groupCount: sessions.groupCount,
+      groupSelectionLocked: sessions.groupSelectionLocked
     })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
@@ -184,7 +190,64 @@ export async function createDefaultGroupsAction(formData: FormData): Promise<nev
   );
 
   revalidatePath(groupsPath(parsed.data.sessionId));
+  revalidatePath(`/sessions/${parsed.data.sessionId}`);
+  revalidatePath('/sessions');
   redirectWithMessage(parsed.data.sessionId, 'notice', 'Default groups created.');
+}
+
+async function setGroupSelectionLocked(
+  formData: FormData,
+  locked: boolean
+): Promise<never> {
+  const parsed = toggleGroupSelectionSchema.safeParse({
+    sessionId: String(formData.get('sessionId') ?? '')
+  });
+
+  if (!parsed.success) {
+    redirectWithMessage('invalid', 'error', 'Invalid session id.');
+  }
+
+  const session = await getSession(parsed.data.sessionId);
+  if (!session) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
+  }
+
+  if (session.groupSelectionLocked === locked) {
+    redirectWithMessage(
+      parsed.data.sessionId,
+      'notice',
+      locked ? 'Group selection is already locked.' : 'Group selection is already unlocked.'
+    );
+  }
+
+  await db
+    .update(sessions)
+    .set({
+      groupSelectionLocked: locked,
+      groupSelectionLockedAt: locked ? new Date() : null,
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, parsed.data.sessionId));
+
+  revalidatePath(groupsPath(parsed.data.sessionId));
+  revalidatePath(`/sessions/${parsed.data.sessionId}`);
+  revalidatePath(`/s/${session.slug}`);
+  revalidatePath(`/s/${session.slug}/join`);
+  revalidatePath('/sessions');
+
+  redirectWithMessage(
+    parsed.data.sessionId,
+    'notice',
+    locked ? 'Group selection locked.' : 'Group selection unlocked.'
+  );
+}
+
+export async function lockGroupSelectionAction(formData: FormData): Promise<never> {
+  return setGroupSelectionLocked(formData, true);
+}
+
+export async function unlockGroupSelectionAction(formData: FormData): Promise<never> {
+  return setGroupSelectionLocked(formData, false);
 }
 
 export async function updateGroupAction(formData: FormData): Promise<never> {

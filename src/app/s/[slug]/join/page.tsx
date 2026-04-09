@@ -35,6 +35,7 @@ export default async function PublicJoinPage({ params, searchParams }: PublicJoi
   const groups = await getPublicGroupsForSession(session.id);
   const identifiedStudent = studentId ? await getStudentById(session.id, studentId) : null;
   const currentMembership = studentId ? await getStudentMembership(session.id, studentId) : null;
+  const isLocked = session.groupSelectionLocked;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 sm:p-8">
@@ -101,16 +102,21 @@ export default async function PublicJoinPage({ params, searchParams }: PublicJoi
               </p>
             </div>
 
-            {session.groupSelectionLocked ? (
+            {isLocked ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 Groups are locked for this session. You can view the current state, but you cannot
                 join or switch groups.
               </div>
             ) : null}
 
-            <p className="text-sm text-slate-600">
-              Choose a group below. {currentMembership ? 'You can switch at any time before locking.' : 'You can join one available group.'}
-            </p>
+            {!isLocked ? (
+              <p className="text-sm text-slate-600">
+                Choose a group below.{' '}
+                {currentMembership
+                  ? 'You can switch at any time before locking.'
+                  : 'You can join one available group.'}
+              </p>
+            ) : null}
 
             <div className="grid gap-3 md:grid-cols-2">
               {groups.map((group) => {
@@ -156,7 +162,7 @@ export default async function PublicJoinPage({ params, searchParams }: PublicJoi
                       )}
                     </ul>
 
-                    {session.groupSelectionLocked ? null : (
+                    {isLocked ? null : (
                       <form action={joinGroupAction} className="flex flex-wrap items-center gap-2">
                         <input name="slug" type="hidden" value={slug} />
                         <input name="studentId" type="hidden" value={identifiedStudent.id} />
@@ -190,41 +196,50 @@ export default async function PublicJoinPage({ params, searchParams }: PublicJoi
           </div>
         ) : (
           <div className="grid gap-4">
-            {session.groupSelectionLocked ? (
+            {isLocked ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 Groups are locked for this session. You can view the session state, but you cannot
                 join or switch groups.
               </div>
             ) : null}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              Use your school email address to identify yourself. We only match students already
-              imported for this session.
-            </div>
-
-            <form action={identifyStudentAction} className="grid gap-4">
-              <input name="slug" type="hidden" value={slug} />
-              <label className="grid gap-2 text-sm font-medium text-slate-700">
-                School email
-                <input
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  name="schoolEmail"
-                  type="email"
-                  placeholder="name@school.edu"
-                />
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-                  type="submit"
-                >
-                  Identify me
-                </button>
-                <p className="text-sm text-slate-500">
-                  We only match students already imported for this session.
-                </p>
+            {isLocked ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                The groups are currently locked. You can review the roster below, but joining and
+                switching are disabled until the teacher unlocks selection.
               </div>
-            </form>
+            ) : (
+              <>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  Use your school email address to identify yourself. We only match students
+                  already imported for this session.
+                </div>
+
+                <form action={identifyStudentAction} className="grid gap-4">
+                  <input name="slug" type="hidden" value={slug} />
+                  <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    School email
+                    <input
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      name="schoolEmail"
+                      type="email"
+                      placeholder="name@school.edu"
+                    />
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+                      type="submit"
+                    >
+                      Identify me
+                    </button>
+                    <p className="text-sm text-slate-500">
+                      We only match students already imported for this session.
+                    </p>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         )}
       </section>
