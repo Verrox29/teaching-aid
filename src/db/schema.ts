@@ -11,6 +11,8 @@ import {
   varchar
 } from 'drizzle-orm/pg-core';
 
+import type { PairagogieExportMapping } from '@/lib/exports/types';
+
 export const sessions = pgTable(
   'sessions',
   {
@@ -184,6 +186,8 @@ export const evaluations = pgTable(
     evaluatorGroupId: uuid('evaluator_group_id')
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
+    teacherNotes: text('teacher_notes'),
+    finalFeedback: text('final_feedback'),
     comments: text('comments'),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -245,3 +249,60 @@ export const exportHistory = pgTable(
     byCreatedAtIdx: index('export_history_created_at_idx').on(table.createdAt)
   })
 );
+
+export const exportTemplateVersions = pgTable(
+  'export_template_versions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    version: varchar('version', { length: 80 }).notNull().unique(),
+    fileName: varchar('file_name', { length: 160 }).notNull(),
+    contentBase64: text('content_base64').notNull(),
+    checksum: varchar('checksum', { length: 128 }).notNull(),
+    isActive: boolean('is_active').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    byVersionIdx: index('export_template_versions_version_idx').on(table.version)
+  })
+);
+
+export const exportMappingVersions = pgTable(
+  'export_mapping_versions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    version: varchar('version', { length: 80 }).notNull().unique(),
+    templateVersion: varchar('template_version', { length: 80 }).notNull(),
+    mappingJson: jsonb('mapping_json').$type<PairagogieExportMapping>().notNull(),
+    isActive: boolean('is_active').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    byVersionIdx: index('export_mapping_versions_version_idx').on(table.version),
+    byTemplateVersionIdx: index('export_mapping_versions_template_version_idx').on(
+      table.templateVersion
+    )
+  })
+);
+
+export const exportSettings = pgTable('export_settings', {
+  key: text('key').primaryKey(),
+  activeTemplateVersion: varchar('active_template_version', { length: 80 }),
+  activeMappingVersion: varchar('active_mapping_version', { length: 80 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const sessionExportMetadata = pgTable('session_export_metadata', {
+  sessionId: uuid('session_id')
+    .primaryKey()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  programme: varchar('programme', { length: 160 }),
+  className: varchar('class_name', { length: 160 }),
+  subject: varchar('subject', { length: 160 }),
+  season: varchar('season', { length: 80 }),
+  professorName: varchar('professor_name', { length: 160 }),
+  sessionDate: varchar('session_date', { length: 80 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
