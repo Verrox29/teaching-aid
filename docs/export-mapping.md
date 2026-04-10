@@ -61,7 +61,7 @@ Template notes:
 ### Rubric fields
 
 - `rubric.totalScore` -> `C32`
-- `rubric.teacherNotes` -> `B35:F35`
+- `rubric.teacherNotes` -> `B34:F34`
 - `rubric.finalFeedback` -> `B36:F37`
 - `rubric.challengeQuestions` -> `B39:F41`
 

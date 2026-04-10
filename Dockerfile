@@ -6,7 +6,7 @@ RUN npm ci
 FROM base AS dev
 COPY . .
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-lc", "npm install && npm run dev"]
 
 FROM base AS build
 COPY . .

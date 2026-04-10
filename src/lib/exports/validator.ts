@@ -15,7 +15,24 @@ function hasMergedRange(sheet: XLSX.WorkSheet, range: string) {
 }
 
 function cellExists(sheet: XLSX.WorkSheet, address: string) {
-  return Boolean(sheet[address]);
+  if (sheet[address]) {
+    return true;
+  }
+
+  const ref = sheet['!ref'];
+  if (!ref) {
+    return false;
+  }
+
+  const sheetRange = XLSX.utils.decode_range(ref);
+  const cell = XLSX.utils.decode_cell(address);
+
+  return (
+    cell.r >= sheetRange.s.r &&
+    cell.r <= sheetRange.e.r &&
+    cell.c >= sheetRange.s.c &&
+    cell.c <= sheetRange.e.c
+  );
 }
 
 function formulaExists(sheet: XLSX.WorkSheet, address: string) {

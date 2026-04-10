@@ -22,7 +22,7 @@ export const DEFAULT_PAIRAGOGIE_MAPPING: PairagogieExportMapping = {
     'group.memberCount': 'E8',
     'group.members': 'B9',
     'rubric.totalScore': 'C32',
-    'rubric.teacherNotes': 'B35',
+    'rubric.teacherNotes': 'B34',
     'rubric.finalFeedback': 'B36',
     'rubric.challengeQuestions': 'B39'
   },
@@ -38,7 +38,7 @@ export const DEFAULT_PAIRAGOGIE_MAPPING: PairagogieExportMapping = {
     }
   },
   expectedFormulaCells: ['C32'],
-  expectedMergedRanges: ['A1:F1', 'B3:C3', 'E3:F3', 'B4:C4', 'E4:F4', 'B5:C5', 'E5:F5', 'B7:C7', 'E7:F7', 'B8:C8', 'E8:F8', 'B9:F9', 'B35:F35', 'B36:F37', 'B39:F41']
+  expectedMergedRanges: ['A1:F1', 'B3:C3', 'E3:F3', 'B4:C4', 'E4:F4', 'B5:C5', 'E5:F5', 'B7:C7', 'E7:F7', 'B8:C8', 'E8:F8', 'B9:F9', 'B34:F34', 'B36:F37', 'B39:F41']
 };
 
 export const DEFAULT_PAIRAGOGIE_TEMPLATE_PATH = path.join(
