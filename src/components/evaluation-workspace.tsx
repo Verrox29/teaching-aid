@@ -430,7 +430,7 @@ export function EvaluationWorkspaceClient({
           <p className="ui-section-title">Presentation order</p>
           <h2 className="text-lg font-semibold">Navigate by group</h2>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Step 5 now keeps the presentation order visible while you take notes and grade.
+            Step 4 keeps the presentation order visible while you take notes and grade.
           </p>
         </div>
 

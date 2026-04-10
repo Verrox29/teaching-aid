@@ -13,6 +13,10 @@ const createGroupsSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
 
+const createGroupSchema = z.object({
+  sessionId: z.string().uuid('Invalid session id')
+});
+
 const toggleGroupSelectionSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
@@ -162,6 +166,26 @@ async function getStudent(sessionId: string, sessionStudentId: string) {
   return matches[0] ?? null;
 }
 
+async function getNextGroupName(sessionId: string) {
+  const rows = await db
+    .select({
+      name: groups.name
+    })
+    .from(groups)
+    .where(eq(groups.sessionId, sessionId));
+
+  const usedNames = new Set(rows.map((row) => row.name));
+
+  for (let index = 1; index <= rows.length + 25; index += 1) {
+    const candidate = `Group ${index}`;
+    if (!usedNames.has(candidate)) {
+      return candidate;
+    }
+  }
+
+  return `Group ${rows.length + 1}`;
+}
+
 export async function createDefaultGroupsAction(formData: FormData): Promise<never> {
   const parsed = createGroupsSchema.safeParse({
     sessionId: String(formData.get('sessionId') ?? '')
@@ -200,6 +224,36 @@ export async function createDefaultGroupsAction(formData: FormData): Promise<nev
   revalidatePath(`/s/${session.slug}`);
   revalidatePath('/sessions');
   redirectWithMessage(parsed.data.sessionId, 'notice', 'Default groups created.');
+}
+
+export async function createGroupAction(formData: FormData): Promise<never> {
+  const parsed = createGroupSchema.safeParse({
+    sessionId: String(formData.get('sessionId') ?? '')
+  });
+
+  if (!parsed.success) {
+    redirectWithMessage('invalid', 'error', 'Invalid session id.');
+  }
+
+  const session = await getSession(parsed.data.sessionId);
+  if (!session) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
+  }
+
+  const name = await getNextGroupName(parsed.data.sessionId);
+
+  await db.insert(groups).values({
+    sessionId: parsed.data.sessionId,
+    name,
+    capacity: session.defaultGroupCapacity
+  });
+
+  revalidatePath(groupsPath(parsed.data.sessionId));
+  revalidatePath(`/sessions/${parsed.data.sessionId}/order`);
+  revalidatePath(`/sessions/${parsed.data.sessionId}/evaluation`);
+  revalidatePath(`/sessions/${parsed.data.sessionId}/exports`);
+  revalidatePath('/sessions');
+  redirectWithMessage(parsed.data.sessionId, 'notice', `${name} created.`);
 }
 
 async function setGroupSelectionLocked(

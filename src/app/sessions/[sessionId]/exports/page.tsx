@@ -9,6 +9,7 @@ import {
   getPairagogieExportContext,
   getSessionExportMetadataRecord
 } from '@/lib/exports/repository';
+import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionExportsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -45,6 +46,8 @@ export default async function SessionExportsPage({
     notFound();
   }
 
+  await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/exports`);
+
   const active = await getActiveExportVersions();
   const context = await getPairagogieExportContext(sessionId);
   const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
@@ -62,15 +65,15 @@ export default async function SessionExportsPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
-            Session hub
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
+            AI scoring
           </Link>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports/settings`}>
             Settings
           </Link>
         </>
       }
-      currentStep={6}
+      currentStep={5}
       description="Validate the export template, review the active mapping, and download the final files."
       sessionId={sessionId}
       slug={session.slug}
@@ -124,7 +127,7 @@ export default async function SessionExportsPage({
             ['Subject', metadata.subject],
             ['Season', metadata.season],
             ['Professor name', metadata.professorName],
-            ['Session date', metadata.sessionDate]
+            ['Presentation date', metadata.sessionDate]
           ].map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
               <p className="ui-section-title">{label}</p>

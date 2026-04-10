@@ -2,9 +2,12 @@ import Link from 'next/link';
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
+import { saveExportMetadataAction } from '@/app/sessions/[sessionId]/exports/actions';
 import { AdminShell } from '@/components/admin-shell';
 import { SessionStudentImport } from '@/components/session-student-import';
 import { db, sessionStudents, sessions } from '@/db';
+import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
+import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionStudentsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -30,6 +33,9 @@ export default async function SessionStudentsPage({
     notFound();
   }
 
+  await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/students`);
+
+  const metadata = await getSessionExportMetadataRecord(sessionId, session[0].title);
   const students = await db
     .select({
       id: sessionStudents.id,
@@ -50,11 +56,11 @@ export default async function SessionStudentsPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
-            Session hub
-          </Link>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
             Groups
+          </Link>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/order`}>
+            Order
           </Link>
           <Link className="ui-button ui-button-primary" href="/sessions">
             Sessions list
@@ -62,12 +68,56 @@ export default async function SessionStudentsPage({
         </>
       }
       currentStep={1}
-      description="Upload or paste the student roster, then review imported rows."
+      description="Set the Pairagogie session metadata and import the student roster."
       sessionId={sessionId}
       slug={session[0].slug}
-      subtitle="Student import"
-      title={`${session[0].title} · Students`}
+      subtitle="Pairagogie setup"
+      title={`${session[0].title} · Pairagogie setup`}
     >
+      <section className="ui-panel grid gap-5 p-6">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Pairagogie session metadata</h2>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
+            Save the session details used by exports, then import the student roster below.
+          </p>
+        </div>
+
+        <form action={saveExportMetadataAction} className="grid gap-4">
+          <input name="sessionId" type="hidden" value={sessionId} />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {[
+              ['programme', 'Programme', metadata.programme, 'text'],
+              ['className', 'Class name', metadata.className, 'text'],
+              ['subject', 'Subject', metadata.subject, 'text'],
+              ['professorName', 'Professor name', metadata.professorName, 'text'],
+              ['sessionDate', 'Presentation date', metadata.sessionDate, 'text']
+            ].map(([name, label, value, type]) => (
+              <label key={name} className="grid gap-2 text-sm font-medium">
+                {label}
+                <input className="ui-input" defaultValue={value} name={name} type={type} />
+              </label>
+            ))}
+
+            <label className="grid gap-2 text-sm font-medium">
+              Season
+              <select className="ui-select" defaultValue={metadata.season} name="season" required>
+                <option disabled value="">
+                  Choose season
+                </option>
+                <option value="Fall">Fall</option>
+                <option value="Spring">Spring</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex justify-end">
+            <button className="ui-button ui-button-primary" type="submit">
+              Save Pairagogie setup
+            </button>
+          </div>
+        </form>
+      </section>
+
       <SessionStudentImport
         existingEmails={students.map((student) => student.schoolEmail)}
         sessionId={sessionId}

@@ -33,6 +33,7 @@ export const sessions = pgTable(
     groupSelectionLockedAt: timestamp('group_selection_locked_at', { withTimezone: true }),
     presentationOrderLocked: boolean('presentation_order_locked').notNull().default(false),
     presentationOrderLockedAt: timestamp('presentation_order_locked_at', { withTimezone: true }),
+    lastAdminPath: text('last_admin_path'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },

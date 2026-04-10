@@ -7,6 +7,7 @@ import { EvaluationWorkspaceClient } from '@/components/evaluation-workspace';
 import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import { getEvaluationWorkspace } from '@/lib/evaluation/repository';
+import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionEvaluationPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -42,6 +43,8 @@ export default async function SessionEvaluationPage({
     notFound();
   }
 
+  await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/evaluation`);
+
   const workspace = await getEvaluationWorkspace(sessionId);
   const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
   const initialGroupId =
@@ -53,24 +56,24 @@ export default async function SessionEvaluationPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
-            Session hub
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/order`}>
+            Order
           </Link>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
             Exports
           </Link>
         </>
       }
-      currentStep={5}
+      currentStep={4}
       description="Evaluate groups in presentation order, save live notes, and generate advisory AI support one group at a time."
       sessionId={sessionId}
       slug={session.slug}
-      subtitle="Evaluation workspace"
+      subtitle="AI scoring & feedback"
       title={session.title}
     >
       <section className="ui-panel grid gap-4 p-5">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Step 5 is the live evaluation workspace</h2>
+          <h2 className="text-lg font-semibold">Step 4 is the live evaluation workspace</h2>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
             Presentation order is visible here. Teacher notes autosave, AI support is per group, and
             the final score remains teacher-controlled.
@@ -84,7 +87,7 @@ export default async function SessionEvaluationPage({
             ['Subject', metadata.subject],
             ['Season', metadata.season],
             ['Professor', metadata.professorName],
-            ['Date', metadata.sessionDate]
+            ['Presentation date', metadata.sessionDate]
           ].map(([label, value]) => (
             <div
               key={label}

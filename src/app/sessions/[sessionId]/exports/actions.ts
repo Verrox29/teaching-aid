@@ -19,12 +19,14 @@ import { validatePairagogieTemplateBuffer } from '@/lib/exports/validator';
 
 const settingsPath = (sessionId: string) => `/sessions/${sessionId}/exports/settings`;
 const exportsPath = (sessionId: string) => `/sessions/${sessionId}/exports`;
+const studentsPath = (sessionId: string) => `/sessions/${sessionId}/students`;
+const evaluationPath = (sessionId: string) => `/sessions/${sessionId}/evaluation`;
 
 const metadataSchema = z.object({
   className: z.string().trim().optional().default(''),
   professorName: z.string().trim().optional().default(''),
   programme: z.string().trim().optional().default(''),
-  season: z.string().trim().optional().default(''),
+  season: z.enum(['Fall', 'Spring']).or(z.literal('')).optional().default(''),
   sessionDate: z.string().trim().optional().default(''),
   subject: z.string().trim().optional().default(''),
   sessionId: z.string().uuid('Invalid session id')
@@ -132,6 +134,8 @@ export async function saveExportMetadataAction(
   const { sessionId, ...metadata } = parsed.data;
   await upsertSessionExportMetadata(sessionId, metadata as SessionExportMetadata);
 
+  revalidatePath(studentsPath(sessionId));
+  revalidatePath(evaluationPath(sessionId));
   revalidatePath(settingsPath(sessionId));
   revalidatePath(exportsPath(sessionId));
   redirectWithNotice(sessionId, 'notice', 'Export metadata saved.');

@@ -2,16 +2,16 @@ import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { saveExportMappingAction, saveExportMetadataAction, saveExportTemplateAction } from '../actions';
+import { saveExportMappingAction, saveExportTemplateAction } from '../actions';
 
 import { AdminShell } from '@/components/admin-shell';
 import { db, sessions } from '@/db';
 import {
   getActiveExportVersions,
-  getSessionExportMetadataRecord,
   listExportMappingVersions,
   listExportTemplateVersions
 } from '@/lib/exports/repository';
+import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionExportSettingsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -48,8 +48,9 @@ export default async function SessionExportSettingsPage({
     notFound();
   }
 
+  await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/exports/settings`);
+
   const active = await getActiveExportVersions();
-  const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
   const templateVersions = await listExportTemplateVersions();
   const mappingVersions = await listExportMappingVersions();
 
@@ -60,16 +61,16 @@ export default async function SessionExportSettingsPage({
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
             Back to exports
           </Link>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
-            Session hub
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
+            AI scoring
           </Link>
         </>
       }
-      currentStep={6}
-      description="Manage the active Pairagogie template, mapping, and export metadata."
+      currentStep={5}
+      description="Manage the active Pairagogie template and mapping."
       sessionId={sessionId}
       slug={session.slug}
-      subtitle="Export settings"
+      subtitle="Main admin settings"
       title={session.title}
     >
       {notice || error ? (
@@ -97,39 +98,6 @@ export default async function SessionExportSettingsPage({
             Template version: {active.mapping.templateVersion}
           </p>
         </div>
-      </section>
-
-      <section className="ui-panel grid gap-5 p-6">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Export metadata</h2>
-          <p className="text-sm text-[color:var(--app-fg-muted)]">
-            These fields feed the template and grades CSV.
-          </p>
-        </div>
-
-        <form action={saveExportMetadataAction} className="grid gap-4">
-          <input name="sessionId" type="hidden" value={sessionId} />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {[
-              ['programme', 'Programme', metadata.programme],
-              ['className', 'Class name', metadata.className],
-              ['subject', 'Subject', metadata.subject],
-              ['season', 'Season', metadata.season],
-              ['professorName', 'Professor name', metadata.professorName],
-              ['sessionDate', 'Session date', metadata.sessionDate]
-            ].map(([name, label, value]) => (
-              <label key={name} className="grid gap-2 text-sm font-medium">
-                {label}
-                <input className="ui-input" name={name} defaultValue={value} type="text" />
-              </label>
-            ))}
-          </div>
-          <div className="flex justify-end">
-            <button className="ui-button ui-button-primary" type="submit">
-              Save metadata
-            </button>
-          </div>
-        </form>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">

@@ -86,7 +86,7 @@ export default async function SessionsPage() {
                       className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
                       href={`/sessions/${session.id}`}
                     >
-                      Hub
+                      Resume
                     </Link>
                     <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
                     <Link
@@ -100,7 +100,7 @@ export default async function SessionsPage() {
                       className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
                       href={`/sessions/${session.id}/students`}
                     >
-                      Students
+                      Setup
                     </Link>
                     <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
                     <Link

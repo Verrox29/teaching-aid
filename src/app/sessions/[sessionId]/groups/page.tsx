@@ -11,6 +11,7 @@ import {
 import { AdminShell } from '@/components/admin-shell';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
 import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
+import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionGroupsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -52,6 +53,7 @@ export default async function SessionGroupsPage({
   }
 
   const session = sessionRows[0];
+  await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/groups`);
 
   const groupRows = await db
     .select({
@@ -118,7 +120,7 @@ export default async function SessionGroupsPage({
       actions={
         <>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
-            Session hub
+            Resume
           </Link>
           <Link className="ui-button ui-button-secondary" href={`/s/${session.slug}`}>
             Public page
@@ -196,7 +198,6 @@ export default async function SessionGroupsPage({
         error={error}
         errorGroupId={errorGroupId}
         errorStudentId={errorStudentId}
-        groupCount={session.groupCount}
         groups={groupsWithMembers}
         notice={notice}
         sessionId={sessionId}

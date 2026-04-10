@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
 
 import {
+  createGroupAction,
   deleteGroupAction,
   saveGroupsAction
 } from '@/app/sessions/[sessionId]/groups/actions';
@@ -34,7 +35,6 @@ type SessionGroupsBoardProps = {
   error?: string;
   errorGroupId?: string;
   errorStudentId?: string;
-  groupCount: number;
   groups: InitialGroupRecord[];
   notice?: string;
   sessionId: string;
@@ -112,7 +112,6 @@ export function SessionGroupsBoard({
   error,
   errorGroupId,
   errorStudentId,
-  groupCount,
   groups: initialGroups,
   notice,
   sessionId,
@@ -394,8 +393,8 @@ export function SessionGroupsBoard({
           <p className="mt-2 text-3xl font-semibold">{unassignedStudents.length}</p>
         </div>
         <div className="ui-card p-4">
-          <p className="ui-section-title">Total groups</p>
-          <p className="mt-2 text-3xl font-semibold">{groupCount}</p>
+          <p className="ui-section-title">Created groups</p>
+          <p className="mt-2 text-3xl font-semibold">{groups.length}</p>
         </div>
         <div className="ui-card p-4">
           <p className="ui-section-title">Seats remaining</p>
@@ -426,26 +425,33 @@ export function SessionGroupsBoard({
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">{sessionTitle} groups</h2>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Default group capacity: {defaultGroupCapacity}. Drag students between the sidebar and
-            groups, then save the changed cards.
+            Default group capacity: {defaultGroupCapacity}. Create new groups at any time, drag
+            students between the sidebar and groups, then save the changed cards.
           </p>
         </div>
 
-        {groups.length > 0 ? (
-          <form
-            action={saveGroupsAction}
-            className="flex items-center gap-2"
-            onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
-          >
+        <div className="flex flex-wrap items-center gap-2">
+          <form action={createGroupAction}>
             <input name="sessionId" type="hidden" value={sessionId} />
-            <input name="groupsJson" type="hidden" value={groupsJson} />
-            <button className="ui-button ui-button-primary" type="submit">
-              Save all groups
+            <button className="ui-button ui-button-secondary" type="submit">
+              Create new group
             </button>
           </form>
-        ) : (
-          <p className="text-sm text-[color:var(--app-fg-muted)]">Create default groups to unlock saving.</p>
-        )}
+
+          {groups.length > 0 ? (
+            <form
+              action={saveGroupsAction}
+              className="flex items-center gap-2"
+              onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
+            >
+              <input name="sessionId" type="hidden" value={sessionId} />
+              <input name="groupsJson" type="hidden" value={groupsJson} />
+              <button className="ui-button ui-button-primary" type="submit">
+                Save all groups
+              </button>
+            </form>
+          ) : null}
+        </div>
       </div>
 
       <div
