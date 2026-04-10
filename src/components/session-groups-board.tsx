@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
 
 import {
+  deleteGroupAction,
   saveGroupsAction
 } from '@/app/sessions/[sessionId]/groups/actions';
 
@@ -606,6 +607,28 @@ export function SessionGroupsBoard({
                         type="submit"
                       >
                         {dirty ? 'Update and save' : 'Save group'}
+                      </button>
+                    </form>
+
+                    <form
+                      action={deleteGroupAction}
+                      onSubmit={(event) => {
+                        if (
+                          !window.confirm(
+                            `Delete ${group.name}? This removes the group and its memberships.`
+                          )
+                        ) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
+                      <input name="sessionId" type="hidden" value={sessionId} />
+                      <input name="groupId" type="hidden" value={group.id} />
+                      <button
+                        className="inline-flex items-center justify-center rounded-md border border-rose-200 px-4 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
+                        type="submit"
+                      >
+                        Delete group
                       </button>
                     </form>
                   </div>

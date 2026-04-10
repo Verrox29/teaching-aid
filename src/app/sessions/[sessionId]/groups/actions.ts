@@ -27,6 +27,11 @@ const updateGroupSchema = z.object({
     .positive('Capacity must be greater than 0')
 });
 
+const deleteGroupSchema = z.object({
+  sessionId: z.string().uuid('Invalid session id'),
+  groupId: z.string().uuid('Invalid group id')
+});
+
 const membershipSchema = z.object({
   sessionId: z.string().uuid('Invalid session id'),
   sessionStudentId: z.string().uuid('Invalid student id'),
@@ -190,7 +195,9 @@ export async function createDefaultGroupsAction(formData: FormData): Promise<nev
   );
 
   revalidatePath(groupsPath(parsed.data.sessionId));
+  revalidatePath(`/sessions/${parsed.data.sessionId}/order`);
   revalidatePath(`/sessions/${parsed.data.sessionId}`);
+  revalidatePath(`/s/${session.slug}`);
   revalidatePath('/sessions');
   redirectWithMessage(parsed.data.sessionId, 'notice', 'Default groups created.');
 }
@@ -307,6 +314,51 @@ export async function updateGroupAction(formData: FormData): Promise<never> {
 
   revalidatePath(groupsPath(parsed.data.sessionId));
   redirectWithMessage(parsed.data.sessionId, 'notice', 'Group updated.');
+}
+
+export async function deleteGroupAction(formData: FormData): Promise<never> {
+  const parsed = deleteGroupSchema.safeParse({
+    sessionId: String(formData.get('sessionId') ?? ''),
+    groupId: String(formData.get('groupId') ?? '')
+  });
+
+  if (!parsed.success) {
+    redirectWithMessage(
+      String(formData.get('sessionId') ?? 'invalid'),
+      'error',
+      'Please choose a valid group to delete.'
+    );
+  }
+
+  const group = await getGroup(parsed.data.sessionId, parsed.data.groupId);
+  if (!group) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Group not found.');
+  }
+
+  const session = await getSession(parsed.data.sessionId);
+  if (!session) {
+    redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(groupMembers).where(
+      and(
+        eq(groupMembers.sessionId, parsed.data.sessionId),
+        eq(groupMembers.groupId, parsed.data.groupId)
+      )
+    );
+
+    await tx.delete(groups).where(
+      and(eq(groups.id, parsed.data.groupId), eq(groups.sessionId, parsed.data.sessionId))
+    );
+  });
+
+  revalidatePath(groupsPath(parsed.data.sessionId));
+  revalidatePath(`/sessions/${parsed.data.sessionId}/order`);
+  revalidatePath(`/sessions/${parsed.data.sessionId}`);
+  revalidatePath(`/s/${session.slug}`);
+  revalidatePath('/sessions');
+  redirectWithMessage(parsed.data.sessionId, 'notice', 'Group deleted.');
 }
 
 export async function assignStudentAction(formData: FormData): Promise<never> {

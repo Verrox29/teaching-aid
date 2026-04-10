@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminTimelineNav } from '@/components/admin-timeline-nav';
-import { db, sessions } from '@/db';
+import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
 
 type SessionPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -31,13 +31,42 @@ export default async function SessionPage({ params }: SessionPageProps) {
     notFound();
   }
 
+  const studentRows = await db
+    .select({ id: sessionStudents.id })
+    .from(sessionStudents)
+    .where(eq(sessionStudents.sessionId, sessionId));
+
+  const membershipRows = await db
+    .select({ groupId: groupMembers.groupId })
+    .from(groupMembers)
+    .where(eq(groupMembers.sessionId, sessionId));
+
+  const groupRows = await db
+    .select({
+      id: groups.id,
+      name: groups.name,
+      capacity: groups.capacity,
+      createdAt: groups.createdAt
+    })
+    .from(groups)
+    .where(eq(groups.sessionId, sessionId))
+    .orderBy(asc(groups.createdAt));
+
+  const assignedCount = membershipRows.length;
+  const totalStudents = studentRows.length;
+  const unassignedCount = Math.max(0, totalStudents - assignedCount);
+  const membersByGroup = new Map<string, number>();
+  for (const member of membershipRows) {
+    membersByGroup.set(member.groupId, (membersByGroup.get(member.groupId) ?? 0) + 1);
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-8">
-      <AdminTimelineNav currentStep={1} sessionId={sessionId} slug={session.slug} />
+      <AdminTimelineNav currentStep={3} sessionId={sessionId} slug={session.slug} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <p className="text-sm text-slate-500">Session hub</p>
+          <p className="text-sm text-slate-500">Group enrolment</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
             {session?.title ?? sessionId}
           </h1>
@@ -68,6 +97,81 @@ export default async function SessionPage({ params }: SessionPageProps) {
           Back to sessions
         </Link>
       </div>
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Students</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-900">{totalStudents}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-900">{assignedCount}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Unassigned</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-900">{unassignedCount}</p>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-slate-900">Enrolment status</h2>
+          <p className="text-sm text-slate-600">
+            Use the group creation page to edit groups and capacities, then monitor the final
+            enrolment state here.
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          {groupRows.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
+              No groups have been created yet.
+            </div>
+          ) : (
+            groupRows.map((group) => {
+              const memberCount = membersByGroup.get(group.id) ?? 0;
+              const remainingSeats = group.capacity - memberCount;
+
+              return (
+                <div
+                  key={group.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-slate-900">{group.name}</div>
+                    <div className="text-sm text-slate-600">
+                      {memberCount} assigned · {remainingSeats} seat
+                      {remainingSeats === 1 ? '' : 's'} left
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                    {memberCount}/{group.capacity}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Link
+            className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-100"
+            href={`/sessions/${sessionId}/groups`}
+          >
+            <div className="text-sm font-medium text-slate-900">Group creation</div>
+            <div className="text-sm text-slate-600">
+              Manage groups, capacities, and membership changes.
+            </div>
+          </Link>
+          <Link
+            className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-100"
+            href={`/s/${session.slug}`}
+          >
+            <div className="text-sm font-medium text-slate-900">Public page</div>
+            <div className="text-sm text-slate-600">See the student-facing enrolment view.</div>
+          </Link>
+        </div>
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Link

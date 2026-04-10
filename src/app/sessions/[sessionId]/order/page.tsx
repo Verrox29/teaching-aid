@@ -5,12 +5,12 @@ import { notFound } from 'next/navigation';
 import {
   lockPresentationOrderAction,
   movePresentationOrderAction,
-  randomizePresentationOrderAction,
-  unlockPresentationOrderAction,
-  uploadGroupSubmissionAction
+  unlockPresentationOrderAction
 } from './actions';
 
 import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
+import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
 
 type SessionOrderPageProps = {
@@ -173,15 +173,11 @@ export default async function SessionOrderPage({
             </form>
           ) : (
             <>
-              <form action={randomizePresentationOrderAction}>
-                <input name="sessionId" type="hidden" value={sessionId} />
-                <button
-                  className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                  type="submit"
-                >
-                  Randomize order
-                </button>
-              </form>
+              <RandomizeOrderButton
+                disabled={currentStepLocked}
+                groupNames={orderedGroups.map((group) => group.name)}
+                sessionId={sessionId}
+              />
               <form action={lockPresentationOrderAction}>
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <button
@@ -274,41 +270,20 @@ export default async function SessionOrderPage({
                 </div>
 
                 <div className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <div className="text-sm text-slate-600">
-                    <p className="font-medium text-slate-900">Upload group work</p>
-                    <p>
-                      Attach one file for this group. The file name is stored with the submission.
-                    </p>
-                    {submission?.submittedAt ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Uploaded on{' '}
-                        {submission.submittedAt.toLocaleString('en-GB', {
-                          dateStyle: 'medium',
-                          timeStyle: 'short'
-                        })}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <form
-                    action={uploadGroupSubmissionAction}
-                    className="flex flex-wrap items-center gap-2 sm:justify-end"
-                    encType="multipart/form-data"
-                  >
-                    <input name="sessionId" type="hidden" value={sessionId} />
-                    <input name="groupId" type="hidden" value={group.id} />
-                    <input
-                      className="max-w-[16rem] text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-700"
-                      name="file"
-                      type="file"
-                    />
-                    <button
-                      className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-                      type="submit"
-                    >
-                      Upload file
-                    </button>
-                  </form>
+                  <GroupSubmissionDropzone
+                    fileName={submission?.fileName ?? null}
+                    groupId={group.id}
+                    groupName={group.name}
+                    sessionId={sessionId}
+                    submittedAt={
+                      submission?.submittedAt
+                        ? submission.submittedAt.toLocaleString('en-GB', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                          })
+                        : null
+                    }
+                  />
                 </div>
               </article>
             );
