@@ -39,6 +39,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
   - `REPORT des notes par étudiant`
   - cloned group sheets from `Fiche éval group 1`
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
+- Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
 - Session/business fields:
   - `programme`
   - `className`

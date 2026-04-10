@@ -85,7 +85,7 @@ export const DEFAULT_PAIRAGOGIE_MAPPING: PairagogieExportMapping = {
     studentNames: {
       column: 'B',
       kind: 'verticalRange',
-      maxRows: 9,
+      maxRows: 10,
       startRow: 7
     },
     rubricBlocks: {

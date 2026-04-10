@@ -133,7 +133,13 @@ Session/group fields:
 - `group.className` -> `B3:E3`
 - `group.subject` -> `B4:E4`
 - `group.titleLine` -> `B6`
-- `group.studentNames[]` -> `B7:B15`
+- `group.studentNames[]` -> `B7:B16`
+
+Expansion rule:
+
+- the base template shows 10 student rows
+- if a group has more than 10 students, the renderer shifts the evaluation block and comments downward, then copies template row styling into the new student rows
+- if the report sheet needs more rows than the template already contains, the renderer appends copied template rows downward
 
 Important note:
 
