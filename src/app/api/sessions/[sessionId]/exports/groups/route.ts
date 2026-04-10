@@ -6,6 +6,10 @@ import { getPairagogieExportContext } from '@/lib/exports/repository';
 
 export const runtime = 'nodejs';
 
+function buildGroupName(className: string, groupNumber: number) {
+  return `${className} - Group ${groupNumber}`;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
@@ -17,20 +21,26 @@ export async function GET(
     return NextResponse.json({ errors: ['Create at least one group before exporting.'] }, { status: 400 });
   }
 
-  const rows = context.groups.flatMap((group) =>
-    group.members.map((member) => ({
-      'Adresse de courriel': member.schoolEmail,
-      Note: group.evaluation?.totalScore ?? '',
-      Commentaire: group.evaluation?.finalFeedback ?? group.evaluation?.comments ?? ''
-    }))
-  );
+  const rows = context.groups.flatMap((group, index) => {
+    const groupNumber = group.presentationOrder ?? index + 1;
+    const groupName = buildGroupName(context.metadata.className, groupNumber);
+
+    return group.members.map((member) => ({
+      nom: member.lastName,
+      prenom: member.firstName,
+      username: member.schoolEmail,
+      code_groupe: groupName,
+      nom_groupe: groupName,
+      operation: 'AJOUT'
+    }));
+  });
 
   const csvBuffer = renderDelimitedCsvBuffer(rows);
 
   await saveExportHistory({
-    exportType: 'grades_csv',
+    exportType: 'groups_csv',
     metadata: {
-      columnCount: 3,
+      columnCount: 6,
       rowCount: rows.length
     },
     sessionId
@@ -38,7 +48,7 @@ export async function GET(
 
   return new NextResponse(csvBuffer, {
     headers: {
-      'Content-Disposition': `attachment; filename="grades-${context.session.slug}.csv"`,
+      'Content-Disposition': `attachment; filename="groups-${context.session.slug}.csv"`,
       'Content-Type': 'text/csv; charset=utf-8'
     }
   });

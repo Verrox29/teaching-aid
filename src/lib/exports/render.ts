@@ -576,6 +576,12 @@ function slugifyColumn(value: string) {
 }
 
 export function renderGradesCsvBuffer(rows: Array<Record<string, string | number | null | undefined>>) {
+  return renderDelimitedCsvBuffer(rows);
+}
+
+export function renderDelimitedCsvBuffer(
+  rows: Array<Record<string, string | number | null | undefined>>
+) {
   if (rows.length === 0) {
     return Buffer.from('', 'utf8');
   }

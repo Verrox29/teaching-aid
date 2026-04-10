@@ -152,6 +152,9 @@ export default async function SessionExportsPage({
           <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/grades`}>
             Download grades CSV
           </Link>
+          <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/groups`}>
+            Download groups CSV
+          </Link>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports/settings`}>
             Open settings
           </Link>
