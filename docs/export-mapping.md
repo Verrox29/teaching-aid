@@ -67,7 +67,8 @@ Template notes:
 
 ### Rubric table
 
-- Start row: `11`
+- Header row: `11`
+- Start row: `12`
 - Max rows: `20`
 - Columns:
   - label -> `A`
@@ -147,3 +148,4 @@ A visual remapping tool is out of scope for now.
 - This mapping is for the current template version only.
 - If the template changes, rubric labels and maximum points may change with it.
 - The app should stay versioned so template replacement remains manageable.
+- A debug export preview mode may write semantic labels into mapped cells for visual verification.

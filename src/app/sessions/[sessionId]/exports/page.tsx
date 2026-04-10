@@ -143,6 +143,12 @@ export default async function SessionExportsPage({
           <Link className="ui-button ui-button-primary" href={`/api/sessions/${sessionId}/exports/pairagogie`}>
             Download Pairagogie Excel
           </Link>
+          <Link
+            className="ui-button ui-button-secondary"
+            href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
+          >
+            Download debug preview
+          </Link>
           <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/grades`}>
             Download grades CSV
           </Link>

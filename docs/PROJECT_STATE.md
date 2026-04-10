@@ -23,7 +23,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Group lock / unlock
 - Presentation order & upload
 - AI scoring & feedback
-- Export architecture/module has been implemented in worktree and now needs validation in Local mode against the real repo files
+- Export architecture/module has been implemented and validated in Local mode against the real repo files, including a debug export preview for Pairagogie mapping review
 
 ## Current Export / Template Rules
 
@@ -35,6 +35,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Do not scatter hardcoded cell references
 - Keep formulas, merged cells, and styling from template
 - Rubric labels/max points come from template only
+- Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells
 - Session/business fields:
   - `programme`
   - `className`

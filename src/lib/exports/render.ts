@@ -27,6 +27,8 @@ type PairagogieWorkbookInput = {
   session: SessionExportMetadata;
 };
 
+type PairagogieRenderMode = 'normal' | 'debug';
+
 function setCell(sheet: XLSX.WorkSheet, address: string, value: string | number | null | undefined) {
   if (value === null || value === undefined || value === '') {
     return;
@@ -52,6 +54,18 @@ function setFormulaCell(sheet: XLSX.WorkSheet, address: string, formula: string,
   };
 }
 
+function adjacentCellAddress(address: string, columnOffset = 1) {
+  try {
+    const decoded = XLSX.utils.decode_cell(address);
+    return XLSX.utils.encode_cell({
+      c: decoded.c + columnOffset,
+      r: decoded.r
+    });
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeText(value: string | null | undefined) {
   return value?.trim() ?? '';
 }
@@ -61,12 +75,65 @@ function sanitizeSheetName(value: string) {
   return cleaned.slice(0, 31) || 'Pairagogie';
 }
 
+function setSemanticLabel(sheet: XLSX.WorkSheet, address: string, label: string) {
+  setCell(sheet, address, label);
+}
+
+function fillPairagogieDebugSheet(
+  sheet: XLSX.WorkSheet,
+  mapping: PairagogieExportMapping
+) {
+  setSemanticLabel(sheet, mapping.cells['session.programme'], 'session.programme');
+  setSemanticLabel(sheet, mapping.cells['session.className'], 'session.className');
+  setSemanticLabel(sheet, mapping.cells['session.subject'], 'session.subject');
+  setSemanticLabel(sheet, mapping.cells['session.season'], 'session.season');
+  setSemanticLabel(sheet, mapping.cells['session.professorName'], 'session.professorName');
+  setSemanticLabel(sheet, mapping.cells['session.sessionDate'], 'session.sessionDate');
+
+  setSemanticLabel(sheet, mapping.cells['group.name'], 'group.name');
+  setSemanticLabel(sheet, mapping.cells['group.presentationOrder'], 'group.presentationOrder');
+  setSemanticLabel(sheet, mapping.cells['group.submissionTitle'], 'group.submissionTitle');
+  setSemanticLabel(sheet, mapping.cells['group.memberCount'], 'group.memberCount');
+  setSemanticLabel(sheet, mapping.cells['group.members'], 'group.members');
+
+  const rubricStartRow = mapping.rubric.startRow;
+  for (let index = 0; index < mapping.rubric.maxRows; index += 1) {
+    const row = rubricStartRow + index;
+    const base = `rubric.criteria[${index + 1}]`;
+    setSemanticLabel(sheet, `${mapping.rubric.columns.label}${row}`, `${base}.label`);
+    setSemanticLabel(sheet, `${mapping.rubric.columns.maxScore}${row}`, `${base}.maxScore`);
+    setSemanticLabel(sheet, `${mapping.rubric.columns.score}${row}`, `${base}.score`);
+    setSemanticLabel(sheet, `${mapping.rubric.columns.feedback}${row}`, `${base}.feedback`);
+    setSemanticLabel(sheet, `${mapping.rubric.columns.aiDraft}${row}`, `${base}.aiDraft`);
+  }
+
+  const totalScoreAddress = mapping.cells['rubric.totalScore'];
+  const adjacentAddress = adjacentCellAddress(totalScoreAddress);
+  if (adjacentAddress && adjacentAddress !== totalScoreAddress) {
+    setSemanticLabel(
+      sheet,
+      adjacentAddress,
+      `rubric.totalScore (formula kept at ${totalScoreAddress})`
+    );
+  }
+
+  setSemanticLabel(sheet, mapping.cells['rubric.teacherNotes'], 'rubric.teacherNotes');
+  setSemanticLabel(sheet, mapping.cells['rubric.finalFeedback'], 'rubric.finalFeedback');
+  setSemanticLabel(sheet, mapping.cells['rubric.challengeQuestions'], 'rubric.challengeQuestions');
+}
+
 function fillPairagogieSheet(
   sheet: XLSX.WorkSheet,
   mapping: PairagogieExportMapping,
   input: PairagogieGroupExportInput,
-  session: SessionExportMetadata
+  session: SessionExportMetadata,
+  mode: PairagogieRenderMode
 ) {
+  if (mode === 'debug') {
+    fillPairagogieDebugSheet(sheet, mapping);
+    return;
+  }
+
   setCell(sheet, mapping.cells['session.programme'], sanitizeText(session.programme));
   setCell(sheet, mapping.cells['session.className'], sanitizeText(session.className));
   setCell(sheet, mapping.cells['session.subject'], sanitizeText(session.subject));
@@ -132,7 +199,8 @@ function fillPairagogieSheet(
 export function renderPairagogieWorkbookBuffer(
   templateBuffer: Buffer,
   mapping: PairagogieExportMapping,
-  input: PairagogieWorkbookInput
+  input: PairagogieWorkbookInput,
+  options: { mode?: PairagogieRenderMode } = {}
 ) {
   const workbook = XLSX.read(templateBuffer, { cellFormula: true, cellStyles: true });
   const baseSheet = workbook.Sheets[mapping.sheetName];
@@ -141,13 +209,24 @@ export function renderPairagogieWorkbookBuffer(
     throw new Error(`Missing required sheet "${mapping.sheetName}".`);
   }
 
-  const baseName = mapping.sheetName;
+  const mode = options.mode ?? 'normal';
   const sheetEntries: Array<[string, XLSX.WorkSheet]> = [];
+  const usedSheetNames = new Set<string>();
 
   input.groups.forEach((group, index) => {
     const clone = structuredClone(baseSheet) as XLSX.WorkSheet;
-    fillPairagogieSheet(clone, mapping, group, input.session);
-    const sheetName = sanitizeSheetName(`${group.groupName || baseName} ${index + 1}`);
+    fillPairagogieSheet(clone, mapping, group, input.session, mode);
+
+    const preferredName = group.groupName || `Group ${index + 1}`;
+    const sheetNameBase = sanitizeSheetName(preferredName);
+    let sheetName = sheetNameBase;
+    let suffix = 2;
+    while (usedSheetNames.has(sheetName)) {
+      sheetName = sanitizeSheetName(`${sheetNameBase} ${suffix}`);
+      suffix += 1;
+    }
+    usedSheetNames.add(sheetName);
+
     sheetEntries.push([sheetName, clone]);
   });
 

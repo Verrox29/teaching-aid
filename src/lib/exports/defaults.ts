@@ -27,7 +27,7 @@ export const DEFAULT_PAIRAGOGIE_MAPPING: PairagogieExportMapping = {
     'rubric.challengeQuestions': 'B39'
   },
   rubric: {
-    startRow: 11,
+    startRow: 12,
     maxRows: 20,
     columns: {
       label: 'A',

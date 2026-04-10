@@ -7,11 +7,13 @@ import { getPairagogieExportContext } from '@/lib/exports/repository';
 export const runtime = 'nodejs';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
   const context = await getPairagogieExportContext(sessionId);
+  const searchParams = new URL(request.url).searchParams;
+  const isDebug = searchParams.get('debug') === '1' || searchParams.get('debug') === 'true';
 
   if (context.validationIssues.length > 0) {
     return NextResponse.json(
@@ -38,11 +40,14 @@ export async function GET(
       totalScore: group.evaluation?.totalScore ?? null
     })),
     session: context.metadata
+  }, {
+    mode: isDebug ? 'debug' : 'normal'
   });
 
   await saveExportHistory({
-    exportType: 'pairagogie_xlsx',
+    exportType: isDebug ? 'pairagogie_xlsx_debug' : 'pairagogie_xlsx',
     metadata: {
+      debug: isDebug,
       mappingVersion: context.version.mapping,
       rowCount: context.groups.length,
       templateVersion: context.version.template
@@ -52,7 +57,7 @@ export async function GET(
 
   return new NextResponse(new Uint8Array(workbookBuffer), {
     headers: {
-      'Content-Disposition': `attachment; filename="pairagogie-${context.session.slug}.xlsx"`,
+      'Content-Disposition': `attachment; filename="pairagogie${isDebug ? '-debug' : ''}-${context.session.slug}.xlsx"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     }
   });
