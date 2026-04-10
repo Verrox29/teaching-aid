@@ -35,7 +35,10 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Do not scatter hardcoded cell references
 - Keep formulas, merged cells, and styling from template
 - Rubric labels/max points come from template only
-- Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells
+- Pairagogie export uses the real two-sheet workbook structure:
+  - `REPORT des notes par étudiant`
+  - cloned group sheets from `Fiche éval group 1`
+- Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Session/business fields:
   - `programme`
   - `className`

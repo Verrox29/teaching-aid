@@ -114,6 +114,15 @@ function getDefaultMetadata(sessionTitle: string): SessionExportMetadata {
   };
 }
 
+function hasStructuredPairagogieMapping(input: unknown): input is PairagogieExportMapping {
+  if (!input || typeof input !== 'object') {
+    return false;
+  }
+
+  const record = input as Partial<PairagogieExportMapping>;
+  return Boolean(record.reportSheet && record.groupSheet);
+}
+
 async function loadDefaultTemplateBuffer() {
   return readFile(DEFAULT_PAIRAGOGIE_TEMPLATE_PATH);
 }
@@ -182,6 +191,10 @@ export async function getActiveExportVersions() {
       updatedAt: new Date(),
       version: DEFAULT_EXPORT_MAPPING_VERSION
     } satisfies ExportMappingVersionRecord);
+
+  if (!hasStructuredPairagogieMapping(mapping.mappingJson)) {
+    mapping.mappingJson = DEFAULT_PAIRAGOGIE_MAPPING;
+  }
 
   return { mapping, settings, template };
 }

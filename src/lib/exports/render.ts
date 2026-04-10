@@ -1,6 +1,10 @@
 import * as XLSX from 'xlsx';
 
-import type { PairagogieExportMapping, SessionExportMetadata } from './types';
+import type {
+  PairagogieExportMapping,
+  PairagogieRubricBlockMapping,
+  SessionExportMetadata
+} from './types';
 
 type EvaluationCriterionRow = {
   feedback?: string | null;
@@ -29,41 +33,36 @@ type PairagogieWorkbookInput = {
 
 type PairagogieRenderMode = 'normal' | 'debug';
 
+type ReportRowInput = {
+  firstName: string;
+  groupName: string;
+  lastName: string;
+  remarks: string;
+  totalScore: number | null;
+};
+
 function setCell(sheet: XLSX.WorkSheet, address: string, value: string | number | null | undefined) {
+  const cell = (sheet[address] ?? {}) as XLSX.CellObject;
   if (value === null || value === undefined || value === '') {
+    cell.t = 's';
+    cell.v = '';
+    delete cell.f;
+    sheet[address] = cell;
     return;
   }
 
-  sheet[address] = sheet[address] ?? { t: typeof value === 'number' ? 'n' : 's', v: value };
-  sheet[address].v = value;
-  sheet[address].t = typeof value === 'number' ? 'n' : 's';
-}
-
-function setRichMergedValue(sheet: XLSX.WorkSheet, address: string, value: string) {
-  const cell = sheet[address] ?? { t: 's', v: value };
-  cell.t = 's';
+  cell.t = typeof value === 'number' ? 'n' : 's';
   cell.v = value;
+  delete cell.f;
   sheet[address] = cell;
 }
 
 function setFormulaCell(sheet: XLSX.WorkSheet, address: string, formula: string, value: number) {
-  sheet[address] = {
-    t: 'n',
-    f: formula,
-    v: value
-  };
-}
-
-function adjacentCellAddress(address: string, columnOffset = 1) {
-  try {
-    const decoded = XLSX.utils.decode_cell(address);
-    return XLSX.utils.encode_cell({
-      c: decoded.c + columnOffset,
-      r: decoded.r
-    });
-  } catch {
-    return null;
-  }
+  const cell = (sheet[address] ?? {}) as XLSX.CellObject;
+  cell.t = 'n';
+  cell.f = formula;
+  cell.v = value;
+  sheet[address] = cell;
 }
 
 function sanitizeText(value: string | null | undefined) {
@@ -72,128 +71,276 @@ function sanitizeText(value: string | null | undefined) {
 
 function sanitizeSheetName(value: string) {
   const cleaned = value.replace(/[\[\]\*\/\\\?:]/g, ' ').trim();
-  return cleaned.slice(0, 31) || 'Pairagogie';
+  return cleaned.slice(0, 31) || 'Group';
 }
 
-function setSemanticLabel(sheet: XLSX.WorkSheet, address: string, label: string) {
-  setCell(sheet, address, label);
-}
-
-function fillPairagogieDebugSheet(
-  sheet: XLSX.WorkSheet,
-  mapping: PairagogieExportMapping
-) {
-  setSemanticLabel(sheet, mapping.cells['session.programme'], 'session.programme');
-  setSemanticLabel(sheet, mapping.cells['session.className'], 'session.className');
-  setSemanticLabel(sheet, mapping.cells['session.subject'], 'session.subject');
-  setSemanticLabel(sheet, mapping.cells['session.season'], 'session.season');
-  setSemanticLabel(sheet, mapping.cells['session.professorName'], 'session.professorName');
-  setSemanticLabel(sheet, mapping.cells['session.sessionDate'], 'session.sessionDate');
-
-  setSemanticLabel(sheet, mapping.cells['group.name'], 'group.name');
-  setSemanticLabel(sheet, mapping.cells['group.presentationOrder'], 'group.presentationOrder');
-  setSemanticLabel(sheet, mapping.cells['group.submissionTitle'], 'group.submissionTitle');
-  setSemanticLabel(sheet, mapping.cells['group.memberCount'], 'group.memberCount');
-  setSemanticLabel(sheet, mapping.cells['group.members'], 'group.members');
-
-  const rubricStartRow = mapping.rubric.startRow;
-  for (let index = 0; index < mapping.rubric.maxRows; index += 1) {
-    const row = rubricStartRow + index;
-    const base = `rubric.criteria[${index + 1}]`;
-    setSemanticLabel(sheet, `${mapping.rubric.columns.label}${row}`, `${base}.label`);
-    setSemanticLabel(sheet, `${mapping.rubric.columns.maxScore}${row}`, `${base}.maxScore`);
-    setSemanticLabel(sheet, `${mapping.rubric.columns.score}${row}`, `${base}.score`);
-    setSemanticLabel(sheet, `${mapping.rubric.columns.feedback}${row}`, `${base}.feedback`);
-    setSemanticLabel(sheet, `${mapping.rubric.columns.aiDraft}${row}`, `${base}.aiDraft`);
+function buildSubjectProgramme(metadata: SessionExportMetadata) {
+  const subject = sanitizeText(metadata.subject);
+  const programme = sanitizeText(metadata.programme);
+  if (subject && programme) {
+    return `${subject} - ${programme}`;
   }
+  return subject || programme;
+}
 
-  const totalScoreAddress = mapping.cells['rubric.totalScore'];
-  const adjacentAddress = adjacentCellAddress(totalScoreAddress);
-  if (adjacentAddress && adjacentAddress !== totalScoreAddress) {
-    setSemanticLabel(
+function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[] {
+  return input.groups.flatMap((group) =>
+    group.groupMemberNames.map((memberName) => {
+      const [firstName, ...lastNameParts] = memberName.trim().split(/\s+/);
+      return {
+        firstName: firstName ?? '',
+        groupName: group.groupName,
+        lastName: lastNameParts.join(' '),
+        remarks: sanitizeText(group.finalFeedback ?? group.teacherNotes),
+        totalScore: group.totalScore ?? null
+      };
+    })
+  );
+}
+
+function clearVerticalRange(
+  sheet: XLSX.WorkSheet,
+  column: string,
+  startRow: number,
+  maxRows: number
+) {
+  for (let index = 0; index < maxRows; index += 1) {
+    delete sheet[`${column}${startRow + index}`];
+  }
+}
+
+function fillReportSheet(
+  sheet: XLSX.WorkSheet,
+  mapping: PairagogieExportMapping['reportSheet'],
+  input: PairagogieWorkbookInput,
+  mode: PairagogieRenderMode
+) {
+  const rows = buildStudentReportRows(input);
+  const visibleRows = mode === 'debug'
+    ? Math.max(
+        rows.length,
+        3
+      )
+    : rows.length;
+
+  setCell(
+    sheet,
+    mapping.header.professorName.address,
+    mode === 'debug' ? 'report.professorName' : sanitizeText(input.session.professorName)
+  );
+  setCell(
+    sheet,
+    mapping.header.sessionDate.address,
+    mode === 'debug' ? 'report.sessionDate' : sanitizeText(input.session.sessionDate)
+  );
+  setCell(
+    sheet,
+    mapping.header.subjectProgramme.address,
+    mode === 'debug' ? 'report.subject + report.programme' : buildSubjectProgramme(input.session)
+  );
+  setCell(
+    sheet,
+    mapping.header.className.address,
+    mode === 'debug' ? 'report.className' : sanitizeText(input.session.className)
+  );
+  setCell(
+    sheet,
+    mapping.header.season.address,
+    mode === 'debug' ? 'report.season' : sanitizeText(input.session.season)
+  );
+
+  for (let index = 0; index < mapping.studentRows.maxRows; index += 1) {
+    const rowNumber = mapping.studentRows.startRow + index;
+    const row = rows[index];
+    const labelIndex = index + 1;
+    setCell(
       sheet,
-      adjacentAddress,
-      `rubric.totalScore (formula kept at ${totalScoreAddress})`
+      `${mapping.studentRows.columns.firstName}${rowNumber}`,
+      mode === 'debug'
+        ? index < visibleRows
+          ? `report.students[${labelIndex}].firstName`
+          : ''
+        : row?.firstName ?? ''
+    );
+    setCell(
+      sheet,
+      `${mapping.studentRows.columns.lastName}${rowNumber}`,
+      mode === 'debug'
+        ? index < visibleRows
+          ? `report.students[${labelIndex}].lastName`
+          : ''
+        : row?.lastName ?? ''
+    );
+    setCell(
+      sheet,
+      `${mapping.studentRows.columns.groupName}${rowNumber}`,
+      mode === 'debug'
+        ? index < visibleRows
+          ? `report.students[${labelIndex}].groupName`
+          : ''
+        : row?.groupName ?? ''
+    );
+    setCell(
+      sheet,
+      `${mapping.studentRows.columns.totalScore}${rowNumber}`,
+      mode === 'debug'
+        ? index < visibleRows
+          ? `report.students[${labelIndex}].totalScore`
+          : ''
+        : row?.totalScore ?? ''
+    );
+    setCell(
+      sheet,
+      `${mapping.studentRows.columns.remarks}${rowNumber}`,
+      mode === 'debug'
+        ? index < visibleRows
+          ? `report.students[${labelIndex}].remarks`
+          : ''
+        : row?.remarks ?? ''
     );
   }
-
-  setSemanticLabel(sheet, mapping.cells['rubric.teacherNotes'], 'rubric.teacherNotes');
-  setSemanticLabel(sheet, mapping.cells['rubric.finalFeedback'], 'rubric.finalFeedback');
-  setSemanticLabel(sheet, mapping.cells['rubric.challengeQuestions'], 'rubric.challengeQuestions');
 }
 
-function fillPairagogieSheet(
+function getCriteriaForBlock(
+  criteria: EvaluationCriterionRow[],
+  block: PairagogieRubricBlockMapping,
+  blockOffset: number
+) {
+  return criteria.slice(blockOffset, blockOffset + block.criteriaCount);
+}
+
+function fillRubricBlock(
   sheet: XLSX.WorkSheet,
-  mapping: PairagogieExportMapping,
+  block: PairagogieRubricBlockMapping,
+  criteria: EvaluationCriterionRow[],
+  offset: number,
+  mode: PairagogieRenderMode,
+  labelPrefix: string
+) {
+  const blockCriteria = getCriteriaForBlock(criteria, block, offset);
+  let subtotal = 0;
+
+  for (let index = 0; index < block.criteriaCount; index += 1) {
+    const rowNumber = block.startRow + index;
+    const criterion = blockCriteria[index];
+    const scoreAddress = `${block.scoreColumn}${rowNumber}`;
+    if (mode === 'debug') {
+      setCell(sheet, scoreAddress, `${labelPrefix}[${index + 1}]`);
+      continue;
+    }
+
+    const score = criterion?.score ?? null;
+    if (score !== null) {
+      subtotal += score;
+    }
+    setCell(sheet, scoreAddress, score ?? '');
+  }
+
+  if (mode === 'debug') {
+    return;
+  }
+
+  setFormulaCell(sheet, block.subtotalCell.address, block.subtotalCell.formula, subtotal);
+}
+
+function fillGroupSheet(
+  sheet: XLSX.WorkSheet,
+  mapping: PairagogieExportMapping['groupSheet'],
   input: PairagogieGroupExportInput,
   session: SessionExportMetadata,
   mode: PairagogieRenderMode
 ) {
+  const rubricCapacity =
+    mapping.rubricBlocks.block1.criteriaCount + mapping.rubricBlocks.block2.criteriaCount;
+  if (input.criteria.length > rubricCapacity) {
+    throw new Error(
+      `Group "${input.groupName}" has ${input.criteria.length} criteria, but the template only supports ${rubricCapacity}.`
+    );
+  }
+
+  setCell(
+    sheet,
+    mapping.sessionFields.programme.address,
+    mode === 'debug' ? 'group.programme' : sanitizeText(session.programme)
+  );
+  setCell(
+    sheet,
+    mapping.sessionFields.className.address,
+    mode === 'debug' ? 'group.className' : sanitizeText(session.className)
+  );
+  setCell(
+    sheet,
+    mapping.sessionFields.subject.address,
+    mode === 'debug' ? 'group.subject' : sanitizeText(session.subject)
+  );
+
+  setCell(
+    sheet,
+    mapping.titleLine.address,
+    mode === 'debug' ? 'group.titleLine' : sheet[mapping.titleLine.address]?.v?.toString() ?? ''
+  );
+
+  clearVerticalRange(
+    sheet,
+    mapping.studentNames.column,
+    mapping.studentNames.startRow,
+    mapping.studentNames.maxRows
+  );
+
+  const studentLabelCount =
+    mode === 'debug'
+      ? Math.max(input.groupMemberNames.length, 3)
+      : input.groupMemberNames.length;
+
+  for (let index = 0; index < mapping.studentNames.maxRows; index += 1) {
+    const rowNumber = mapping.studentNames.startRow + index;
+    setCell(
+      sheet,
+      `${mapping.studentNames.column}${rowNumber}`,
+      mode === 'debug'
+        ? index < studentLabelCount
+          ? `group.studentNames[${index + 1}]`
+          : ''
+        : input.groupMemberNames[index] ?? ''
+    );
+  }
+
+  fillRubricBlock(
+    sheet,
+    mapping.rubricBlocks.block1,
+    input.criteria,
+    0,
+    mode,
+    'group.scores.block1'
+  );
+  fillRubricBlock(
+    sheet,
+    mapping.rubricBlocks.block2,
+    input.criteria,
+    mapping.rubricBlocks.block1.criteriaCount,
+    mode,
+    'group.scores.block2'
+  );
+
   if (mode === 'debug') {
-    fillPairagogieDebugSheet(sheet, mapping);
+    setCell(sheet, 'C35', 'group.totalScore');
+    setCell(sheet, mapping.comments.address, 'group.comments');
     return;
   }
 
-  setCell(sheet, mapping.cells['session.programme'], sanitizeText(session.programme));
-  setCell(sheet, mapping.cells['session.className'], sanitizeText(session.className));
-  setCell(sheet, mapping.cells['session.subject'], sanitizeText(session.subject));
-  setCell(sheet, mapping.cells['session.season'], sanitizeText(session.season));
-  setCell(sheet, mapping.cells['session.professorName'], sanitizeText(session.professorName));
-  setCell(sheet, mapping.cells['session.sessionDate'], sanitizeText(session.sessionDate));
-
-  setCell(sheet, mapping.cells['group.name'], sanitizeText(input.groupName));
-  setCell(
+  const totalScore = input.totalScore ?? input.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0);
+  setFormulaCell(
     sheet,
-    mapping.cells['group.presentationOrder'],
-    input.groupPresentationOrder === null || input.groupPresentationOrder === undefined
-      ? ''
-      : input.groupPresentationOrder
+    mapping.finalScoreCell.address,
+    mapping.finalScoreCell.formula,
+    totalScore
   );
-  setCell(sheet, mapping.cells['group.submissionTitle'], sanitizeText(input.submissionTitle));
-  setCell(sheet, mapping.cells['group.memberCount'], input.groupMemberNames.length);
-  setRichMergedValue(sheet, mapping.cells['group.members'], input.groupMemberNames.join('\n'));
+  setCell(sheet, mapping.comments.address, sanitizeText(input.finalFeedback ?? input.teacherNotes));
+}
 
-  const rubricStartRow = mapping.rubric.startRow;
-  const rubricEndRow = rubricStartRow + mapping.rubric.maxRows - 1;
-
-  for (let index = 0; index < mapping.rubric.maxRows; index += 1) {
-    const row = rubricStartRow + index;
-    const criterion = input.criteria[index];
-    if (!criterion) {
-      setCell(sheet, `${mapping.rubric.columns.label}${row}`, '');
-      setCell(sheet, `${mapping.rubric.columns.maxScore}${row}`, '');
-      setCell(sheet, `${mapping.rubric.columns.score}${row}`, '');
-      setCell(sheet, `${mapping.rubric.columns.feedback}${row}`, '');
-      setCell(sheet, `${mapping.rubric.columns.aiDraft}${row}`, '');
-      continue;
-    }
-
-    setCell(sheet, `${mapping.rubric.columns.label}${row}`, sanitizeText(criterion.label));
-    setCell(sheet, `${mapping.rubric.columns.maxScore}${row}`, criterion.maxScore);
-    setCell(sheet, `${mapping.rubric.columns.score}${row}`, criterion.score ?? '');
-    setCell(sheet, `${mapping.rubric.columns.feedback}${row}`, sanitizeText(criterion.feedback));
-    setCell(sheet, `${mapping.rubric.columns.aiDraft}${row}`, '');
-  }
-
-  if (mapping.expectedFormulaCells.includes(mapping.cells['rubric.totalScore'])) {
-    const scoreColumn = mapping.rubric.columns.score;
-    setFormulaCell(
-      sheet,
-      mapping.cells['rubric.totalScore'],
-      `SUM(${scoreColumn}${rubricStartRow}:${scoreColumn}${rubricEndRow})`,
-      input.totalScore ?? 0
-    );
-  } else if (input.totalScore !== undefined && input.totalScore !== null) {
-    setCell(sheet, mapping.cells['rubric.totalScore'], input.totalScore);
-  }
-
-  setRichMergedValue(sheet, mapping.cells['rubric.teacherNotes'], sanitizeText(input.teacherNotes));
-  setRichMergedValue(sheet, mapping.cells['rubric.finalFeedback'], sanitizeText(input.finalFeedback));
-  setRichMergedValue(
-    sheet,
-    mapping.cells['rubric.challengeQuestions'],
-    sanitizeText(input.challengeQuestions)
-  );
+function buildGroupSheetName(input: PairagogieGroupExportInput, index: number) {
+  const presentationOrder = input.groupPresentationOrder ?? index + 1;
+  return sanitizeSheetName(`Group ${presentationOrder}`);
 }
 
 export function renderPairagogieWorkbookBuffer(
@@ -203,37 +350,44 @@ export function renderPairagogieWorkbookBuffer(
   options: { mode?: PairagogieRenderMode } = {}
 ) {
   const workbook = XLSX.read(templateBuffer, { cellFormula: true, cellStyles: true });
-  const baseSheet = workbook.Sheets[mapping.sheetName];
+  const reportTemplate = workbook.Sheets[mapping.reportSheet.name];
+  const groupTemplate = workbook.Sheets[mapping.groupSheet.nameTemplate];
 
-  if (!baseSheet) {
-    throw new Error(`Missing required sheet "${mapping.sheetName}".`);
+  if (!reportTemplate) {
+    throw new Error(`Missing required report sheet "${mapping.reportSheet.name}".`);
+  }
+
+  if (!groupTemplate) {
+    throw new Error(`Missing required group template sheet "${mapping.groupSheet.nameTemplate}".`);
   }
 
   const mode = options.mode ?? 'normal';
-  const sheetEntries: Array<[string, XLSX.WorkSheet]> = [];
-  const usedSheetNames = new Set<string>();
+  const reportSheet = structuredClone(reportTemplate) as XLSX.WorkSheet;
+  fillReportSheet(reportSheet, mapping.reportSheet, input, mode);
+
+  const sheetEntries: Array<[string, XLSX.WorkSheet]> = [[mapping.reportSheet.name, reportSheet]];
+  const usedSheetNames = new Set<string>([mapping.reportSheet.name]);
 
   input.groups.forEach((group, index) => {
-    const clone = structuredClone(baseSheet) as XLSX.WorkSheet;
-    fillPairagogieSheet(clone, mapping, group, input.session, mode);
+    const clone = structuredClone(groupTemplate) as XLSX.WorkSheet;
+    fillGroupSheet(clone, mapping.groupSheet, group, input.session, mode);
 
-    const preferredName = group.groupName || `Group ${index + 1}`;
-    const sheetNameBase = sanitizeSheetName(preferredName);
-    let sheetName = sheetNameBase;
+    const baseName = buildGroupSheetName(group, index);
+    let sheetName = baseName;
     let suffix = 2;
     while (usedSheetNames.has(sheetName)) {
-      sheetName = sanitizeSheetName(`${sheetNameBase} ${suffix}`);
+      sheetName = sanitizeSheetName(`${baseName} ${suffix}`);
       suffix += 1;
     }
-    usedSheetNames.add(sheetName);
 
+    usedSheetNames.add(sheetName);
     sheetEntries.push([sheetName, clone]);
   });
 
   workbook.SheetNames = sheetEntries.map(([sheetName]) => sheetName);
   workbook.Sheets = Object.fromEntries(sheetEntries);
 
-  const output = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+  const output = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer', cellStyles: true });
   return output as Buffer;
 }
 

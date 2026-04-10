@@ -1,6 +1,4 @@
 'use server';
-
-import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -52,25 +50,51 @@ function normalizeMapping(input: unknown): PairagogieExportMapping {
   return {
     ...DEFAULT_PAIRAGOGIE_MAPPING,
     ...record,
-    cells: {
-      ...DEFAULT_PAIRAGOGIE_MAPPING.cells,
-      ...record.cells
+    reportSheet: {
+      ...DEFAULT_PAIRAGOGIE_MAPPING.reportSheet,
+      ...record.reportSheet,
+      header: {
+        ...DEFAULT_PAIRAGOGIE_MAPPING.reportSheet.header,
+        ...record.reportSheet?.header
+      },
+      studentRows: {
+        ...DEFAULT_PAIRAGOGIE_MAPPING.reportSheet.studentRows,
+        ...record.reportSheet?.studentRows,
+        columns: {
+          ...DEFAULT_PAIRAGOGIE_MAPPING.reportSheet.studentRows.columns,
+          ...record.reportSheet?.studentRows.columns
+        }
+      },
+      expectedLabels:
+        record.reportSheet?.expectedLabels && record.reportSheet.expectedLabels.length > 0
+          ? record.reportSheet.expectedLabels
+          : DEFAULT_PAIRAGOGIE_MAPPING.reportSheet.expectedLabels
     },
-    expectedFormulaCells:
-      record.expectedFormulaCells && record.expectedFormulaCells.length > 0
-        ? record.expectedFormulaCells
-        : DEFAULT_PAIRAGOGIE_MAPPING.expectedFormulaCells,
-    expectedMergedRanges:
-      record.expectedMergedRanges && record.expectedMergedRanges.length > 0
-        ? record.expectedMergedRanges
-        : DEFAULT_PAIRAGOGIE_MAPPING.expectedMergedRanges,
-    rubric: {
-      ...DEFAULT_PAIRAGOGIE_MAPPING.rubric,
-      ...record.rubric,
-      columns: {
-        ...DEFAULT_PAIRAGOGIE_MAPPING.rubric.columns,
-        ...record.rubric?.columns
-      }
+    groupSheet: {
+      ...DEFAULT_PAIRAGOGIE_MAPPING.groupSheet,
+      ...record.groupSheet,
+      sessionFields: {
+        ...DEFAULT_PAIRAGOGIE_MAPPING.groupSheet.sessionFields,
+        ...record.groupSheet?.sessionFields
+      },
+      studentNames: {
+        ...DEFAULT_PAIRAGOGIE_MAPPING.groupSheet.studentNames,
+        ...record.groupSheet?.studentNames
+      },
+      rubricBlocks: {
+        block1: {
+          ...DEFAULT_PAIRAGOGIE_MAPPING.groupSheet.rubricBlocks.block1,
+          ...record.groupSheet?.rubricBlocks?.block1
+        },
+        block2: {
+          ...DEFAULT_PAIRAGOGIE_MAPPING.groupSheet.rubricBlocks.block2,
+          ...record.groupSheet?.rubricBlocks?.block2
+        }
+      },
+      expectedLabels:
+        record.groupSheet?.expectedLabels && record.groupSheet.expectedLabels.length > 0
+          ? record.groupSheet.expectedLabels
+          : DEFAULT_PAIRAGOGIE_MAPPING.groupSheet.expectedLabels
     }
   } satisfies PairagogieExportMapping;
 }
@@ -81,59 +105,11 @@ function parseMappingText(rawValue: string): PairagogieExportMapping {
     throw new Error('Mapping cannot be empty.');
   }
 
-  if (trimmed.startsWith('{')) {
-    return normalizeMapping(JSON.parse(trimmed));
+  if (!trimmed.startsWith('{')) {
+    throw new Error('Mapping text must be structured JSON.');
   }
 
-  const entries: Record<string, string> = {};
-  for (const line of trimmed.split(/\r?\n/)) {
-    const content = line.trim();
-    if (!content || content.startsWith('#')) {
-      continue;
-    }
-
-    const separatorIndex = content.indexOf(':') >= 0 ? content.indexOf(':') : content.indexOf('=');
-    if (separatorIndex === -1) {
-      throw new Error(`Invalid mapping line: "${line}". Use "key: value".`);
-    }
-
-    const key = content.slice(0, separatorIndex).trim();
-    const value = content.slice(separatorIndex + 1).trim();
-    if (!key || !value) {
-      throw new Error(`Invalid mapping line: "${line}".`);
-    }
-    entries[key] = value;
-  }
-
-  const cells: Partial<PairagogieExportMapping['cells']> = {};
-  for (const key of Object.keys(DEFAULT_PAIRAGOGIE_MAPPING.cells) as Array<
-    keyof PairagogieExportMapping['cells']
-  >) {
-    if (entries[key]) {
-      cells[key] = entries[key];
-    }
-  }
-
-  return normalizeMapping({
-    cells,
-    expectedFormulaCells: entries['rubric.totalScore']
-      ? [entries['rubric.totalScore']]
-      : DEFAULT_PAIRAGOGIE_MAPPING.expectedFormulaCells,
-    expectedMergedRanges: DEFAULT_PAIRAGOGIE_MAPPING.expectedMergedRanges,
-    rubric: {
-      columns: {
-        aiDraft: entries['rubric.criteria.columns.aiDraft'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.columns.aiDraft,
-        feedback: entries['rubric.criteria.columns.feedback'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.columns.feedback,
-        label: entries['rubric.criteria.columns.label'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.columns.label,
-        maxScore: entries['rubric.criteria.columns.maxScore'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.columns.maxScore,
-        score: entries['rubric.criteria.columns.score'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.columns.score
-      },
-      maxRows: Number(entries['rubric.criteria.maxRows'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.maxRows),
-      startRow: Number(entries['rubric.criteria.startRow'] ?? DEFAULT_PAIRAGOGIE_MAPPING.rubric.startRow)
-    },
-    sheetName: entries['sheetName'] ?? DEFAULT_PAIRAGOGIE_MAPPING.sheetName,
-    version: entries['version'] ?? `mapping-${randomBytes(3).toString('hex')}`
-  });
+  return normalizeMapping(JSON.parse(trimmed));
 }
 
 export async function saveExportMetadataAction(

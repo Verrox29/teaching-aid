@@ -90,9 +90,9 @@ export default async function SessionExportsPage({
           </p>
         </div>
         <div className="ui-card p-4">
-          <p className="ui-section-title">Export rows</p>
+          <p className="ui-section-title">Group sheets</p>
           <p className="mt-2 text-xl font-semibold">{context.groups.length}</p>
-          <p className="text-sm text-[color:var(--app-fg-muted)]">One row per group export.</p>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">One cloned group sheet per export group.</p>
         </div>
       </section>
 

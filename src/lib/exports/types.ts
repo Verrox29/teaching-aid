@@ -1,39 +1,89 @@
-export type PairagogieCellMap = {
-  'session.programme': string;
-  'session.className': string;
-  'session.subject': string;
-  'session.season': string;
-  'session.professorName': string;
-  'session.sessionDate': string;
-  'group.name': string;
-  'group.presentationOrder': string;
-  'group.submissionTitle': string;
-  'group.memberCount': string;
-  'group.members': string;
-  'rubric.totalScore': string;
-  'rubric.teacherNotes': string;
-  'rubric.finalFeedback': string;
-  'rubric.challengeQuestions': string;
+export type PairagogieCellSelector = {
+  address: string;
+  kind: 'cell';
 };
 
-export type PairagogieRubricTable = {
-  columns: {
-    aiDraft: string;
-    feedback: string;
-    label: string;
-    maxScore: string;
-    score: string;
-  };
+export type PairagogieMergedCellSelector = {
+  address: string;
+  kind: 'mergedCell';
+  range: string;
+};
+
+export type PairagogieVerticalRangeSelector = {
+  column: string;
+  kind: 'verticalRange';
   maxRows: number;
   startRow: number;
 };
 
+export type PairagogieTableRowsSelector = {
+  columns: {
+    firstName: string;
+    groupName: string;
+    lastName: string;
+    remarks: string;
+    totalScore: string;
+  };
+  kind: 'tableRows';
+  maxRows: number;
+  startRow: number;
+};
+
+export type PairagogieExpectedLabel = {
+  address: string;
+  value: string;
+};
+
+export type PairagogieFormulaCell = {
+  address: string;
+  formula: string;
+};
+
+export type PairagogieRubricBlockMapping = {
+  criteriaCount: number;
+  maxScoreColumn: string;
+  scoreColumn: string;
+  sectionTitle: PairagogieCellSelector;
+  startRow: number;
+  subtotalCell: PairagogieFormulaCell;
+  totalOutOfCell: PairagogieCellSelector;
+};
+
+export type PairagogieReportSheetMapping = {
+  expectedLabels: PairagogieExpectedLabel[];
+  header: {
+    className: PairagogieCellSelector;
+    professorName: PairagogieMergedCellSelector;
+    season: PairagogieCellSelector;
+    sessionDate: PairagogieCellSelector;
+    subjectProgramme: PairagogieMergedCellSelector;
+  };
+  name: string;
+  studentRows: PairagogieTableRowsSelector;
+};
+
+export type PairagogieGroupSheetMapping = {
+  comments: PairagogieMergedCellSelector;
+  expectedLabels: PairagogieExpectedLabel[];
+  finalScoreCell: PairagogieFormulaCell;
+  nameTemplate: string;
+  rubricBlocks: {
+    block1: PairagogieRubricBlockMapping;
+    block2: PairagogieRubricBlockMapping;
+  };
+  sessionFields: {
+    className: PairagogieMergedCellSelector;
+    programme: PairagogieMergedCellSelector;
+    subject: PairagogieMergedCellSelector;
+  };
+  studentNames: PairagogieVerticalRangeSelector;
+  titleLine: PairagogieCellSelector;
+};
+
 export type PairagogieExportMapping = {
-  cells: PairagogieCellMap;
-  expectedFormulaCells: string[];
-  expectedMergedRanges: string[];
-  rubric: PairagogieRubricTable;
-  sheetName: string;
+  groupSheet: PairagogieGroupSheetMapping;
+  reportSheet: PairagogieReportSheetMapping;
+  templateVersion: string;
   version: string;
 };
 

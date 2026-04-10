@@ -186,7 +186,7 @@ export default async function SessionExportSettingsPage({
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">Mapping editor</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Paste JSON or a simple key:value mapping. Validation runs before activation.
+              Paste the structured mapping JSON. Validation runs before activation.
             </p>
           </div>
 
