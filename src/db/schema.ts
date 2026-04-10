@@ -11,6 +11,10 @@ import {
   varchar
 } from 'drizzle-orm/pg-core';
 
+import type {
+  EvaluationAiCriterionRecommendation,
+  EvaluationAiFeedbackSections
+} from '@/lib/evaluation/types';
 import type { PairagogieExportMapping } from '@/lib/exports/types';
 
 export const sessions = pgTable(
@@ -187,6 +191,17 @@ export const evaluations = pgTable(
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
     teacherNotes: text('teacher_notes'),
+    aiGeneratedAt: timestamp('ai_generated_at', { withTimezone: true }),
+    aiLastError: text('ai_last_error'),
+    aiRecommendedCriteria: jsonb('ai_recommended_criteria').$type<
+      EvaluationAiCriterionRecommendation[] | null
+    >(),
+    aiRecommendedFeedback: jsonb('ai_recommended_feedback').$type<
+      EvaluationAiFeedbackSections | null
+    >(),
+    aiRecommendedQuestions: jsonb('ai_recommended_questions').$type<string[] | null>(),
+    aiStatus: varchar('ai_status', { length: 20 }).notNull().default('idle'),
+    aiStatusUpdatedAt: timestamp('ai_status_updated_at', { withTimezone: true }),
     finalFeedback: text('final_feedback'),
     comments: text('comments'),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),

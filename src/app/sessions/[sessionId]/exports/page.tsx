@@ -4,7 +4,11 @@ import { notFound } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
 import { db, sessions } from '@/db';
-import { getActiveExportVersions, getPairagogieExportContext, getSessionExportMetadataRecord } from '@/lib/exports/repository';
+import {
+  getActiveExportVersions,
+  getPairagogieExportContext,
+  getSessionExportMetadataRecord
+} from '@/lib/exports/repository';
 
 type SessionExportsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -44,6 +48,15 @@ export default async function SessionExportsPage({
   const active = await getActiveExportVersions();
   const context = await getPairagogieExportContext(sessionId);
   const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
+  const exportReady =
+    context.groups.length > 0 &&
+    context.groups.every(
+      (group) =>
+        Boolean(group.evaluation?.teacherNotes?.trim()) &&
+        Boolean(group.evaluation?.finalFeedback?.trim()) &&
+        group.criteria.length > 0 &&
+        group.criteria.every((criterion) => criterion.score !== null)
+    );
 
   return (
     <AdminShell
@@ -139,22 +152,58 @@ export default async function SessionExportsPage({
           </div>
         )}
 
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            exportReady
+              ? 'border-[color:var(--app-success)]/20 bg-[color:var(--app-success)]/10 text-[color:var(--app-success)]'
+              : 'border-[color:var(--app-warning)]/20 bg-[color:var(--app-warning)]/10 text-[color:var(--app-warning)]'
+          }`}
+        >
+          {exportReady
+            ? 'Evaluation is ready for export.'
+            : 'Some groups are still missing required notes, scores, or final feedback.'}
+        </div>
+
         <div className="flex flex-wrap gap-3">
-          <Link className="ui-button ui-button-primary" href={`/api/sessions/${sessionId}/exports/pairagogie`}>
-            Download Pairagogie Excel
-          </Link>
-          <Link
-            className="ui-button ui-button-secondary"
-            href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
-          >
-            Download debug preview
-          </Link>
-          <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/grades`}>
-            Download grades CSV
-          </Link>
-          <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/groups`}>
-            Download groups CSV
-          </Link>
+          {exportReady ? (
+            <Link className="ui-button ui-button-primary" href={`/api/sessions/${sessionId}/exports/pairagogie`}>
+              Download Pairagogie Excel
+            </Link>
+          ) : (
+            <span className="ui-button ui-button-primary cursor-not-allowed opacity-50">
+              Download Pairagogie Excel
+            </span>
+          )}
+          {exportReady ? (
+            <Link
+              className="ui-button ui-button-secondary"
+              href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
+            >
+              Download debug preview
+            </Link>
+          ) : (
+            <span className="ui-button ui-button-secondary cursor-not-allowed opacity-50">
+              Download debug preview
+            </span>
+          )}
+          {exportReady ? (
+            <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/grades`}>
+              Download grades CSV
+            </Link>
+          ) : (
+            <span className="ui-button ui-button-secondary cursor-not-allowed opacity-50">
+              Download grades CSV
+            </span>
+          )}
+          {exportReady ? (
+            <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/groups`}>
+              Download groups CSV
+            </Link>
+          ) : (
+            <span className="ui-button ui-button-secondary cursor-not-allowed opacity-50">
+              Download groups CSV
+            </span>
+          )}
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports/settings`}>
             Open settings
           </Link>

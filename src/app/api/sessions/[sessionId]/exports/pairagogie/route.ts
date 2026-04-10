@@ -31,7 +31,7 @@ export async function GET(
     groups: context.groups.map((group) => ({
       challengeQuestions: null,
       criteria: group.criteria,
-      finalFeedback: group.evaluation?.finalFeedback ?? group.evaluation?.comments ?? null,
+      finalFeedback: group.evaluation?.finalFeedback ?? null,
       groupMemberNames: group.members.map((member) => `${member.firstName} ${member.lastName}`),
       groupName: group.name,
       groupPresentationOrder: group.presentationOrder,

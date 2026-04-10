@@ -21,7 +21,7 @@ export async function GET(
     group.members.map((member) => ({
       'Adresse de courriel': member.schoolEmail,
       Note: group.evaluation?.totalScore ?? '',
-      Commentaire: group.evaluation?.finalFeedback ?? group.evaluation?.comments ?? ''
+      Commentaire: group.evaluation?.finalFeedback ?? ''
     }))
   );
 

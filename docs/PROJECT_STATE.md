@@ -10,7 +10,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 2. Group creation
 3. Group enrolment
 4. Presentation order & upload
-5. AI scoring & feedback
+5. Evaluation workspace
 6. Grille & grades export
 
 ## Completed Modules
@@ -40,6 +40,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
   - cloned group sheets from `Fiche éval group 1`
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
+- Step 5 is the live evaluation workspace: presentation order is visible there, teacher notes autosave, and AI recommendations are per group and advisory only
 - Session/business fields:
   - `programme`
   - `className`

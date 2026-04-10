@@ -259,7 +259,7 @@ function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[
         firstName: firstName ?? '',
         groupName: group.groupName,
         lastName: lastNameParts.join(' '),
-        remarks: sanitizeText(group.finalFeedback ?? group.teacherNotes),
+        remarks: sanitizeText(group.finalFeedback),
         totalScore: group.totalScore ?? null
       };
     })
@@ -499,7 +499,7 @@ function fillGroupSheet(
     return;
   }
 
-  setCell(sheet, layout.comments.address, sanitizeText(input.finalFeedback ?? input.teacherNotes));
+  setCell(sheet, layout.comments.address, sanitizeText(input.finalFeedback));
 }
 
 function buildGroupSheetName(_input: PairagogieGroupExportInput, index: number) {
