@@ -8,13 +8,17 @@ export function ThemeToggle() {
 
   return (
     <button
+      aria-checked={isDark}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="ui-button ui-button-secondary"
+      className="ui-switch"
+      role="switch"
       onClick={toggleTheme}
       type="button"
     >
-      <span aria-hidden>{isDark ? '☾' : '☼'}</span>
-      <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+      <span className="ui-switch-track" aria-hidden>
+        <span className={`ui-switch-thumb ${isDark ? 'translate-x-4' : ''}`} />
+      </span>
+      <span className="text-sm font-medium">{isDark ? 'Dark' : 'Light'}</span>
     </button>
   );
 }

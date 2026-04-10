@@ -171,7 +171,8 @@ a {
   .ui-input:focus-visible,
   .ui-select:focus-visible,
   .ui-textarea:focus-visible,
-  .ui-timeline-step:focus-visible {
+  .ui-timeline-step:focus-visible,
+  .ui-switch:focus-visible {
     box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
@@ -256,7 +257,7 @@ a {
     display: flex;
     min-width: 11rem;
     flex: 1 1 0%;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.75rem;
     border-radius: 1rem;
     border: 1px solid transparent;
@@ -308,5 +309,52 @@ a {
     color: var(--app-fg);
     font-size: 0.75rem;
     font-weight: 700;
+  }
+
+  .ui-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: var(--app-surface-muted);
+    padding: 0.45rem 0.7rem 0.45rem 0.5rem;
+    color: var(--app-fg);
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      transform 150ms ease;
+  }
+
+  .ui-switch:hover {
+    transform: translateY(-1px);
+  }
+
+  .ui-switch-track {
+    position: relative;
+    display: inline-flex;
+    height: 1.35rem;
+    width: 2.45rem;
+    align-items: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-fg-muted) 20%, transparent);
+    padding: 0.125rem;
+    transition: background-color 150ms ease;
+  }
+
+  .ui-switch[aria-checked='true'] .ui-switch-track {
+    background: var(--app-accent);
+  }
+
+  .ui-switch-thumb {
+    display: block;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 999px;
+    background: var(--app-surface);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    transition: transform 150ms ease;
   }
 }

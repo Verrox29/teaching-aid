@@ -41,10 +41,10 @@ export function AdminTimelineNav({
               className={`ui-timeline-step ${isActive ? 'ui-timeline-step-active' : isPast ? 'ui-timeline-step-complete' : 'ui-timeline-step-future'}`}
               href={href}
             >
-              <span className="ui-timeline-dot">
-                {step.step}
+              <span className="ui-timeline-dot">{step.step}</span>
+              <span className="text-left text-sm font-medium leading-snug whitespace-normal break-words">
+                {step.label}
               </span>
-              <span className="min-w-0 truncate text-sm font-medium">{step.label}</span>
             </Link>
           );
         })}
