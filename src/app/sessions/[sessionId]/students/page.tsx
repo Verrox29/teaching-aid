@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
+import { AdminTimelineNav } from '@/components/admin-timeline-nav';
 import { SessionStudentImport } from '@/components/session-student-import';
 import { db, sessionStudents, sessions } from '@/db';
 
@@ -18,6 +19,7 @@ export default async function SessionStudentsPage({
   const session = await db
     .select({
       id: sessions.id,
+      slug: sessions.slug,
       title: sessions.title
     })
     .from(sessions)
@@ -46,6 +48,8 @@ export default async function SessionStudentsPage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 p-8">
+      <AdminTimelineNav currentStep={1} sessionId={sessionId} slug={session[0].slug} />
+
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1">
           <p className="text-sm text-slate-500">Session</p>

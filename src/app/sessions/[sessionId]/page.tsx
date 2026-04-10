@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { AdminTimelineNav } from '@/components/admin-timeline-nav';
 import { db, sessions } from '@/db';
 
 type SessionPageProps = {
@@ -32,6 +33,8 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-8">
+      <AdminTimelineNav currentStep={1} sessionId={sessionId} slug={session.slug} />
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <p className="text-sm text-slate-500">Session hub</p>
@@ -87,6 +90,13 @@ export default async function SessionPage({ params }: SessionPageProps) {
         >
           <div className="text-sm font-medium text-slate-900">Public page</div>
           <div className="text-sm text-slate-600">Open the student self-selection flow.</div>
+        </Link>
+        <Link
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+          href={`/sessions/${sessionId}/order`}
+        >
+          <div className="text-sm font-medium text-slate-900">Presentation order</div>
+          <div className="text-sm text-slate-600">Set order and upload group files.</div>
         </Link>
         <Link
           className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"

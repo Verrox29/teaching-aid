@@ -7,6 +7,7 @@ import {
   unlockGroupSelectionAction
 } from './actions';
 
+import { AdminTimelineNav } from '@/components/admin-timeline-nav';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
 import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
 
@@ -111,8 +112,12 @@ export default async function SessionGroupsPage({
     }))
   );
 
+  const currentStep = groupRows.length === 0 ? 2 : 3;
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
+      <AdminTimelineNav currentStep={currentStep} sessionId={sessionId} slug={session.slug} />
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <p className="text-sm text-slate-500">Group management</p>
