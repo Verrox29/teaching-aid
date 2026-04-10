@@ -14,6 +14,7 @@
   "dependencies": {
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.44.0",
+    "exceljs": "^4.4.0",
     "next": "15.3.2",
     "pg": "^8.16.0",
     "react": "19.1.0",

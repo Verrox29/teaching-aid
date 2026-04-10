@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const templateBuffer = Buffer.from(context.template.contentBase64, 'base64');
-  const workbookBuffer = renderPairagogieWorkbookBuffer(templateBuffer, context.mapping, {
+  const workbookBuffer = await renderPairagogieWorkbookBuffer(templateBuffer, context.mapping, {
     groups: context.groups.map((group) => ({
       challengeQuestions: null,
       criteria: group.criteria,

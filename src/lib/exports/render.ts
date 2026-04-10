@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 import type {
   PairagogieExportMapping,
@@ -41,24 +41,42 @@ type ReportRowInput = {
   totalScore: number | null;
 };
 
-type SheetRange = ReturnType<typeof XLSX.utils.decode_range>;
-
-type RowCopyOptions = {
-  preserveValues?: boolean;
-};
-
-function getSheetRange(sheet: XLSX.WorkSheet): SheetRange | null {
-  const ref = sheet['!ref'];
-  return ref ? XLSX.utils.decode_range(ref) : null;
+function columnToNumber(column: string) {
+  let result = 0;
+  for (const char of column.toUpperCase()) {
+    result = result * 26 + (char.charCodeAt(0) - 64);
+  }
+  return result;
 }
 
-function shiftCellAddress(address: string, rowOffset: number) {
-  if (rowOffset === 0) {
+function numberToColumn(columnNumber: number) {
+  let value = columnNumber;
+  let result = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+  return result;
+}
+
+function shiftCellAddress(address: string, rowOffset: number, columnOffset = 0) {
+  if (rowOffset === 0 && columnOffset === 0) {
     return address;
   }
 
-  const cell = XLSX.utils.decode_cell(address);
-  return XLSX.utils.encode_cell({ c: cell.c, r: cell.r + rowOffset });
+  const match = address.match(/^([A-Z]+)(\d+)$/);
+  if (!match) {
+    return address;
+  }
+
+  const columnNumber = columnToNumber(match[1]) + columnOffset;
+  const rowNumber = Number(match[2]) + rowOffset;
+  if (columnNumber < 1 || rowNumber < 1) {
+    return address;
+  }
+
+  return `${numberToColumn(columnNumber)}${rowNumber}`;
 }
 
 function shiftRangeAddress(range: string, rowOffset: number) {
@@ -66,159 +84,103 @@ function shiftRangeAddress(range: string, rowOffset: number) {
     return range;
   }
 
-  const decoded = XLSX.utils.decode_range(range);
-  decoded.s.r += rowOffset;
-  decoded.e.r += rowOffset;
-  return XLSX.utils.encode_range(decoded);
+  const match = range.match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+  if (!match) {
+    return range;
+  }
+
+  return `${shiftCellAddress(match[1], rowOffset)}:${shiftCellAddress(match[2], rowOffset)}`;
 }
 
-function shiftMergedRange(merge: SheetRange, rowOffset: number) {
-  return {
-    e: {
-      c: merge.e.c,
-      r: merge.e.r + rowOffset
-    },
-    s: {
-      c: merge.s.c,
-      r: merge.s.r + rowOffset
+function shiftFormulaRows(formula: string, rowOffset: number) {
+  if (rowOffset === 0) {
+    return formula;
+  }
+
+  return formula.replace(
+    /(^|[^A-Z0-9_])(\$?)([A-Z]{1,3})(\$?)(\d+)/g,
+    (match, prefix: string, columnAbs: string, column: string, rowAbs: string, row: string) => {
+      if (rowAbs === '$') {
+        return match;
+      }
+
+      return `${prefix}${columnAbs}${column}${rowAbs}${Number(row) + rowOffset}`;
     }
-  };
+  );
 }
 
-function cloneCellObject(cell: XLSX.CellObject | undefined, preserveValues = true) {
-  if (!cell) {
-    return undefined;
-  }
+function sanitizeText(value: string | null | undefined) {
+  return value?.trim() ?? '';
+}
 
-  const clone = structuredClone(cell) as XLSX.CellObject;
-  if (preserveValues) {
-    return clone;
-  }
+function sanitizeSheetName(value: string) {
+  const cleaned = value.replace(/[\[\]\*\/\\\?:]/g, ' ').trim();
+  return cleaned.slice(0, 31) || 'Group';
+}
 
-  delete clone.f;
-  delete clone.v;
-  delete clone.w;
-  delete clone.l;
-  delete clone.c;
-  delete clone.r;
-  clone.t = 'z';
+function cloneWorksheetModel(
+  workbook: ExcelJS.Workbook,
+  sourceModel: ExcelJS.Worksheet['model'],
+  sheetName: string
+) {
+  const clone = workbook.addWorksheet(sheetName);
+  clone.model = {
+    ...structuredClone(sourceModel),
+    name: sheetName
+  };
   return clone;
 }
 
-function copyRow(
-  sheet: XLSX.WorkSheet,
-  sourceRow: number,
-  targetRow: number,
-  options: RowCopyOptions = {}
+function setCell(
+  sheet: ExcelJS.Worksheet,
+  address: string,
+  value: string | number | null | undefined
 ) {
+  sheet.getCell(address).value = value === null || value === undefined || value === '' ? null : value;
+}
+
+function setFormulaCell(
+  sheet: ExcelJS.Worksheet,
+  address: string,
+  formula: string,
+  result?: number
+) {
+  sheet.getCell(address).value =
+    result === undefined ? { formula } : { formula, result };
+}
+
+function insertStyledRows(sheet: ExcelJS.Worksheet, startRow: number, count: number) {
+  if (count <= 0) {
+    return;
+  }
+
+  const rows = Array.from({ length: count }, () => []);
+  sheet.insertRows(startRow, rows, 'i+');
+}
+
+function copyRowStyle(sheet: ExcelJS.Worksheet, sourceRow: number, targetRow: number) {
   if (sourceRow === targetRow) {
     return;
   }
 
-  const range = getSheetRange(sheet);
-  if (!range) {
-    return;
-  }
-
-  const preserveValues = options.preserveValues ?? true;
-  for (let col = range.s.c; col <= range.e.c; col += 1) {
-    const sourceAddress = XLSX.utils.encode_cell({ c: col, r: sourceRow - 1 });
-    const targetAddress = XLSX.utils.encode_cell({ c: col, r: targetRow - 1 });
-    const cloned = cloneCellObject(sheet[sourceAddress] as XLSX.CellObject | undefined, preserveValues);
-
-    if (cloned) {
-      sheet[targetAddress] = cloned;
-    } else {
-      delete sheet[targetAddress];
-    }
-  }
-
-  const rows = (sheet['!rows'] ??= []);
-  const sourceRowMeta = rows[sourceRow - 1];
-  if (sourceRowMeta) {
-    rows[targetRow - 1] = structuredClone(sourceRowMeta);
-  } else {
-    delete rows[targetRow - 1];
-  }
+  const source = sheet.getRow(sourceRow);
+  const target = sheet.getRow(targetRow);
+  target.height = source.height;
+  source.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    target.getCell(colNumber).style = structuredClone(cell.style);
+  });
 }
 
-function shiftWorksheetRows(sheet: XLSX.WorkSheet, startRow: number, rowOffset: number) {
-  if (rowOffset <= 0) {
-    return;
-  }
-
-  const range = getSheetRange(sheet);
-  if (!range) {
-    return;
-  }
-
-  const cells = Object.keys(sheet)
-    .filter((address) => !address.startsWith('!'))
-    .map((address) => ({
-      address,
-      cell: XLSX.utils.decode_cell(address)
-    }))
-    .filter(({ cell }) => cell.r + 1 >= startRow)
-    .sort((left, right) => {
-      if (left.cell.r !== right.cell.r) {
-        return right.cell.r - left.cell.r;
-      }
-      return right.cell.c - left.cell.c;
-    });
-
-  for (const { address, cell } of cells) {
-    const targetAddress = XLSX.utils.encode_cell({ c: cell.c, r: cell.r + rowOffset });
-    sheet[targetAddress] = structuredClone(sheet[address]) as XLSX.CellObject;
-    delete sheet[address];
-  }
-
-  const rows = sheet['!rows'] ?? [];
-  for (let rowIndex = rows.length - 1; rowIndex >= startRow - 1; rowIndex -= 1) {
-    const sourceRowMeta = rows[rowIndex];
-    if (sourceRowMeta) {
-      rows[rowIndex + rowOffset] = structuredClone(sourceRowMeta);
-    } else {
-      delete rows[rowIndex + rowOffset];
-    }
-    delete rows[rowIndex];
-  }
-  sheet['!rows'] = rows;
-
-  const merges = sheet['!merges'] ?? [];
-  sheet['!merges'] = merges.map((merge) =>
-    merge.s.r + 1 >= startRow ? shiftMergedRange(merge, rowOffset) : merge
-  );
-
-  range.e.r += rowOffset;
-  sheet['!ref'] = XLSX.utils.encode_range(range);
-}
-
-function copyRowStyles(
-  sheet: XLSX.WorkSheet,
-  sourceRow: number,
-  targetRow: number,
-  options: { preserveValues?: boolean } = {}
-) {
-  copyRow(sheet, sourceRow, targetRow, options);
-}
-
-function extendWorksheetRows(sheet: XLSX.WorkSheet, additionalRows: number, sourceRow: number) {
+function extendWorksheetRows(sheet: ExcelJS.Worksheet, additionalRows: number, sourceRow: number) {
   if (additionalRows <= 0) {
     return;
   }
 
-  const range = getSheetRange(sheet);
-  if (!range) {
-    return;
+  const insertAt = sourceRow + 1;
+  insertStyledRows(sheet, insertAt, additionalRows);
+  for (let offset = 0; offset < additionalRows; offset += 1) {
+    copyRowStyle(sheet, sourceRow, insertAt + offset);
   }
-
-  const currentLastRow = range.e.r + 1;
-  for (let offset = 1; offset <= additionalRows; offset += 1) {
-    copyRowStyles(sheet, sourceRow, currentLastRow + offset, { preserveValues: false });
-  }
-
-  range.e.r += additionalRows;
-  sheet['!ref'] = XLSX.utils.encode_range(range);
 }
 
 function shiftGroupSheetMapping(
@@ -238,7 +200,8 @@ function shiftGroupSheetMapping(
     },
     finalScoreCell: {
       ...mapping.finalScoreCell,
-      address: shiftCellAddress(mapping.finalScoreCell.address, rowOffset)
+      address: shiftCellAddress(mapping.finalScoreCell.address, rowOffset),
+      formula: shiftFormulaRows(mapping.finalScoreCell.formula, rowOffset)
     },
     rubricBlocks: {
       block1: {
@@ -250,7 +213,8 @@ function shiftGroupSheetMapping(
         startRow: mapping.rubricBlocks.block1.startRow + rowOffset,
         subtotalCell: {
           ...mapping.rubricBlocks.block1.subtotalCell,
-          address: shiftCellAddress(mapping.rubricBlocks.block1.subtotalCell.address, rowOffset)
+          address: shiftCellAddress(mapping.rubricBlocks.block1.subtotalCell.address, rowOffset),
+          formula: shiftFormulaRows(mapping.rubricBlocks.block1.subtotalCell.formula, rowOffset)
         },
         totalOutOfCell: {
           ...mapping.rubricBlocks.block1.totalOutOfCell,
@@ -266,7 +230,8 @@ function shiftGroupSheetMapping(
         startRow: mapping.rubricBlocks.block2.startRow + rowOffset,
         subtotalCell: {
           ...mapping.rubricBlocks.block2.subtotalCell,
-          address: shiftCellAddress(mapping.rubricBlocks.block2.subtotalCell.address, rowOffset)
+          address: shiftCellAddress(mapping.rubricBlocks.block2.subtotalCell.address, rowOffset),
+          formula: shiftFormulaRows(mapping.rubricBlocks.block2.subtotalCell.formula, rowOffset)
         },
         totalOutOfCell: {
           ...mapping.rubricBlocks.block2.totalOutOfCell,
@@ -275,39 +240,6 @@ function shiftGroupSheetMapping(
       }
     }
   };
-}
-
-function setCell(sheet: XLSX.WorkSheet, address: string, value: string | number | null | undefined) {
-  const cell = (sheet[address] ?? {}) as XLSX.CellObject;
-  if (value === null || value === undefined || value === '') {
-    cell.t = 's';
-    cell.v = '';
-    delete cell.f;
-    sheet[address] = cell;
-    return;
-  }
-
-  cell.t = typeof value === 'number' ? 'n' : 's';
-  cell.v = value;
-  delete cell.f;
-  sheet[address] = cell;
-}
-
-function setFormulaCell(sheet: XLSX.WorkSheet, address: string, formula: string, value: number) {
-  const cell = (sheet[address] ?? {}) as XLSX.CellObject;
-  cell.t = 'n';
-  cell.f = formula;
-  cell.v = value;
-  sheet[address] = cell;
-}
-
-function sanitizeText(value: string | null | undefined) {
-  return value?.trim() ?? '';
-}
-
-function sanitizeSheetName(value: string) {
-  const cleaned = value.replace(/[\[\]\*\/\\\?:]/g, ' ').trim();
-  return cleaned.slice(0, 31) || 'Group';
 }
 
 function buildSubjectProgramme(metadata: SessionExportMetadata) {
@@ -335,7 +267,7 @@ function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[
 }
 
 function fillReportSheet(
-  sheet: XLSX.WorkSheet,
+  sheet: ExcelJS.Worksheet,
   mapping: PairagogieExportMapping['reportSheet'],
   input: PairagogieWorkbookInput,
   mode: PairagogieRenderMode
@@ -439,7 +371,7 @@ function getCriteriaForBlock(
 }
 
 function fillRubricBlock(
-  sheet: XLSX.WorkSheet,
+  sheet: ExcelJS.Worksheet,
   block: PairagogieRubricBlockMapping,
   criteria: EvaluationCriterionRow[],
   offset: number,
@@ -465,15 +397,16 @@ function fillRubricBlock(
     setCell(sheet, scoreAddress, score ?? '');
   }
 
-  if (mode === 'debug') {
-    return;
-  }
-
-  setFormulaCell(sheet, block.subtotalCell.address, block.subtotalCell.formula, subtotal);
+  setFormulaCell(
+    sheet,
+    block.subtotalCell.address,
+    block.subtotalCell.formula,
+    mode === 'debug' ? undefined : subtotal
+  );
 }
 
 function fillGroupSheet(
-  sheet: XLSX.WorkSheet,
+  sheet: ExcelJS.Worksheet,
   mapping: PairagogieExportMapping['groupSheet'],
   input: PairagogieGroupExportInput,
   session: SessionExportMetadata,
@@ -493,15 +426,7 @@ function fillGroupSheet(
   const layout = shiftGroupSheetMapping(mapping, extraStudentRows);
 
   if (extraStudentRows > 0) {
-    shiftWorksheetRows(sheet, layout.studentNames.startRow + baseStudentRows, extraStudentRows);
-
-    const genericStudentRow = layout.studentNames.startRow + baseStudentRows - 2;
-    const finalStudentRow = layout.studentNames.startRow + baseStudentRows - 1;
-    for (let index = 0; index < extraStudentRows; index += 1) {
-      const targetRow = layout.studentNames.startRow + baseStudentRows + index;
-      const sourceRow = index === extraStudentRows - 1 ? finalStudentRow : genericStudentRow;
-      copyRowStyles(sheet, sourceRow, targetRow, { preserveValues: false });
-    }
+    insertStyledRows(sheet, layout.studentNames.startRow + baseStudentRows, extraStudentRows);
   }
 
   setCell(
@@ -523,7 +448,7 @@ function fillGroupSheet(
   setCell(
     sheet,
     layout.titleLine.address,
-    mode === 'debug' ? 'group.titleLine' : sheet[mapping.titleLine.address]?.v?.toString() ?? ''
+    mode === 'debug' ? 'group.titleLine' : sheet.getCell(mapping.titleLine.address).text
   );
 
   const studentRowCount = Math.max(baseStudentRows, studentCount);
@@ -559,36 +484,38 @@ function fillGroupSheet(
     'group.scores.block2'
   );
 
-  if (mode === 'debug') {
-    setCell(sheet, layout.finalScoreCell.address.replace(/^D/, 'C'), 'group.totalScore');
-    setCell(sheet, layout.comments.address, 'group.comments');
-    return;
-  }
-
-  const totalScore = input.totalScore ?? input.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0);
   setFormulaCell(
     sheet,
     layout.finalScoreCell.address,
     layout.finalScoreCell.formula,
-    totalScore
+    mode === 'debug'
+      ? undefined
+      : input.totalScore ?? input.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0)
   );
+
+  if (mode === 'debug') {
+    setCell(sheet, shiftCellAddress(layout.finalScoreCell.address, 0, -1), 'group.totalScore');
+    setCell(sheet, layout.comments.address, 'group.comments');
+    return;
+  }
+
   setCell(sheet, layout.comments.address, sanitizeText(input.finalFeedback ?? input.teacherNotes));
 }
 
-function buildGroupSheetName(input: PairagogieGroupExportInput, index: number) {
-  const presentationOrder = input.groupPresentationOrder ?? index + 1;
-  return sanitizeSheetName(`Group ${presentationOrder}`);
+function buildGroupSheetName(_input: PairagogieGroupExportInput, index: number) {
+  return sanitizeSheetName(`Group ${index + 1}`);
 }
 
-export function renderPairagogieWorkbookBuffer(
+export async function renderPairagogieWorkbookBuffer(
   templateBuffer: Buffer,
   mapping: PairagogieExportMapping,
   input: PairagogieWorkbookInput,
   options: { mode?: PairagogieRenderMode } = {}
 ) {
-  const workbook = XLSX.read(templateBuffer, { cellFormula: true, cellStyles: true });
-  const reportTemplate = workbook.Sheets[mapping.reportSheet.name];
-  const groupTemplate = workbook.Sheets[mapping.groupSheet.nameTemplate];
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(templateBuffer as any);
+  const reportTemplate = workbook.getWorksheet(mapping.reportSheet.name);
+  const groupTemplate = workbook.getWorksheet(mapping.groupSheet.nameTemplate);
 
   if (!reportTemplate) {
     throw new Error(`Missing required report sheet "${mapping.reportSheet.name}".`);
@@ -599,33 +526,39 @@ export function renderPairagogieWorkbookBuffer(
   }
 
   const mode = options.mode ?? 'normal';
-  const reportSheet = structuredClone(reportTemplate) as XLSX.WorkSheet;
-  fillReportSheet(reportSheet, mapping.reportSheet, input, mode);
+  fillReportSheet(reportTemplate, mapping.reportSheet, input, mode);
+  const groupTemplateModel = structuredClone(groupTemplate.model);
 
-  const sheetEntries: Array<[string, XLSX.WorkSheet]> = [[mapping.reportSheet.name, reportSheet]];
   const usedSheetNames = new Set<string>([mapping.reportSheet.name]);
 
   input.groups.forEach((group, index) => {
-    const clone = structuredClone(groupTemplate) as XLSX.WorkSheet;
-    fillGroupSheet(clone, mapping.groupSheet, group, input.session, mode);
+    const desiredSheetName = buildGroupSheetName(group, index);
+    const sheetName = desiredSheetName;
+    const groupSheet =
+      index === 0
+        ? groupTemplate
+        : cloneWorksheetModel(workbook, groupTemplateModel, sheetName);
 
-    const baseName = buildGroupSheetName(group, index);
-    let sheetName = baseName;
-    let suffix = 2;
-    while (usedSheetNames.has(sheetName)) {
-      sheetName = sanitizeSheetName(`${baseName} ${suffix}`);
-      suffix += 1;
+    if (index === 0) {
+      groupSheet.name = sheetName;
     }
 
-    usedSheetNames.add(sheetName);
-    sheetEntries.push([sheetName, clone]);
+    let finalSheetName = groupSheet.name;
+    let suffix = 2;
+    while (usedSheetNames.has(finalSheetName)) {
+      finalSheetName = sanitizeSheetName(`${desiredSheetName} ${suffix}`);
+      suffix += 1;
+    }
+    if (finalSheetName !== groupSheet.name) {
+      groupSheet.name = finalSheetName;
+    }
+
+    usedSheetNames.add(groupSheet.name);
+    fillGroupSheet(groupSheet, mapping.groupSheet, group, input.session, mode);
   });
 
-  workbook.SheetNames = sheetEntries.map(([sheetName]) => sheetName);
-  workbook.Sheets = Object.fromEntries(sheetEntries);
-
-  const output = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer', cellStyles: true });
-  return output as Buffer;
+  const output = await workbook.xlsx.writeBuffer();
+  return Buffer.from(output as any);
 }
 
 function escapeCsv(value: string) {
