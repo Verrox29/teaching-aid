@@ -6,6 +6,10 @@
 - Keep changes minimal and production-oriented.
 - Do not over-engineer.
 - Do not modify unrelated files.
+- Prefer Local mode for file-dependent tasks.
+- If a task depends on repo docs, templates, or assets, verify they exist on the active branch before proceeding.
+- Update `docs/PROJECT_STATE.md` only when a module or major decision is confirmed final.
+- Do not update `docs/PROJECT_STATE.md` for every tiny fix.
 
 ## Project Setup Facts
 
