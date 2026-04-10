@@ -33,6 +33,12 @@ Do not use `title` for these meanings.
 - File: `templates/grille-pairagogie.xlsx`
 - Sheet: `Pairagogie`
 
+Template notes:
+- `A1:F1` is merged.
+- `B3:C3`, `E3:F3`, `B4:C4`, `E4:F4`, `B5:C5`, and `E5:F5` are merged.
+- `B7:C7`, `E7:F7`, `B8:C8`, `E8:F8`, and `B9:F9` are merged.
+- `A10:F10`, `B34:F34`, `B36:F37`, and `B39:F41` are merged.
+
 ## Semantic mapping
 
 ### Session fields
@@ -79,6 +85,31 @@ Before activating a template/mapping or generating an export, validate:
 - required cells/ranges exist in the template
 - expected formula cells are present
 - expected merged areas are usable where relevant
+- the workbook labels still match the template:
+  - `Pairagogie Evaluation`
+  - `Programme`
+  - `Class name`
+  - `Subject`
+  - `Season`
+  - `Professor`
+  - `Session date`
+  - `Group`
+  - `Presentation order`
+  - `Submission`
+  - `Member count`
+  - `Members`
+  - `Rubric`
+  - `Criterion`
+  - `Max`
+  - `Score`
+  - `Teacher feedback`
+  - `AI draft`
+  - `Total score`
+  - `Teacher notes`
+  - `Final feedback`
+  - `Challenge questions`
+- the total score cell remains a formula:
+  - `C32 = SUM(C12:C31)`
 
 If invalid:
 
