@@ -47,7 +47,7 @@ export function GroupSubmissionDropzone({
   return (
     <form
       action={uploadGroupSubmissionAction}
-      className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+      className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
       encType="multipart/form-data"
       ref={formRef}
     >
@@ -55,19 +55,21 @@ export function GroupSubmissionDropzone({
       <input name="groupId" type="hidden" value={groupId} />
 
       <div className="grid gap-2">
-        <div className="text-sm text-slate-600">
-          <p className="font-medium text-slate-900">Upload group work</p>
+        <div className="text-sm text-[color:var(--app-fg-muted)]">
+          <p className="font-medium text-[color:var(--app-fg)]">Upload group work</p>
           <p>Drop a file here or click to choose one for {groupName}.</p>
           {submittedAt ? (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
               Uploaded on {submittedAt}
             </p>
           ) : null}
         </div>
 
         <label
-          className={`grid cursor-pointer gap-2 rounded-lg border border-dashed px-4 py-4 text-sm transition ${
-            isDragging ? 'border-slate-500 bg-white' : 'border-slate-300 bg-white hover:border-slate-400'
+          className={`grid cursor-pointer gap-2 rounded-xl border border-dashed px-4 py-4 text-sm transition ${
+            isDragging
+              ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
+              : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
           }`}
           htmlFor={inputId}
           onDragOver={(event) => {
@@ -82,10 +84,10 @@ export function GroupSubmissionDropzone({
             syncFile(file, true);
           }}
         >
-          <span className="font-medium text-slate-900">
+          <span className="font-medium">
             {selectedFileName ?? fileName ?? 'Drop a file or click to choose'}
           </span>
-          <span className="text-slate-500">
+          <span className="text-[color:var(--app-fg-muted)]">
             One file per group. Drag and drop is supported.
           </span>
           <input
@@ -102,13 +104,13 @@ export function GroupSubmissionDropzone({
         </label>
 
         {selectedFileName ? (
-          <p className="text-xs text-slate-500">Selected file: {selectedFileName}</p>
+          <p className="text-xs text-[color:var(--app-fg-muted)]">Selected file: {selectedFileName}</p>
         ) : null}
       </div>
 
       <div className="flex items-end">
         <button
-          className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+          className="ui-button ui-button-primary"
           type="submit"
         >
           Upload file

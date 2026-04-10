@@ -2,7 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { AdminShell } from '@/components/admin-shell';
 import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
 
 type SessionPageProps = {
@@ -61,62 +61,46 @@ export default async function SessionPage({ params }: SessionPageProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-8">
-      <AdminTimelineNav currentStep={3} sessionId={sessionId} slug={session.slug} />
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">Group enrolment</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-            {session?.title ?? sessionId}
-          </h1>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
-            <span className="rounded-full bg-slate-100 px-3 py-1">Language: {session.language}</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Default capacity: {session.defaultGroupCapacity}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Target groups: {session.groupCount}
-            </span>
-            <span
-              className={`rounded-full px-3 py-1 ${
-                session.groupSelectionLocked
-                  ? 'bg-amber-50 text-amber-700'
-                  : 'bg-emerald-50 text-emerald-700'
-              }`}
-            >
-              {session.groupSelectionLocked ? 'Group selection locked' : 'Group selection open'}
-            </span>
-          </div>
-        </div>
-
-        <Link
-          className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
-          href="/sessions"
-        >
-          Back to sessions
-        </Link>
-      </div>
-
+    <AdminShell
+      actions={
+        <>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/students`}>
+            Students
+          </Link>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
+            Groups
+          </Link>
+          <Link className="ui-button ui-button-primary" href={`/sessions/${sessionId}/order`}>
+            Order
+          </Link>
+        </>
+      }
+      currentStep={3}
+      description="Use this hub to monitor enrolment, group coverage, and public access."
+      sessionId={sessionId}
+      slug={session.slug}
+      subtitle="Group enrolment"
+      title={session.title}
+    >
       <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Students</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{totalStudents}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Students</p>
+          <p className="mt-2 text-3xl font-semibold">{totalStudents}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{assignedCount}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Assigned</p>
+          <p className="mt-2 text-3xl font-semibold">{assignedCount}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Unassigned</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{unassignedCount}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Unassigned</p>
+          <p className="mt-2 text-3xl font-semibold">{unassignedCount}</p>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="ui-panel p-6">
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-slate-900">Enrolment status</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-lg font-semibold">Enrolment status</h2>
+          <p className="ui-page-copy">
             Use the group creation page to edit groups and capacities, then monitor the final
             enrolment state here.
           </p>
@@ -124,7 +108,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
         <div className="mt-4 grid gap-3">
           {groupRows.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
               No groups have been created yet.
             </div>
           ) : (
@@ -135,16 +119,16 @@ export default async function SessionPage({ params }: SessionPageProps) {
               return (
                 <div
                   key={group.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-4 py-3"
                 >
                   <div>
-                    <div className="text-sm font-medium text-slate-900">{group.name}</div>
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm font-semibold">{group.name}</div>
+                    <div className="text-sm text-[color:var(--app-fg-muted)]">
                       {memberCount} assigned · {remainingSeats} seat
                       {remainingSeats === 1 ? '' : 's'} left
                     </div>
                   </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                  <span className="ui-chip">
                     {memberCount}/{group.capacity}
                   </span>
                 </div>
@@ -155,61 +139,41 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <Link
-            className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-100"
+            className="ui-card ui-card-soft p-4 transition hover:border-[color:var(--app-accent)] hover:bg-[color:var(--app-surface-soft)]"
             href={`/sessions/${sessionId}/groups`}
           >
-            <div className="text-sm font-medium text-slate-900">Group creation</div>
-            <div className="text-sm text-slate-600">
+            <div className="text-sm font-semibold">Group creation</div>
+            <div className="text-sm text-[color:var(--app-fg-muted)]">
               Manage groups, capacities, and membership changes.
             </div>
           </Link>
           <Link
-            className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-100"
+            className="ui-card ui-card-soft p-4 transition hover:border-[color:var(--app-accent)] hover:bg-[color:var(--app-surface-soft)]"
             href={`/s/${session.slug}`}
           >
-            <div className="text-sm font-medium text-slate-900">Public page</div>
-            <div className="text-sm text-slate-600">See the student-facing enrolment view.</div>
+            <div className="text-sm font-semibold">Public page</div>
+            <div className="text-sm text-[color:var(--app-fg-muted)]">See the student-facing enrolment view.</div>
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Link className="ui-card p-4 transition hover:border-[color:var(--app-accent)]" href={`/sessions/${sessionId}/students`}>
+            <div className="text-sm font-semibold">Students</div>
+            <div className="text-sm text-[color:var(--app-fg-muted)]">Import and review the student roster.</div>
+          </Link>
+          <Link className="ui-card p-4 transition hover:border-[color:var(--app-accent)]" href={`/sessions/${sessionId}/groups`}>
+            <div className="text-sm font-semibold">Groups</div>
+            <div className="text-sm text-[color:var(--app-fg-muted)]">Create groups and manage memberships.</div>
+          </Link>
+          <Link className="ui-card p-4 transition hover:border-[color:var(--app-accent)]" href={`/sessions/${sessionId}/order`}>
+            <div className="text-sm font-semibold">Presentation order</div>
+            <div className="text-sm text-[color:var(--app-fg-muted)]">Set order and upload group files.</div>
+          </Link>
+          <Link className="ui-card p-4 transition hover:border-[color:var(--app-accent)]" href="/sessions">
+            <div className="text-sm font-semibold">Sessions list</div>
+            <div className="text-sm text-[color:var(--app-fg-muted)]">Return to the sessions overview.</div>
           </Link>
         </div>
       </section>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-          href={`/sessions/${sessionId}/students`}
-        >
-          <div className="text-sm font-medium text-slate-900">Students</div>
-          <div className="text-sm text-slate-600">Import and review the student roster.</div>
-        </Link>
-        <Link
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-          href={`/sessions/${sessionId}/groups`}
-        >
-          <div className="text-sm font-medium text-slate-900">Groups</div>
-          <div className="text-sm text-slate-600">Create groups and manage memberships.</div>
-        </Link>
-        <Link
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-          href={`/s/${session.slug}`}
-        >
-          <div className="text-sm font-medium text-slate-900">Public page</div>
-          <div className="text-sm text-slate-600">Open the student self-selection flow.</div>
-        </Link>
-        <Link
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-          href={`/sessions/${sessionId}/order`}
-        >
-          <div className="text-sm font-medium text-slate-900">Presentation order</div>
-          <div className="text-sm text-slate-600">Set order and upload group files.</div>
-        </Link>
-        <Link
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-          href="/sessions"
-        >
-          <div className="text-sm font-medium text-slate-900">Sessions list</div>
-          <div className="text-sm text-slate-600">Return to the sessions overview.</div>
-        </Link>
-      </div>
-    </main>
+    </AdminShell>
   );
 }

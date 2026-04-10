@@ -1,5 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 
 import {
   createDefaultGroupsAction,
@@ -7,7 +8,7 @@ import {
   unlockGroupSelectionAction
 } from './actions';
 
-import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { AdminShell } from '@/components/admin-shell';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
 import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
 
@@ -113,63 +114,31 @@ export default async function SessionGroupsPage({
   );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
-      <AdminTimelineNav currentStep={2} sessionId={sessionId} slug={session.slug} />
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">Group management</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-            {session.title}
-          </h1>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Default capacity: {session.defaultGroupCapacity}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Target groups: {session.groupCount}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Current groups: {groupRows.length}
-            </span>
-            <span
-              className={`rounded-full px-3 py-1 ${
-                session.groupSelectionLocked
-                  ? 'bg-amber-50 text-amber-700'
-                  : 'bg-emerald-50 text-emerald-700'
-              }`}
-            >
-              {session.groupSelectionLocked ? 'Group selection locked' : 'Group selection open'}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <a
-            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-            href={`/sessions/${sessionId}`}
-          >
+    <AdminShell
+      actions={
+        <>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
             Session hub
-          </a>
-          <a
-            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-            href={`/s/${session.slug}`}
-          >
+          </Link>
+          <Link className="ui-button ui-button-secondary" href={`/s/${session.slug}`}>
             Public page
-          </a>
-          <a
-            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-            href="/sessions"
-          >
-            Back to sessions
-          </a>
-        </div>
-      </div>
-
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          </Link>
+          <Link className="ui-button ui-button-primary" href="/sessions">
+            Sessions list
+          </Link>
+        </>
+      }
+      currentStep={2}
+      description="Create, rename, resize, and manage session groups."
+      sessionId={sessionId}
+      slug={session.slug}
+      subtitle="Group creation"
+      title={session.title}
+    >
+      <section className="flex flex-wrap items-center justify-between gap-3 ui-panel px-4 py-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">Group selection</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-lg font-semibold">Group selection</h2>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
             {session.groupSelectionLocked
               ? 'Students can view the public page, but cannot join or switch groups.'
               : 'Students can join or switch groups on the public page.'}
@@ -180,7 +149,7 @@ export default async function SessionGroupsPage({
           <form action={unlockGroupSelectionAction}>
             <input name="sessionId" type="hidden" value={sessionId} />
             <button
-              className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+              className="ui-button ui-button-secondary"
               type="submit"
             >
               Unlock group selection
@@ -190,7 +159,7 @@ export default async function SessionGroupsPage({
           <form action={lockGroupSelectionAction}>
             <input name="sessionId" type="hidden" value={sessionId} />
             <button
-              className="inline-flex items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100"
+              className="ui-button ui-button-secondary"
               type="submit"
             >
               Lock group selection
@@ -200,10 +169,10 @@ export default async function SessionGroupsPage({
       </section>
 
       {groupRows.length === 0 ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="ui-panel p-6">
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-slate-900">Create default groups</h2>
-            <p className="text-sm text-slate-600">
+            <h2 className="text-xl font-semibold">Create default groups</h2>
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
               No groups exist yet. Create {session.groupCount} groups using the session default
               capacity to start assigning students.
             </p>
@@ -212,7 +181,7 @@ export default async function SessionGroupsPage({
           <form action={createDefaultGroupsAction} className="mt-4">
             <input name="sessionId" type="hidden" value={sessionId} />
             <button
-              className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+              className="ui-button ui-button-primary"
               type="submit"
             >
               Create default groups
@@ -234,6 +203,6 @@ export default async function SessionGroupsPage({
         sessionTitle={session.title}
         unassignedStudents={unassignedStudents}
       />
-    </main>
+    </AdminShell>
   );
 }

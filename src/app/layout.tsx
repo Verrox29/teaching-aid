@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import './globals.css';
+
+import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
   title: 'teaching-aid',
@@ -9,11 +12,13 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

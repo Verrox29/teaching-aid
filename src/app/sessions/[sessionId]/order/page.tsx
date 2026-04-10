@@ -8,7 +8,7 @@ import {
   unlockPresentationOrderAction
 } from './actions';
 
-import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { AdminShell } from '@/components/admin-shell';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
@@ -90,68 +90,40 @@ export default async function SessionOrderPage({
   const currentStepLocked = session.presentationOrderLocked;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-8">
-      <AdminTimelineNav
-        currentStep={4}
-        sessionId={sessionId}
-        slug={session.slug}
-      />
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">Presentation order & upload</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-            {session.title}
-          </h1>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
-            <span
-              className={`rounded-full px-3 py-1 ${
-                currentStepLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-              }`}
-            >
-              {currentStepLocked ? 'Presentation order locked' : 'Presentation order open'}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Groups: {orderedGroups.length}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              Files uploaded: {submissionRows.length}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-            href={`/sessions/${sessionId}`}
-          >
+    <AdminShell
+      actions={
+        <>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
             Session hub
           </Link>
-          <Link
-            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-            href="/sessions"
-          >
-            Back to sessions
+          <Link className="ui-button ui-button-secondary" href="/sessions">
+            Sessions list
           </Link>
-        </div>
-      </div>
-
+        </>
+      }
+      currentStep={4}
+      description="Generate presentation order, lock it, and attach one file per group."
+      sessionId={sessionId}
+      slug={session.slug}
+      subtitle="Presentation order & upload"
+      title={session.title}
+    >
       {notice || error ? (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
+          className={`rounded-2xl border px-4 py-3 text-sm ${
             error
-              ? 'border-rose-200 bg-rose-50 text-rose-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              ? 'border-[color:var(--app-danger)]/20 bg-[color:var(--app-danger)]/10 text-[color:var(--app-danger)]'
+              : 'border-[color:var(--app-success)]/20 bg-[color:var(--app-success)]/10 text-[color:var(--app-success)]'
           }`}
         >
           {notice ?? error}
         </div>
       ) : null}
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <section className="ui-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">Presentation order controls</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-lg font-semibold">Presentation order controls</h2>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
             {currentStepLocked
               ? 'The presentation order is locked. Unlock it to change the order.'
               : orderReady
@@ -164,10 +136,7 @@ export default async function SessionOrderPage({
           {currentStepLocked ? (
             <form action={unlockPresentationOrderAction}>
               <input name="sessionId" type="hidden" value={sessionId} />
-              <button
-                className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
-                type="submit"
-              >
+              <button className="ui-button ui-button-secondary" type="submit">
                 Unlock order
               </button>
             </form>
@@ -180,10 +149,7 @@ export default async function SessionOrderPage({
               />
               <form action={lockPresentationOrderAction}>
                 <input name="sessionId" type="hidden" value={sessionId} />
-                <button
-                  className="inline-flex items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100"
-                  type="submit"
-                >
+                <button className="ui-button ui-button-secondary" type="submit">
                   Lock order
                 </button>
               </form>
@@ -193,19 +159,16 @@ export default async function SessionOrderPage({
       </section>
 
       {orderedGroups.length === 0 ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="ui-panel p-6">
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-slate-900">No groups yet</h2>
-            <p className="text-sm text-slate-600">
+            <h2 className="text-xl font-semibold">No groups yet</h2>
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
               Create groups first, then come back here to assign presentation order and upload
               files.
             </p>
           </div>
           <div className="mt-4">
-            <Link
-              className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-              href={`/sessions/${sessionId}/groups`}
-            >
+            <Link className="ui-button ui-button-primary" href={`/sessions/${sessionId}/groups`}>
               Go to groups
             </Link>
           </div>
@@ -218,24 +181,17 @@ export default async function SessionOrderPage({
             const isLast = index === orderedGroups.length - 1;
 
             return (
-              <article
-                key={group.id}
-                className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-              >
+              <article key={group.id} className="ui-card grid gap-4 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        Order {index + 1}
-                      </span>
+                      <span className="ui-chip">Order {index + 1}</span>
                       {group.presentationOrder === null ? (
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-                          Not locked in yet
-                        </span>
+                        <span className="ui-chip">Not locked in yet</span>
                       ) : null}
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900">{group.name}</h3>
-                    <p className="text-sm text-slate-600">
+                    <h3 className="text-lg font-semibold">{group.name}</h3>
+                    <p className="text-sm text-[color:var(--app-fg-muted)]">
                       Capacity {group.capacity}.{' '}
                       {submission ? `Uploaded file: ${submission.fileName}` : 'No file uploaded yet.'}
                     </p>
@@ -247,7 +203,7 @@ export default async function SessionOrderPage({
                       <input name="groupId" type="hidden" value={group.id} />
                       <input name="direction" type="hidden" value="up" />
                       <button
-                        className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={currentStepLocked || isFirst}
                         type="submit"
                       >
@@ -259,7 +215,7 @@ export default async function SessionOrderPage({
                       <input name="groupId" type="hidden" value={group.id} />
                       <input name="direction" type="hidden" value="down" />
                       <button
-                        className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={currentStepLocked || isLast}
                         type="submit"
                       >
@@ -269,7 +225,7 @@ export default async function SessionOrderPage({
                   </div>
                 </div>
 
-                <div className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <GroupSubmissionDropzone
                     fileName={submission?.fileName ?? null}
                     groupId={group.id}
@@ -290,6 +246,6 @@ export default async function SessionOrderPage({
           })}
         </section>
       )}
-    </main>
+    </AdminShell>
   );
 }

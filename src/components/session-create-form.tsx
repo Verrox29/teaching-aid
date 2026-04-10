@@ -10,7 +10,7 @@ function SubmitButton() {
 
   return (
     <button
-      className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+      className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
       disabled={pending}
       type="submit"
     >
@@ -28,7 +28,7 @@ function FieldError({ errors }: FieldErrorProps) {
     return null;
   }
 
-  return <p className="text-sm text-rose-600">{errors[0]}</p>;
+  return <p className="text-sm text-[color:var(--app-danger)]">{errors[0]}</p>;
 }
 
 const initialCreateSessionFormState = {
@@ -50,13 +50,13 @@ export function SessionCreateForm() {
   );
 
   return (
-    <form action={formAction} className="grid gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <form action={formAction} className="ui-card grid gap-6 p-6">
       <div className="grid gap-2">
-        <label className="text-sm font-medium text-slate-900" htmlFor="title">
+        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="title">
           Title
         </label>
         <input
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+          className="ui-input"
           defaultValue={state.values.title}
           id="title"
           name="title"
@@ -66,11 +66,11 @@ export function SessionCreateForm() {
       </div>
 
       <div className="grid gap-2">
-        <label className="text-sm font-medium text-slate-900" htmlFor="language">
+        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="language">
           Language
         </label>
         <select
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+          className="ui-select"
           defaultValue={state.values.language}
           id="language"
           name="language"
@@ -82,11 +82,11 @@ export function SessionCreateForm() {
       </div>
 
       <div className="grid gap-2">
-        <label className="text-sm font-medium text-slate-900" htmlFor="instruction_text">
+        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="instruction_text">
           Instruction Text
         </label>
         <textarea
-          className="min-h-32 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+          className="ui-textarea"
           defaultValue={state.values.instruction_text}
           id="instruction_text"
           name="instruction_text"
@@ -96,11 +96,11 @@ export function SessionCreateForm() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="grid gap-2">
-          <label className="text-sm font-medium text-slate-900" htmlFor="default_group_capacity">
+          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="default_group_capacity">
             Default Group Capacity
           </label>
           <input
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+            className="ui-input"
             defaultValue={state.values.default_group_capacity}
             id="default_group_capacity"
             min="1"
@@ -112,11 +112,11 @@ export function SessionCreateForm() {
         </div>
 
         <div className="grid gap-2">
-          <label className="text-sm font-medium text-slate-900" htmlFor="group_count">
+          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="group_count">
             Group Count
           </label>
           <input
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+            className="ui-input"
             defaultValue={state.values.group_count}
             id="group_count"
             min="1"
@@ -129,11 +129,11 @@ export function SessionCreateForm() {
       </div>
 
       <div className="grid gap-2">
-        <label className="text-sm font-medium text-slate-900" htmlFor="admin_access_code">
+        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="admin_access_code">
           Admin Access Code
         </label>
         <input
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+          className="ui-input"
           defaultValue={state.values.admin_access_code}
           id="admin_access_code"
           name="admin_access_code"
@@ -142,7 +142,7 @@ export function SessionCreateForm() {
         <FieldError errors={state.errors.admin_access_code} />
       </div>
 
-      {state.message ? <p className="text-sm text-rose-600">{state.message}</p> : null}
+      {state.message ? <p className="text-sm text-[color:var(--app-danger)]">{state.message}</p> : null}
 
       <div className="flex justify-end">
         <SubmitButton />

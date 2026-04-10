@@ -27,8 +27,8 @@ export function AdminTimelineNav({
   slug
 }: AdminTimelineNavProps) {
   return (
-    <nav aria-label="Admin timeline" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2">
+    <nav aria-label="Admin timeline" className="ui-panel overflow-hidden p-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {adminSteps.map((step) => {
           const href = step.href(sessionId, slug);
           const isActive = step.step === currentStep;
@@ -38,27 +38,13 @@ export function AdminTimelineNav({
             <Link
               key={step.step}
               aria-current={isActive ? 'step' : undefined}
-              className={`inline-flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-2 text-sm font-medium transition ${
-                isActive
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : isPast
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100'
-                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100'
-              }`}
+              className={`ui-timeline-step ${isActive ? 'ui-timeline-step-active' : isPast ? 'ui-timeline-step-complete' : 'ui-timeline-step-future'}`}
               href={href}
             >
-              <span
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  isActive
-                    ? 'bg-white/15 text-white'
-                    : isPast
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-white text-slate-500'
-                }`}
-              >
+              <span className="ui-timeline-dot">
                 {step.step}
               </span>
-              <span className="truncate">{step.label}</span>
+              <span className="min-w-0 truncate text-sm font-medium">{step.label}</span>
             </Link>
           );
         })}

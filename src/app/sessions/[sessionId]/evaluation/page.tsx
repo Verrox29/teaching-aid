@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { AdminShell } from '@/components/admin-shell';
 import { db, sessions } from '@/db';
 
 type SessionEvaluationPageProps = {
@@ -32,32 +32,25 @@ export default async function SessionEvaluationPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-8">
-      <AdminTimelineNav currentStep={5} sessionId={sessionId} slug={session.slug} />
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">AI scoring & feedback</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{session.title}</h1>
-          <p className="text-sm text-slate-600">
-            This module is reserved for the next phase and is not available yet.
-          </p>
-        </div>
-
-        <Link
-          className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
-          href={`/sessions/${sessionId}`}
-        >
+    <AdminShell
+      actions={
+        <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
           Session hub
         </Link>
-      </div>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Placeholder</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          AI scoring and feedback will be built in a later module.
+      }
+      currentStep={5}
+      description="Reserved for AI scoring and feedback in a later module."
+      sessionId={sessionId}
+      slug={session.slug}
+      subtitle="AI scoring & feedback"
+      title={session.title}
+    >
+      <section className="ui-panel p-6">
+        <h2 className="text-lg font-semibold">Coming soon</h2>
+        <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
+          AI scoring and feedback will be added in a later module.
         </p>
       </section>
-    </main>
+    </AdminShell>
   );
 }

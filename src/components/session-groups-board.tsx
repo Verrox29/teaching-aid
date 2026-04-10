@@ -381,49 +381,40 @@ export function SessionGroupsBoard({
   return (
     <section className="grid gap-6">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total students</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{totalStudents}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Total students</p>
+          <p className="mt-2 text-3xl font-semibold">{totalStudents}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{assignedStudents}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Assigned</p>
+          <p className="mt-2 text-3xl font-semibold">{assignedStudents}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Unassigned
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">
-            {unassignedStudents.length}
-          </p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Unassigned</p>
+          <p className="mt-2 text-3xl font-semibold">{unassignedStudents.length}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total groups</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{groupCount}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Total groups</p>
+          <p className="mt-2 text-3xl font-semibold">{groupCount}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Seats remaining
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900">{totalSeatsRemaining}</p>
+        <div className="ui-card p-4">
+          <p className="ui-section-title">Seats remaining</p>
+          <p className="mt-2 text-3xl font-semibold">{totalSeatsRemaining}</p>
         </div>
       </div>
 
       {alert ? (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
+          className={`rounded-2xl border px-4 py-3 text-sm ${
             alert.kind === 'error'
-              ? 'border-rose-200 bg-rose-50 text-rose-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              ? 'border-[color:var(--app-danger)]/20 bg-[color:var(--app-danger)]/10 text-[color:var(--app-danger)]'
+              : 'border-[color:var(--app-success)]/20 bg-[color:var(--app-success)]/10 text-[color:var(--app-success)]'
           }`}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>{alert.message}</span>
             {alert.kind === 'error' ? (
-              <a
-                className="inline-flex items-center rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
-                href="#error-targets"
-              >
+              <a className="ui-button ui-button-secondary px-3 py-1.5 text-xs" href="#error-targets">
                 Go to error(s)
               </a>
             ) : null}
@@ -431,16 +422,16 @@ export function SessionGroupsBoard({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 ui-panel px-4 py-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">{sessionTitle} groups</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-lg font-semibold">{sessionTitle} groups</h2>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
             Default group capacity: {defaultGroupCapacity}. Drag students between the sidebar and
             groups, then save the changed cards.
           </p>
         </div>
 
-      {groups.length > 0 ? (
+        {groups.length > 0 ? (
           <form
             action={saveGroupsAction}
             className="flex items-center gap-2"
@@ -448,15 +439,12 @@ export function SessionGroupsBoard({
           >
             <input name="sessionId" type="hidden" value={sessionId} />
             <input name="groupsJson" type="hidden" value={groupsJson} />
-            <button
-              className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-              type="submit"
-            >
+            <button className="ui-button ui-button-primary" type="submit">
               Save all groups
             </button>
           </form>
         ) : (
-          <p className="text-sm text-slate-500">Create default groups to unlock saving.</p>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">Create default groups to unlock saving.</p>
         )}
       </div>
 
@@ -468,23 +456,23 @@ export function SessionGroupsBoard({
       >
         <aside className="lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
           <section
-            className={`grid gap-4 rounded-xl border bg-white p-5 shadow-sm ${
+            className={`grid gap-4 rounded-2xl border p-5 ${
               alert?.kind === 'error' && !alert.groupId && !alert.studentId
-                ? 'border-rose-300 ring-1 ring-rose-100'
-                : 'border-slate-200'
+                ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
+                : 'border-[color:var(--app-border)]'
             }`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleUnassignedDrop}
           >
             <div className="space-y-1">
-              <h3 className="text-lg font-semibold text-slate-900">Unassigned students</h3>
-              <p className="text-sm text-slate-600">
+              <h3 className="text-lg font-semibold">Unassigned students</h3>
+              <p className="text-sm text-[color:var(--app-fg-muted)]">
                 Drag a student card here to remove them from a group.
               </p>
             </div>
 
             {unassignedStudents.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
                 All students are assigned to groups.
               </div>
             ) : (
@@ -492,10 +480,10 @@ export function SessionGroupsBoard({
                 {unassignedStudents.map((student) => (
                   <article
                     key={student.id}
-                    className={`cursor-grab rounded-lg border bg-slate-50 px-4 py-3 transition ${
+                    className={`cursor-grab rounded-xl border px-4 py-3 transition ${
                       alert?.kind === 'error' && alert.studentId === student.id
-                        ? 'border-rose-300 ring-1 ring-rose-100'
-                        : 'border-slate-200'
+                        ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
+                        : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)]'
                     }`}
                     draggable
                     onDragEnd={handleDragEnd}
@@ -503,10 +491,10 @@ export function SessionGroupsBoard({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-medium text-slate-900">
+                        <div className="text-sm font-medium">
                           {student.firstName} {student.lastName}
                         </div>
-                        <div className="text-sm text-slate-500">{student.schoolEmail}</div>
+                        <div className="text-sm text-[color:var(--app-fg-muted)]">{student.schoolEmail}</div>
                       </div>
                     </div>
 
@@ -514,11 +502,7 @@ export function SessionGroupsBoard({
                       <form className="mt-3 flex flex-wrap items-center gap-2">
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="sessionStudentId" type="hidden" value={student.id} />
-                        <select
-                          className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                          defaultValue={groups[0]?.id}
-                          name="groupId"
-                        >
+                        <select className="ui-select min-w-0 flex-1" defaultValue={groups[0]?.id} name="groupId">
                           {groups.map((group) => (
                             <option key={group.id} value={group.id}>
                               {group.name}
@@ -526,7 +510,7 @@ export function SessionGroupsBoard({
                           ))}
                         </select>
                         <button
-                          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          className="ui-button ui-button-secondary px-3 py-2 text-sm"
                           type="button"
                           onClick={(event) => handleAssignClick(event, student.id, null)}
                         >
@@ -534,7 +518,7 @@ export function SessionGroupsBoard({
                         </button>
                       </form>
                     ) : (
-                      <p className="mt-3 text-sm text-slate-500">Create groups first to assign.</p>
+                      <p className="mt-3 text-sm text-[color:var(--app-fg-muted)]">Create groups first to assign.</p>
                     )}
                   </article>
                 ))}
@@ -545,8 +529,8 @@ export function SessionGroupsBoard({
 
         <section className="grid gap-4">
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold text-slate-900">Groups</h2>
-            <p className="text-sm text-slate-600">
+            <h2 className="text-xl font-semibold">Groups</h2>
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
               Edit group names and capacities, then drag students into the right place.
             </p>
           </div>
@@ -560,12 +544,12 @@ export function SessionGroupsBoard({
               return (
                 <article
                   key={group.id}
-                  className={`grid gap-4 rounded-xl border bg-white p-5 shadow-sm transition ${
+                  className={`grid gap-4 rounded-2xl border p-5 transition ${
                     alert?.kind === 'error' && alert.groupId === group.id
-                      ? 'border-rose-300 ring-1 ring-rose-100'
+                      ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
                       : dirty
-                        ? 'border-amber-200 ring-1 ring-amber-100'
-                      : 'border-slate-200'
+                        ? 'border-[color:var(--app-warning)]/30 ring-1 ring-[color:var(--app-warning)]/12'
+                        : 'border-[color:var(--app-border)] bg-[color:var(--app-surface)]'
                   }`}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => handleGroupDrop(event, group.id)}
@@ -573,19 +557,13 @@ export function SessionGroupsBoard({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-slate-900">{group.name}</h3>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                            dirty
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-emerald-50 text-emerald-700'
-                          }`}
-                        >
+                        <h3 className="text-lg font-semibold">{group.name}</h3>
+                        <span className={`ui-chip ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}>
                           <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
                           {dirty ? 'Unsaved changes' : 'Saved and unchanged'}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm text-[color:var(--app-fg-muted)]">
                         Capacity {group.capacity} · {memberCount} member
                         {memberCount === 1 ? '' : 's'} ·{' '}
                         {remainingSeats >= 0
@@ -594,60 +572,56 @@ export function SessionGroupsBoard({
                       </p>
                     </div>
 
-                    <form
-                      action={saveGroupsAction}
-                      className="flex items-center gap-2"
-                      onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
-                    >
-                      <input name="sessionId" type="hidden" value={sessionId} />
-                      <input name="groupsJson" type="hidden" value={groupsJson} />
-                      <input name="sourceGroupId" type="hidden" value={group.id} />
-                      <button
-                        className="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                        type="submit"
+                    <div className="flex flex-wrap items-center gap-2">
+                      <form
+                        action={saveGroupsAction}
+                        className="flex flex-wrap items-center gap-2"
+                        onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
                       >
-                        {dirty ? 'Update and save' : 'Save group'}
-                      </button>
-                    </form>
+                        <input name="sessionId" type="hidden" value={sessionId} />
+                        <input name="groupsJson" type="hidden" value={groupsJson} />
+                        <input name="sourceGroupId" type="hidden" value={group.id} />
+                        <button className="ui-button ui-button-secondary" type="submit">
+                          {dirty ? 'Update and save' : 'Save group'}
+                        </button>
+                      </form>
 
-                    <form
-                      action={deleteGroupAction}
-                      onSubmit={(event) => {
-                        if (
-                          !window.confirm(
-                            `Delete ${group.name}? This removes the group and its memberships.`
-                          )
-                        ) {
-                          event.preventDefault();
-                        }
-                      }}
-                    >
-                      <input name="sessionId" type="hidden" value={sessionId} />
-                      <input name="groupId" type="hidden" value={group.id} />
-                      <button
-                        className="inline-flex items-center justify-center rounded-md border border-rose-200 px-4 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
-                        type="submit"
+                      <form
+                        action={deleteGroupAction}
+                        onSubmit={(event) => {
+                          if (
+                            !window.confirm(
+                              `Delete ${group.name}? This removes the group and its memberships.`
+                            )
+                          ) {
+                            event.preventDefault();
+                          }
+                        }}
                       >
-                        Delete group
-                      </button>
-                    </form>
+                        <input name="sessionId" type="hidden" value={sessionId} />
+                        <input name="groupId" type="hidden" value={group.id} />
+                        <button className="ui-button ui-button-danger" type="submit">
+                          Delete group
+                        </button>
+                      </form>
+                    </div>
                   </div>
 
-                  <div className="grid gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-                    <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  <div className="grid gap-3 rounded-2xl bg-[color:var(--app-surface-muted)] p-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+                    <label className="grid gap-1 text-sm font-medium">
                       Group name
                       <input
-                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                        className="ui-input"
                         name="name"
                         onChange={(event) => updateGroupField(group.id, 'name', event.target.value)}
                         type="text"
                         value={group.name}
                       />
                     </label>
-                    <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    <label className="grid gap-1 text-sm font-medium">
                       Capacity
                       <input
-                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                        className="ui-input"
                         min="1"
                         name="capacity"
                         onChange={(event) =>
@@ -660,10 +634,10 @@ export function SessionGroupsBoard({
                   </div>
 
                   <div className="grid gap-3">
-                    <div className="text-sm font-medium text-slate-900">Members</div>
+                    <div className="text-sm font-medium">Members</div>
 
                     {group.members.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
+                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
                         No students in this group yet.
                       </div>
                     ) : (
@@ -671,21 +645,21 @@ export function SessionGroupsBoard({
                         {group.members.map((member) => (
                           <article
                             key={member.id}
-                    className={`cursor-grab rounded-lg border px-4 py-3 transition ${
-                      alert?.kind === 'error' && alert.studentId === member.id
-                        ? 'border-rose-300 ring-1 ring-rose-100'
-                        : 'border-slate-200'
-                    }`}
-                    draggable
-                    onDragEnd={handleDragEnd}
-                    onDragStart={(event) => handleDragStart(event, member.id, group.id)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                                <div className="text-sm font-medium text-slate-900">
+                            className={`cursor-grab rounded-xl border px-4 py-3 transition ${
+                              alert?.kind === 'error' && alert.studentId === member.id
+                                ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
+                                : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)]'
+                            }`}
+                            draggable
+                            onDragEnd={handleDragEnd}
+                            onDragStart={(event) => handleDragStart(event, member.id, group.id)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-medium">
                                   {member.firstName} {member.lastName}
                                 </div>
-                                <div className="text-sm text-slate-500">{member.schoolEmail}</div>
+                                <div className="text-sm text-[color:var(--app-fg-muted)]">{member.schoolEmail}</div>
                               </div>
                             </div>
 
@@ -697,11 +671,7 @@ export function SessionGroupsBoard({
                                   type="hidden"
                                   value={member.id}
                                 />
-                                <select
-                                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                                  defaultValue={group.id}
-                                  name="groupId"
-                                >
+                                <select className="ui-select" defaultValue={group.id} name="groupId">
                                   {groups.map((destinationGroup) => (
                                     <option key={destinationGroup.id} value={destinationGroup.id}>
                                       {destinationGroup.name}
@@ -709,7 +679,7 @@ export function SessionGroupsBoard({
                                   ))}
                                 </select>
                                 <button
-                                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                                  className="ui-button ui-button-secondary"
                                   type="button"
                                   onClick={(event) => handleMoveClick(event, member.id, group.id)}
                                 >
@@ -718,7 +688,7 @@ export function SessionGroupsBoard({
                               </form>
 
                               <button
-                                className="rounded-md border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
+                                className="ui-button ui-button-danger"
                                 type="button"
                                 onClick={() => handleRemoveClick(member.id, group.id)}
                               >
@@ -736,13 +706,13 @@ export function SessionGroupsBoard({
           </div>
 
           {groups.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+            <div className="ui-panel p-6 text-sm text-[color:var(--app-fg-muted)]">
               Create default groups to begin managing memberships.
             </div>
           ) : null}
 
           {hasDirtyGroups ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="ui-chip ui-chip-warning px-4 py-3 text-sm">
               {dirtyGroups.length} group{dirtyGroups.length === 1 ? '' : 's'} have unsaved changes.
             </div>
           ) : null}

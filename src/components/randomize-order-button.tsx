@@ -71,7 +71,7 @@ export function RandomizeOrderButton({
       <form action={randomizePresentationOrderAction} ref={formRef}>
         <input name="sessionId" type="hidden" value={sessionId} />
         <button
-          className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
           disabled={disabled || isRandomizing || groupNames.length === 0}
           type="button"
           onClick={startRandomization}
@@ -85,7 +85,7 @@ export function RandomizeOrderButton({
           {previewNames.map((name, index) => (
             <span
               key={`${name}-${index}`}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm"
+              className="ui-chip"
             >
               {name}
             </span>

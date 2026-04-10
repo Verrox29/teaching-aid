@@ -134,33 +134,36 @@ export function SessionStudentImport({
   }
 
   return (
-    <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="ui-panel grid gap-4 p-6">
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-900">Import students</h2>
-        <p className="text-sm text-slate-600">
-          Upload a Boostcamp `.xlsx` file, paste roster text, or use a CSV with first name, last name, school email, and optional user ID columns.
+        <h2 className="text-xl font-semibold">Import students</h2>
+        <p className="text-sm text-[color:var(--app-fg-muted)]">
+          Upload a Boostcamp `.xlsx` file, paste roster text, or use a CSV with first name, last
+          name, school email, and optional user ID columns.
         </p>
       </div>
 
       <div
-        className={`grid gap-3 rounded-xl border border-dashed px-4 py-4 transition ${
-          isDragging ? 'border-slate-900 bg-slate-50' : 'border-slate-300 bg-slate-50/40'
+        className={`grid gap-3 rounded-2xl border border-dashed px-4 py-4 transition ${
+          isDragging
+            ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
+            : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)]'
         }`}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-900" htmlFor="studentFile">
+          <label className="text-sm font-medium" htmlFor="studentFile">
             File upload
           </label>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
             Drag and drop a `.xlsx` or `.csv` file here, or choose one manually.
           </p>
         </div>
         <input
           accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          className="block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+          className="ui-input"
           id="studentFile"
           name="studentFile"
           onChange={handleFileChange}
@@ -169,11 +172,11 @@ export function SessionStudentImport({
       </div>
 
       <div className="grid gap-3">
-        <label className="text-sm font-medium text-slate-900" htmlFor="pastedText">
+        <label className="text-sm font-medium" htmlFor="pastedText">
           Or paste Boostcamp roster text
         </label>
         <textarea
-          className="min-h-40 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-slate-500"
+          className="ui-textarea"
           id="pastedText"
           name="pastedText"
           onChange={(event) => setPastedText(event.target.value)}
@@ -181,7 +184,7 @@ export function SessionStudentImport({
         />
         <div className="flex justify-end">
           <button
-            className="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            className="ui-button ui-button-secondary"
             type="button"
             onClick={handlePasteParse}
             disabled={!pastedText.trim()}
@@ -191,10 +194,16 @@ export function SessionStudentImport({
         </div>
       </div>
 
-      {parseError ? <p className="text-sm text-rose-600">{parseError}</p> : null}
-      {parseMessage ? <p className="text-sm text-slate-600">{parseMessage}</p> : null}
+      {parseError ? <p className="text-sm text-[color:var(--app-danger)]">{parseError}</p> : null}
+      {parseMessage ? <p className="text-sm text-[color:var(--app-fg-muted)]">{parseMessage}</p> : null}
       {actionState.message ? (
-        <p className={actionState.success ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>
+        <p
+          className={
+            actionState.success
+              ? 'text-sm text-[color:var(--app-success)]'
+              : 'text-sm text-[color:var(--app-danger)]'
+          }
+        >
           {actionState.message}
         </p>
       ) : null}
@@ -208,9 +217,9 @@ export function SessionStudentImport({
             value={JSON.stringify(validRows.map((row) => row.values))}
           />
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-slate-600">
+          <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
+            <table className="min-w-full divide-y divide-[color:var(--app-border)] text-sm">
+              <thead className="text-left text-[color:var(--app-fg-muted)]">
                 <tr>
                   <th className="px-3 py-2 font-medium">Row</th>
                   <th className="px-3 py-2 font-medium">User ID</th>
@@ -220,16 +229,19 @@ export function SessionStudentImport({
                   <th className="px-3 py-2 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-[color:var(--app-border)] bg-[color:var(--app-surface)]">
                 {rows.map((row) => (
-                  <tr key={row.id} className={row.isValid ? 'bg-white' : 'bg-rose-50'}>
-                    <td className="px-3 py-3 align-top text-slate-500">{row.rowNumber}</td>
-                    <td className="px-3 py-3 align-top text-slate-700">
+                  <tr
+                    key={row.id}
+                    className={row.isValid ? '' : 'bg-[color:var(--app-surface-soft)]'}
+                  >
+                    <td className="px-3 py-3 align-top text-[color:var(--app-fg-muted)]">{row.rowNumber}</td>
+                    <td className="px-3 py-3 align-top text-[color:var(--app-fg-muted)]">
                       {row.values.userId || '—'}
                     </td>
                     <td className="px-3 py-3 align-top">
                       <input
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                        className="ui-input py-2"
                         onChange={(event) =>
                           updateRowValue(row.id, 'firstName', event.target.value)
                         }
@@ -237,12 +249,14 @@ export function SessionStudentImport({
                         value={row.values.firstName}
                       />
                       {row.errors.firstName ? (
-                        <p className="mt-1 text-xs text-rose-600">{row.errors.firstName}</p>
+                        <p className="mt-1 text-xs text-[color:var(--app-danger)]">
+                          {row.errors.firstName}
+                        </p>
                       ) : null}
                     </td>
                     <td className="px-3 py-3 align-top">
                       <input
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                        className="ui-input py-2"
                         onChange={(event) =>
                           updateRowValue(row.id, 'lastName', event.target.value)
                         }
@@ -250,12 +264,14 @@ export function SessionStudentImport({
                         value={row.values.lastName}
                       />
                       {row.errors.lastName ? (
-                        <p className="mt-1 text-xs text-rose-600">{row.errors.lastName}</p>
+                        <p className="mt-1 text-xs text-[color:var(--app-danger)]">
+                          {row.errors.lastName}
+                        </p>
                       ) : null}
                     </td>
                     <td className="px-3 py-3 align-top">
                       <input
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                        className="ui-input py-2"
                         onChange={(event) =>
                           updateRowValue(row.id, 'schoolEmail', event.target.value)
                         }
@@ -263,15 +279,15 @@ export function SessionStudentImport({
                         value={row.values.schoolEmail}
                       />
                       {row.errors.schoolEmail ? (
-                        <p className="mt-1 text-xs text-rose-600">{row.errors.schoolEmail}</p>
+                        <p className="mt-1 text-xs text-[color:var(--app-danger)]">
+                          {row.errors.schoolEmail}
+                        </p>
                       ) : null}
                     </td>
                     <td className="px-3 py-3 align-top text-sm">
-                      {row.isValid ? (
-                        <span className="text-emerald-700">Valid</span>
-                      ) : (
-                        <span className="text-rose-700">Needs correction</span>
-                      )}
+                      <span className={`ui-chip ${row.isValid ? 'ui-chip-success' : 'ui-chip-danger'}`}>
+                        {row.isValid ? 'Valid' : 'Needs correction'}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -279,12 +295,12 @@ export function SessionStudentImport({
             </table>
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
               {validRows.length} of {rows.length} row{rows.length > 1 ? 's' : ''} ready to import.
             </p>
             <button
-              className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isPending || rows.length === 0 || hasInvalidRows}
               type="submit"
             >

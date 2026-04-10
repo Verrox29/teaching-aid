@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
-import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { AdminShell } from '@/components/admin-shell';
 import { SessionStudentImport } from '@/components/session-student-import';
 import { db, sessionStudents, sessions } from '@/db';
 
@@ -47,40 +47,43 @@ export default async function SessionStudentsPage({
     );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 p-8">
-      <AdminTimelineNav currentStep={1} sessionId={sessionId} slug={session[0].slug} />
-
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-sm text-slate-500">Session</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-            {session[0].title} · Students
-          </h1>
-        </div>
-        <Link
-          className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
-          href="/sessions"
-        >
-          Back to sessions
-        </Link>
-      </div>
-
+    <AdminShell
+      actions={
+        <>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
+            Session hub
+          </Link>
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
+            Groups
+          </Link>
+          <Link className="ui-button ui-button-primary" href="/sessions">
+            Sessions list
+          </Link>
+        </>
+      }
+      currentStep={1}
+      description="Upload or paste the student roster, then review imported rows."
+      sessionId={sessionId}
+      slug={session[0].slug}
+      subtitle="Student import"
+      title={`${session[0].title} · Students`}
+    >
       <SessionStudentImport
         existingEmails={students.map((student) => student.schoolEmail)}
         sessionId={sessionId}
       />
 
-      <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="ui-panel grid gap-4 p-6">
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold text-slate-900">Imported students</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-xl font-semibold">Imported students</h2>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
             Students already saved in this session roster.
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-slate-600">
+        <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
+          <table className="min-w-full divide-y divide-[color:var(--app-border)] text-sm">
+            <thead className="text-left text-[color:var(--app-fg-muted)]">
               <tr>
                 <th className="px-4 py-3 font-medium">First name</th>
                 <th className="px-4 py-3 font-medium">Last name</th>
@@ -88,20 +91,20 @@ export default async function SessionStudentsPage({
                 <th className="px-4 py-3 font-medium">Imported at</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
+            <tbody className="divide-y divide-[color:var(--app-border)] bg-[color:var(--app-surface)]">
               {students.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={4}>
+                  <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={4}>
                     No students imported yet.
                   </td>
                 </tr>
               ) : (
                 students.map((student) => (
                   <tr key={student.id}>
-                    <td className="px-4 py-3 text-slate-900">{student.firstName}</td>
-                    <td className="px-4 py-3 text-slate-900">{student.lastName}</td>
-                    <td className="px-4 py-3 text-slate-700">{student.schoolEmail}</td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="px-4 py-3">{student.firstName}</td>
+                    <td className="px-4 py-3">{student.lastName}</td>
+                    <td className="px-4 py-3 text-[color:var(--app-fg-muted)]">{student.schoolEmail}</td>
+                    <td className="px-4 py-3 text-[color:var(--app-fg-muted)]">
                       {student.createdAt.toLocaleString('en-GB', {
                         dateStyle: 'medium',
                         timeStyle: 'short'
@@ -114,6 +117,6 @@ export default async function SessionStudentsPage({
           </table>
         </div>
       </section>
-    </main>
+    </AdminShell>
   );
 }

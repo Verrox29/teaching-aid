@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { AdminTimelineNav } from '@/components/admin-timeline-nav';
+import { AdminShell } from '@/components/admin-shell';
 import { db, sessions } from '@/db';
 
 type SessionExportsPageProps = {
@@ -32,32 +32,25 @@ export default async function SessionExportsPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-8">
-      <AdminTimelineNav currentStep={6} sessionId={sessionId} slug={session.slug} />
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">Grille & grades export</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{session.title}</h1>
-          <p className="text-sm text-slate-600">
-            Export tools will be added here in the next module.
-          </p>
-        </div>
-
-        <Link
-          className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
-          href={`/sessions/${sessionId}`}
-        >
+    <AdminShell
+      actions={
+        <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
           Session hub
         </Link>
-      </div>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Export module coming soon</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          This page is reserved for the final grille and grades export flow.
+      }
+      currentStep={6}
+      description="Reserved for grille and grades export in a later module."
+      sessionId={sessionId}
+      slug={session.slug}
+      subtitle="Grille & grades export"
+      title={session.title}
+    >
+      <section className="ui-panel p-6">
+        <h2 className="text-lg font-semibold">Export module coming soon</h2>
+        <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
+          Export tools will be added here in the next module.
         </p>
       </section>
-    </main>
+    </AdminShell>
   );
 }
