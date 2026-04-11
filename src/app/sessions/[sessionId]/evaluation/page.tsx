@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
-import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationWorkspaceClient } from '@/components/evaluation-workspace';
+import { SessionContextPopover } from '@/components/session-context-popover';
 import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import { getEvaluationWorkspace } from '@/lib/evaluation/repository';
@@ -63,6 +63,14 @@ export default async function SessionEvaluationPage({
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
             Exports
           </Link>
+          <SessionContextPopover
+            metadata={metadata}
+            roster={workspace.groups.map((group) => ({
+              groupId: group.groupId,
+              groupName: group.groupName,
+              members: group.members
+            }))}
+          />
         </>
       }
       currentStep={4}
@@ -72,27 +80,6 @@ export default async function SessionEvaluationPage({
       subtitle="AI scoring & feedback"
       title={session.title}
     >
-      <CollapsiblePanel title="Session context">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {[
-            ['Programme', metadata.programme],
-            ['Class', metadata.className],
-            ['Subject', metadata.subject],
-            ['Season', metadata.season],
-            ['Professor', metadata.professorName],
-            ['Presentation date', metadata.sessionDate]
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3"
-            >
-              <p className="ui-section-title">{label}</p>
-              <p className="mt-2 text-sm font-medium">{value || 'Not set'}</p>
-            </div>
-          ))}
-        </div>
-      </CollapsiblePanel>
-
       <EvaluationWorkspaceClient
         groups={JSON.parse(JSON.stringify(workspace.groups))}
         initialGroupId={initialGroupId}

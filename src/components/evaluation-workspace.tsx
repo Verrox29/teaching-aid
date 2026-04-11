@@ -70,7 +70,7 @@ type BatchState = {
   message: string;
 };
 
-type WorkspaceSectionKey = 'currentGroup' | 'order' | 'workflow' | 'roster';
+type WorkspaceSectionKey = 'currentGroup' | 'order' | 'workflow';
 
 type BatchActionProps = {
   disabled: boolean;
@@ -114,6 +114,21 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function hydrateCriteriaScores(group: SerializableGroup): GroupDraft {
+  const recommendationByCriterionId = new Map(
+    group.aiRecommendedCriteria.map((recommendation) => [recommendation.criterionId, recommendation.recommendedScore])
+  );
+
+  return {
+    ...group,
+    criteria: group.criteria.map((criterion) => ({
+      ...criterion,
+      score:
+        criterion.score ?? recommendationByCriterionId.get(criterion.id) ?? null
+    }))
+  };
+}
+
 function BatchActionButton({
   children,
   disabled,
@@ -143,10 +158,7 @@ function BatchActionButton({
 }
 
 function initialDraftGroups(groups: SerializableGroup[]) {
-  return groups.map((group) => ({
-    ...group,
-    criteria: group.criteria.map((criterion) => ({ ...criterion }))
-  }));
+  return groups.map((group) => hydrateCriteriaScores(group));
 }
 
 function initialPanelStates(groups: SerializableGroup[]) {
@@ -196,11 +208,9 @@ export function EvaluationWorkspaceClient({
   const [challengeQuestionsSkipped, setChallengeQuestionsSkipped] = useState<Record<string, string>>(
     {}
   );
-  const [gradingSkipped, setGradingSkipped] = useState<Record<string, string>>({});
   const [sectionOpen, setSectionOpen] = useState<Record<WorkspaceSectionKey, boolean>>({
     currentGroup: true,
     order: true,
-    roster: true,
     workflow: true
   });
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>(() =>
@@ -432,7 +442,9 @@ export function EvaluationWorkspaceClient({
 
       if (payload.group) {
         setGroups((current) =>
-          current.map((group) => (group.groupId === groupId ? payload.group : group))
+          current.map((group) =>
+            group.groupId === groupId ? hydrateCriteriaScores(payload.group) : group
+          )
         );
       }
 
@@ -485,7 +497,7 @@ export function EvaluationWorkspaceClient({
             const nextGroup = payload.groups.find(
               (entry: GroupDraft) => entry.groupId === group.groupId
             );
-            return nextGroup ?? group;
+            return nextGroup ? hydrateCriteriaScores(nextGroup) : group;
           })
         );
 
@@ -530,7 +542,6 @@ export function EvaluationWorkspaceClient({
         const nextSkipped = Object.fromEntries(
           skipped.map((entry: { groupId: string; reason: string }) => [entry.groupId, entry.reason])
         );
-        setGradingSkipped(nextSkipped);
         setGradingBatchState({
           kind: 'done',
           message:
@@ -792,305 +803,258 @@ export function EvaluationWorkspaceClient({
                 <span className="ui-chip">Next: {nextGroup ? nextGroup.groupName : 'None'}</span>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                <div className="grid gap-4">
-                  <CollapsiblePanel
-                    actions={
-                      <div className="text-right text-sm text-[color:var(--app-fg-muted)]">
-                        <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' })}</div>
-                        <div>
-                          Finalized: {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt) : 'No'}
-                        </div>
+              <div className="grid gap-4">
+                <CollapsiblePanel
+                  actions={
+                    <div className="text-right text-sm text-[color:var(--app-fg-muted)]">
+                      <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' })}</div>
+                      <div>
+                        Finalized: {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt) : 'No'}
                       </div>
-                    }
-                    contentClassName="gap-4"
-                    open={notesOpen}
-                    onOpenChange={(open) =>
-                      setGroupPanelState(selectedGroup.groupId, (current) => ({
-                        ...current,
-                        notesOpen: open
-                      }))
-                    }
-                    title="Teacher notes"
-                    titleClassName="text-lg font-semibold"
-                  >
-                    <label className="grid gap-2 text-sm font-medium">
-                      Presentation comments
-                      <textarea
-                        className="ui-textarea min-h-[140px]"
-                        onChange={(event) =>
-                          updateGroup(selectedGroup.groupId, (current) => ({
-                            ...current,
-                            presentationComments: event.target.value
-                          }))
-                        }
-                        placeholder="Write the live presentation notes here."
-                        value={selectedGroup.presentationComments}
-                      />
-                    </label>
-
-                    <label className="grid gap-2 text-sm font-medium">
-                      Q&amp;A comments
-                      <textarea
-                        className="ui-textarea min-h-[120px]"
-                        onChange={(event) =>
-                          updateGroup(selectedGroup.groupId, (current) => ({
-                            ...current,
-                            qaComments: event.target.value
-                          }))
-                        }
-                        placeholder="Optional notes for the questions and answers phase."
-                        value={selectedGroup.qaComments}
-                      />
-                    </label>
-
-                    {selectedGroupHasChallengeQuestions ? (
-                      <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                        <p className="ui-section-title">AI challenge questions</p>
-                        <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
-                          {selectedGroup.aiRecommendedQuestions.map((question, index) => (
-                            <li
-                              key={`${question}-${index}`}
-                              className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
-                            >
-                              {question}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : selectedGroupChallengeQuestionSkip ? (
-                      <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                        Challenge questions unavailable: {selectedGroupChallengeQuestionSkip}
-                      </div>
-                    ) : selectedGroupHasUploadedWork ? (
-                      <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                        Run the top-level challenge-question action to generate prompts for this group.
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                        No uploaded work is available for challenge questions.
-                      </div>
-                    )}
-
-                    <div className="flex justify-end">
-                      <span
-                        className="inline-flex"
-                        title={
-                          selectedGroupHasPresentationComments
-                            ? 'Send the presentation notes to AI for structured feedback and conservative grade suggestions.'
-                            : 'Add presentation comments before generating AI feedback and grades.'
-                        }
-                      >
-                        <button
-                          className="ui-button ui-button-primary"
-                          disabled={
-                            !selectedGroupHasPresentationComments || selectedGroup.aiStatus === 'generating'
-                          }
-                          onClick={() => void generateGroupFeedback(selectedGroup.groupId)}
-                          type="button"
-                        >
-                          {selectedGroup.aiStatus === 'generating'
-                            ? 'Generating feedback...'
-                            : 'Generate AI feedback & grades'}
-                        </button>
-                      </span>
                     </div>
-                  </CollapsiblePanel>
+                  }
+                  contentClassName="gap-4"
+                  open={notesOpen}
+                  onOpenChange={(open) =>
+                    setGroupPanelState(selectedGroup.groupId, (current) => ({
+                      ...current,
+                      notesOpen: open
+                    }))
+                  }
+                  title="Teacher notes"
+                  titleClassName="text-lg font-semibold"
+                >
+                  <label className="grid gap-2 text-sm font-medium">
+                    Presentation comments
+                    <textarea
+                      className="ui-textarea min-h-[140px]"
+                      onChange={(event) =>
+                        updateGroup(selectedGroup.groupId, (current) => ({
+                          ...current,
+                          presentationComments: event.target.value
+                        }))
+                      }
+                      placeholder="Write the live presentation notes here."
+                      value={selectedGroup.presentationComments}
+                    />
+                  </label>
 
-                  <CollapsiblePanel
-                    contentClassName="gap-4"
-                    actions={
+                  <label className="grid gap-2 text-sm font-medium">
+                    Q&amp;A comments
+                    <textarea
+                      className="ui-textarea min-h-[120px]"
+                      onChange={(event) =>
+                        updateGroup(selectedGroup.groupId, (current) => ({
+                          ...current,
+                          qaComments: event.target.value
+                        }))
+                      }
+                      placeholder="Optional notes for the questions and answers phase."
+                      value={selectedGroup.qaComments}
+                    />
+                  </label>
+
+                  {selectedGroupHasChallengeQuestions ? (
+                    <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                      <p className="ui-section-title">AI challenge questions</p>
+                      <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
+                        {selectedGroup.aiRecommendedQuestions.map((question, index) => (
+                          <li
+                            key={`${question}-${index}`}
+                            className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                          >
+                            {question}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : selectedGroupChallengeQuestionSkip ? (
+                    <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
+                      Challenge questions unavailable: {selectedGroupChallengeQuestionSkip}
+                    </div>
+                  ) : selectedGroupHasUploadedWork ? (
+                    <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
+                      Run the top-level challenge-question action to generate prompts for this group.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
+                      No uploaded work is available for challenge questions.
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <span
+                      className="inline-flex"
+                      title={
+                        selectedGroupHasPresentationComments
+                          ? 'Send the presentation notes to AI for structured feedback and conservative grade suggestions.'
+                          : 'Add presentation comments before generating AI feedback and grades.'
+                      }
+                    >
                       <button
-                        className="ui-button ui-button-secondary"
-                        disabled={!selectedGroup.readyForFinalization}
-                        onClick={() => void finalizeGroup(selectedGroup.groupId)}
+                        className="ui-button ui-button-primary"
+                        disabled={!selectedGroupHasPresentationComments || selectedGroup.aiStatus === 'generating'}
+                        onClick={() => void generateGroupFeedback(selectedGroup.groupId)}
                         type="button"
                       >
-                        Mark ready for export
+                        {selectedGroup.aiStatus === 'generating'
+                          ? 'Generating feedback...'
+                          : 'Generate AI feedback & grades'}
                       </button>
-                    }
-                    open={gradingOpen}
-                    onOpenChange={(open) =>
-                      setGroupPanelState(selectedGroup.groupId, (current) => ({
-                        ...current,
-                        gradingOpen: open
-                      }))
-                    }
-                    title="Final grading"
-                    titleClassName="text-lg font-semibold"
-                  >
-                    <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">AI status</span>
-                        <span className="ui-chip">{selectedGroup.aiStatus}</span>
-                      </div>
-                      {selectedGroup.aiLastError ? (
-                        <p className="text-[color:var(--app-danger)]">{selectedGroup.aiLastError}</p>
-                      ) : null}
-                      {selectedGroup.aiGeneratedAt ? (
-                        <p className="text-[color:var(--app-fg-muted)]">
-                          Generated {getTimestampLabel(selectedGroup.aiGeneratedAt)}
-                        </p>
-                      ) : null}
+                    </span>
+                  </div>
+                </CollapsiblePanel>
+
+                <CollapsiblePanel
+                  contentClassName="gap-4"
+                  actions={
+                    <button
+                      className="ui-button ui-button-secondary"
+                      disabled={!selectedGroup.readyForFinalization}
+                      onClick={() => void finalizeGroup(selectedGroup.groupId)}
+                      type="button"
+                    >
+                      Mark ready for export
+                    </button>
+                  }
+                  open={gradingOpen}
+                  onOpenChange={(open) =>
+                    setGroupPanelState(selectedGroup.groupId, (current) => ({
+                      ...current,
+                      gradingOpen: open
+                    }))
+                  }
+                  title="Final grading"
+                  titleClassName="text-lg font-semibold"
+                >
+                  <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">AI status</span>
+                      <span className="ui-chip">{selectedGroup.aiStatus}</span>
                     </div>
-
-                    <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
-                      <table className="w-full border-collapse text-sm">
-                        <thead className="bg-[color:var(--app-surface-muted)] text-left">
-                          <tr>
-                            <th className="px-3 py-3 font-medium">Criterion</th>
-                            <th className="px-3 py-3 font-medium">AI recommendation</th>
-                            <th className="px-3 py-3 font-medium">Final score</th>
-                            <th className="px-3 py-3 font-medium">Max</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedGroup.criteria.map((criterion) => {
-                            const aiRecommendation = selectedGroup.aiRecommendedCriteria.find(
-                              (entry) => entry.criterionId === criterion.id
-                            );
-
-                            return (
-                              <tr key={criterion.id} className="border-t border-[color:var(--app-border)]">
-                                <td className="px-3 py-3 align-top">
-                                  <div className="font-medium">{criterion.label}</div>
-                                  {criterion.description ? (
-                                    <div className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
-                                      {criterion.description}
-                                    </div>
-                                  ) : null}
-                                </td>
-                                <td className="px-3 py-3 align-top">
-                                  {aiRecommendation ? (
-                                    <div className="space-y-1">
-                                      <div className="font-medium">
-                                        {aiRecommendation.recommendedScore}/{criterion.maxScore}
-                                      </div>
-                                      <div className="text-xs text-[color:var(--app-fg-muted)]">
-                                        {aiRecommendation.rationale}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-[color:var(--app-fg-muted)]">Not generated</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-3 align-top">
-                                  <input
-                                    className="ui-input w-24"
-                                    max={criterion.maxScore}
-                                    min={0}
-                                    step={0.5}
-                                    onChange={(event) => {
-                                      const parsed =
-                                        event.target.value === ''
-                                          ? null
-                                          : Number.parseFloat(event.target.value);
-                                      const value = parsed === null || Number.isNaN(parsed) ? null : parsed;
-                                      updateGroup(selectedGroup.groupId, (current) => ({
-                                        ...current,
-                                        criteria: current.criteria.map((entry) =>
-                                          entry.id === criterion.id ? { ...entry, score: value } : entry
-                                        )
-                                      }));
-                                    }}
-                                    type="number"
-                                    value={criterion.score ?? ''}
-                                  />
-                                </td>
-                                <td className="px-3 py-3 align-top">{criterion.maxScore}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">Final total</span>
-                        <span className="ui-chip">
-                          {formatScoreTotal(selectedGroupTotal)}/{formatScoreTotal(selectedGroupMaxTotal)}
-                        </span>
-                      </div>
+                    {selectedGroup.aiLastError ? (
+                      <p className="text-[color:var(--app-danger)]">{selectedGroup.aiLastError}</p>
+                    ) : null}
+                    {selectedGroup.aiGeneratedAt ? (
                       <p className="text-[color:var(--app-fg-muted)]">
-                        The total is calculated from the teacher-controlled scores above.
+                        Generated {getTimestampLabel(selectedGroup.aiGeneratedAt)}
                       </p>
+                    ) : null}
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
+                    <table className="w-full border-collapse text-sm">
+                      <thead className="bg-[color:var(--app-surface-muted)] text-left">
+                        <tr>
+                          <th className="px-3 py-3 font-medium">Criterion</th>
+                          <th className="px-3 py-3 font-medium">Final score</th>
+                          <th className="px-3 py-3 font-medium">Max</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedGroup.criteria.map((criterion) => (
+                          <tr key={criterion.id} className="border-t border-[color:var(--app-border)]">
+                            <td className="px-3 py-3 align-top">
+                              <div className="font-medium">{criterion.label}</div>
+                              {criterion.description ? (
+                                <div className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
+                                  {criterion.description}
+                                </div>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <input
+                                className="ui-input w-24"
+                                max={criterion.maxScore}
+                                min={0}
+                                step={0.5}
+                                onChange={(event) => {
+                                  const parsed =
+                                    event.target.value === ''
+                                      ? null
+                                      : Number.parseFloat(event.target.value);
+                                  const value = parsed === null || Number.isNaN(parsed) ? null : parsed;
+                                  updateGroup(selectedGroup.groupId, (current) => ({
+                                    ...current,
+                                    criteria: current.criteria.map((entry) =>
+                                      entry.id === criterion.id ? { ...entry, score: value } : entry
+                                    )
+                                  }));
+                                }}
+                                type="number"
+                                value={criterion.score ?? ''}
+                              />
+                            </td>
+                            <td className="px-3 py-3 align-top">{criterion.maxScore}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">Final total</span>
+                      <span className="ui-chip">
+                        {formatScoreTotal(selectedGroupTotal)}/{formatScoreTotal(selectedGroupMaxTotal)}
+                      </span>
+                    </div>
+                    <p className="text-[color:var(--app-fg-muted)]">
+                      The total is calculated from the teacher-controlled scores above.
+                    </p>
+                  </div>
+
+                  <section className="grid gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="ui-section-title">Final feedback</p>
+                        <h4 className="text-base font-semibold">Editable summary</h4>
+                      </div>
+                      {selectedGroupCanSpellCheck ? (
+                        <button
+                          className="ui-button ui-button-secondary"
+                          onClick={() => void runSpellCheck(selectedGroup.groupId)}
+                          type="button"
+                        >
+                          Spell-check feedback
+                        </button>
+                      ) : null}
                     </div>
 
-                    <section className="grid gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="ui-section-title">Final feedback</p>
-                          <h4 className="text-base font-semibold">Editable summary</h4>
-                        </div>
-                        {selectedGroupCanSpellCheck ? (
-                          <button
-                            className="ui-button ui-button-secondary"
-                            onClick={() => void runSpellCheck(selectedGroup.groupId)}
-                            type="button"
-                          >
-                            Spell-check feedback
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="grid gap-4">
-                        {[
-                          ['strengths', 'Strengths'],
-                          ['development', 'Points for development'],
-                          ['general', 'General feedback']
-                        ].map(([key, label]) => (
-                          <label key={key} className="grid gap-2 text-sm font-medium">
-                            {label}
-                            <textarea
-                              className="ui-textarea min-h-[120px]"
-                              onChange={(event) => {
-                                setSpellcheckReady((current) => ({
+                    <div className="grid gap-4">
+                      {[
+                        ['strengths', 'Strengths'],
+                        ['development', 'Points for development'],
+                        ['general', 'General feedback']
+                      ].map(([key, label]) => (
+                        <label key={key} className="grid gap-2 text-sm font-medium">
+                          {label}
+                          <textarea
+                            className="ui-textarea min-h-[120px]"
+                            onChange={(event) => {
+                              setSpellcheckReady((current) => ({
+                                ...current,
+                                [selectedGroup.groupId]: true
+                              }));
+                              updateGroup(selectedGroup.groupId, (current) => {
+                                const nextSections = {
+                                  ...current.finalFeedbackSections,
+                                  [key]: event.target.value
+                                } as EvaluationAiFeedbackSections;
+                                return {
                                   ...current,
-                                  [selectedGroup.groupId]: true
-                                }));
-                                updateGroup(selectedGroup.groupId, (current) => {
-                                  const nextSections = {
-                                    ...current.finalFeedbackSections,
-                                    [key]: event.target.value
-                                  } as EvaluationAiFeedbackSections;
-                                  return {
-                                    ...current,
-                                    finalFeedback: buildFeedbackString(nextSections, sessionLanguage),
-                                    finalFeedbackSections: nextSections
-                                  };
-                                });
-                              }}
-                              value={selectedGroup.finalFeedbackSections[key as keyof EvaluationAiFeedbackSections]}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-                  </CollapsiblePanel>
-                </div>
-
-                <div className="grid gap-4">
-                  <CollapsiblePanel
-                    contentClassName="gap-2"
-                    open={sectionOpen.roster}
-                    onOpenChange={(open) => setSectionVisibility('roster', open)}
-                    title="Group roster"
-                    titleClassName="text-lg font-semibold"
-                  >
-                    {selectedGroup.members.map((member) => (
-                      <div
-                        key={member.id}
-                        className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm"
-                      >
-                        <div className="font-medium">
-                          {member.firstName} {member.lastName}
-                        </div>
-                        <div className="text-[color:var(--app-fg-muted)]">{member.schoolEmail}</div>
-                      </div>
-                    ))}
-                  </CollapsiblePanel>
-                </div>
+                                  finalFeedback: buildFeedbackString(nextSections, sessionLanguage),
+                                  finalFeedbackSections: nextSections
+                                };
+                              });
+                            }}
+                            value={selectedGroup.finalFeedbackSections[key as keyof EvaluationAiFeedbackSections]}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                </CollapsiblePanel>
               </div>
             </CollapsiblePanel>
           ) : (
