@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
@@ -12,8 +12,6 @@ import {
   exportTemplateVersions,
   groupMembers,
   groups,
-  rubricCriteria,
-  rubrics,
   sessionExportMetadata,
   sessionStudents,
   sessions,
@@ -27,6 +25,7 @@ import {
   DEFAULT_PAIRAGOGIE_TEMPLATE_PATH,
   EXPORT_SETTINGS_KEY
 } from './defaults';
+import { ensurePairagogieRubric } from '@/lib/evaluation/rubric';
 import type {
   ExportMappingVersionRecord,
   ExportTemplateVersionRecord,
@@ -439,32 +438,15 @@ export async function getPairagogieExportContext(sessionId: string): Promise<Pai
 
   const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
 
-  const rubricRows = await db
-    .select({
-      id: rubrics.id,
-      isActive: rubrics.isActive,
-      title: rubrics.title
-    })
-    .from(rubrics)
-    .where(and(eq(rubrics.sessionId, sessionId), eq(rubrics.isActive, true)))
-    .orderBy(desc(rubrics.updatedAt))
-    .limit(1);
-
-  const rubric = rubricRows[0] ?? null;
-  const criteriaRows = rubric
-    ? await db
-        .select({
-          feedback: rubricCriteria.description,
-          id: rubricCriteria.id,
-          label: rubricCriteria.label,
-          maxScore: rubricCriteria.maxScore,
-          score: sql<number | null>`null`,
-          sortOrder: rubricCriteria.sortOrder
-        })
-        .from(rubricCriteria)
-        .where(eq(rubricCriteria.rubricId, rubric.id))
-        .orderBy(asc(rubricCriteria.sortOrder))
-    : [];
+  const rubric = await ensurePairagogieRubric(sessionId);
+  const criteriaRows = rubric.criteria.map((criterion) => ({
+    feedback: null,
+    id: criterion.id,
+    label: criterion.label,
+    maxScore: criterion.maxScore,
+    score: sql<number | null>`null`,
+    sortOrder: criterion.sortOrder
+  }));
 
   const groupRows = await db
     .select({

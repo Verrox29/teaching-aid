@@ -6,14 +6,13 @@ import {
   evaluations,
   groupMembers,
   groups,
-  rubricCriteria,
-  rubrics,
   sessionStudents,
   sessions,
   submissions
 } from '@/db';
 
 import { parseFeedbackSections } from './engine';
+import { ensurePairagogieRubric } from './rubric';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -109,35 +108,10 @@ async function getSessionRecord(sessionId: string): Promise<EvaluationWorkspaceS
 }
 
 async function getRubricSnapshot(sessionId: string) {
-  const rubricRows = await db
-    .select({
-      id: rubrics.id,
-      title: rubrics.title
-    })
-    .from(rubrics)
-    .where(and(eq(rubrics.sessionId, sessionId), eq(rubrics.isActive, true)))
-    .orderBy(desc(rubrics.updatedAt))
-    .limit(1);
-
-  const rubric = rubricRows[0] ?? null;
-  if (!rubric) {
-    return null;
-  }
-
-  const criteriaRows = await db
-    .select({
-      description: rubricCriteria.description,
-      id: rubricCriteria.id,
-      label: rubricCriteria.label,
-      maxScore: rubricCriteria.maxScore,
-      sortOrder: rubricCriteria.sortOrder
-    })
-    .from(rubricCriteria)
-    .where(eq(rubricCriteria.rubricId, rubric.id))
-    .orderBy(asc(rubricCriteria.sortOrder));
+  const rubric = await ensurePairagogieRubric(sessionId);
 
   return {
-    criteria: criteriaRows.map((criterion) => ({
+    criteria: rubric.criteria.map((criterion) => ({
       description: criterion.description,
       feedback: null,
       id: criterion.id,

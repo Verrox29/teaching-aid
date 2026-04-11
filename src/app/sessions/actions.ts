@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db, sessions } from '@/db';
+import { ensurePairagogieRubric } from '@/lib/evaluation/rubric';
 
 const createSessionSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
@@ -115,7 +116,7 @@ export async function createSessionAction(
   const slug = await generateUniqueSlug(values.title);
   const adminAccessCodeHash = hashAdminAccessCode(values.admin_access_code);
 
-  await db.insert(sessions).values({
+  const inserted = await db.insert(sessions).values({
     title: values.title,
     slug,
     language: values.language,
@@ -125,7 +126,12 @@ export async function createSessionAction(
     adminAccessCodeHash,
     groupSelectionLocked: false,
     presentationOrderLocked: false
-  });
+  }).returning({ id: sessions.id });
+
+  const sessionId = inserted[0]?.id;
+  if (sessionId) {
+    await ensurePairagogieRubric(sessionId);
+  }
 
   revalidatePath('/sessions');
   redirect('/sessions');
