@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
+import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationWorkspaceClient } from '@/components/evaluation-workspace';
 import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
@@ -71,15 +72,7 @@ export default async function SessionEvaluationPage({
       subtitle="AI scoring & feedback"
       title={session.title}
     >
-      <section className="ui-panel grid gap-4 p-5">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Step 4 is the live evaluation workspace</h2>
-          <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Presentation order is visible here. Teacher notes autosave, batch AI actions sit at the
-            top, and the final score remains teacher-controlled.
-          </p>
-        </div>
-
+      <CollapsiblePanel title="Session context">
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           {[
             ['Programme', metadata.programme],
@@ -98,15 +91,13 @@ export default async function SessionEvaluationPage({
             </div>
           ))}
         </div>
-      </section>
+      </CollapsiblePanel>
 
       <EvaluationWorkspaceClient
         groups={JSON.parse(JSON.stringify(workspace.groups))}
         initialGroupId={initialGroupId}
         sessionId={sessionId}
         sessionLanguage={workspace.session.language}
-        sessionMetadata={metadata}
-        sessionTitle={session.title}
       />
     </AdminShell>
   );
