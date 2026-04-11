@@ -28,6 +28,7 @@ export type EvaluationGroupMember = {
   firstName: string;
   id: string;
   lastName: string;
+  gradeAdjustment: number;
   schoolEmail: string;
 };
 
@@ -39,6 +40,7 @@ export type EvaluationGroupWorkspace = {
   aiRecommendedQuestions: string[];
   aiStatus: EvaluationAiStatus;
   aiStatusUpdatedAt: Date | null;
+  capacity: number;
   criteria: EvaluationCriterionRow[];
   evaluationId: string | null;
   finalFeedback: string;

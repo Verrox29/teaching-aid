@@ -12,7 +12,8 @@ type CollapsiblePanelProps = {
   eyebrow?: string;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
-  title: string;
+  title: ReactNode;
+  titleLabel?: string;
   titleClassName?: string;
 };
 
@@ -47,6 +48,7 @@ export function CollapsiblePanel({
   onOpenChange,
   open,
   title,
+  titleLabel,
   titleClassName = 'text-lg font-semibold'
 }: CollapsiblePanelProps) {
   const contentId = useId();
@@ -79,7 +81,11 @@ export function CollapsiblePanel({
           <button
             aria-controls={contentId}
             aria-expanded={isOpen}
-            aria-label={isOpen ? `Collapse ${title}` : `Expand ${title}`}
+            aria-label={
+              isOpen
+                ? `Collapse ${titleLabel ?? (typeof title === 'string' ? title : 'panel')}`
+                : `Expand ${titleLabel ?? (typeof title === 'string' ? title : 'panel')}`
+            }
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
             onClick={toggleOpen}
             type="button"

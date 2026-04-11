@@ -17,7 +17,12 @@ type EvaluationCriterionRow = {
 export type PairagogieGroupExportInput = {
   criteria: EvaluationCriterionRow[];
   finalFeedback?: string | null;
-  groupMemberNames: string[];
+  groupMembers: Array<{
+    firstName: string;
+    gradeAdjustment: number;
+    lastName: string;
+    schoolEmail: string;
+  }>;
   groupName: string;
   groupPresentationOrder?: number | null;
   submissionTitle?: string | null;
@@ -253,14 +258,16 @@ function buildSubjectProgramme(metadata: SessionExportMetadata) {
 
 function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[] {
   return input.groups.flatMap((group) =>
-    group.groupMemberNames.map((memberName) => {
-      const [firstName, ...lastNameParts] = memberName.trim().split(/\s+/);
+    group.groupMembers.map((member) => {
       return {
-        firstName: firstName ?? '',
+        firstName: member.firstName,
         groupName: group.groupName,
-        lastName: lastNameParts.join(' '),
+        lastName: member.lastName,
         remarks: sanitizeText(group.finalFeedback),
-        totalScore: group.totalScore ?? null
+        totalScore:
+          group.totalScore === null || group.totalScore === undefined
+            ? null
+            : group.totalScore + member.gradeAdjustment
       };
     })
   );
@@ -421,7 +428,7 @@ function fillGroupSheet(
   }
 
   const baseStudentRows = mapping.studentNames.maxRows;
-  const studentCount = input.groupMemberNames.length;
+  const studentCount = input.groupMembers.length;
   const extraStudentRows = Math.max(0, studentCount - baseStudentRows);
   const layout = shiftGroupSheetMapping(mapping, extraStudentRows);
 
@@ -463,7 +470,7 @@ function fillGroupSheet(
         ? index < visibleStudentRows
           ? `group.studentNames[${index + 1}]`
           : ''
-        : input.groupMemberNames[index] ?? ''
+        : `${input.groupMembers[index]?.firstName ?? ''} ${input.groupMembers[index]?.lastName ?? ''}`.trim()
     );
   }
 

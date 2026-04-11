@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { CollapsiblePanel } from '@/components/collapsible-panel';
+import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
@@ -21,6 +22,7 @@ type SerializableGroup = {
   aiRecommendedQuestions: string[];
   aiStatus: EvaluationAiStatus;
   aiStatusUpdatedAt: string | null;
+  capacity: number;
   criteria: EvaluationCriterionRow[];
   evaluationId: string | null;
   finalFeedback: string;
@@ -196,6 +198,7 @@ export function EvaluationWorkspaceClient({
   const [challengeQuestionsSkipped, setChallengeQuestionsSkipped] = useState<Record<string, string>>(
     {}
   );
+  const [rosterGroupId, setRosterGroupId] = useState<string | null>(null);
   const [sectionOpen, setSectionOpen] = useState<Record<WorkspaceSectionKey, boolean>>({
     currentGroup: true,
     order: true,
@@ -246,6 +249,7 @@ export function EvaluationWorkspaceClient({
   const previousGroup = selectedIndex > 0 ? groups[selectedIndex - 1] : null;
   const nextGroup = selectedIndex < groups.length - 1 ? groups[selectedIndex + 1] : null;
   const orderReady = groups.some((group) => group.presentationOrder !== null);
+  const rosterGroup = rosterGroupId ? groups.find((group) => group.groupId === rosterGroupId) ?? null : null;
 
   function setSectionVisibility(section: WorkspaceSectionKey, open: boolean) {
     setSectionOpen((current) => ({ ...current, [section]: open }));
@@ -780,7 +784,19 @@ export function EvaluationWorkspaceClient({
               }
               open={sectionOpen.currentGroup}
               onOpenChange={(open) => setSectionVisibility('currentGroup', open)}
-              title={selectedGroup.groupName}
+              title={
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <span>{selectedGroup.groupName}</span>
+                  <button
+                    className="ui-chip ui-chip-accent px-2 py-1 text-[0.7rem]"
+                    onClick={() => setRosterGroupId(selectedGroup.groupId)}
+                    type="button"
+                  >
+                    [Roster]
+                  </button>
+                </span>
+              }
+              titleLabel={selectedGroup.groupName}
               titleClassName="text-2xl font-semibold"
             >
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm">
@@ -1043,9 +1059,9 @@ export function EvaluationWorkspaceClient({
                 </CollapsiblePanel>
               </div>
             </CollapsiblePanel>
-          ) : (
-            <section className="ui-panel p-6">
-              <h2 className="text-lg font-semibold">No groups available</h2>
+        ) : (
+          <section className="ui-panel p-6">
+            <h2 className="text-lg font-semibold">No groups available</h2>
               <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
                 Create or assign groups before using the evaluation workspace.
               </p>
@@ -1053,6 +1069,14 @@ export function EvaluationWorkspaceClient({
           )}
         </section>
       </div>
+
+      <EvaluationRosterDialog
+        groups={groups}
+        groupId={rosterGroup?.groupId ?? ''}
+        onClose={() => setRosterGroupId(null)}
+        open={Boolean(rosterGroup)}
+        sessionId={sessionId}
+      />
     </div>
   );
 }

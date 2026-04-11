@@ -32,7 +32,7 @@ export async function GET(
       challengeQuestions: null,
       criteria: group.criteria,
       finalFeedback: group.evaluation?.finalFeedback ?? null,
-      groupMemberNames: group.members.map((member) => `${member.firstName} ${member.lastName}`),
+      groupMembers: group.members,
       groupName: group.name,
       groupPresentationOrder: group.presentationOrder,
       submissionTitle: group.submission?.fileName ?? null,

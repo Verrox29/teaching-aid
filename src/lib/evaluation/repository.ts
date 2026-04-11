@@ -164,6 +164,7 @@ async function getGroupMembers(sessionId: string) {
   const memberRows = await db
     .select({
       firstName: sessionStudents.firstName,
+      gradeAdjustment: sessionStudents.gradeAdjustment,
       groupId: groupMembers.groupId,
       id: sessionStudents.id,
       lastName: sessionStudents.lastName,
@@ -178,6 +179,7 @@ async function getGroupMembers(sessionId: string) {
     string,
     Array<{
       firstName: string;
+      gradeAdjustment: number;
       id: string;
       lastName: string;
       schoolEmail: string;
@@ -188,6 +190,7 @@ async function getGroupMembers(sessionId: string) {
     const members = membersByGroupId.get(member.groupId) ?? [];
     members.push({
       firstName: member.firstName,
+      gradeAdjustment: member.gradeAdjustment,
       id: member.id,
       lastName: member.lastName,
       schoolEmail: member.schoolEmail
@@ -301,6 +304,7 @@ function buildGroupWorkspace(params: {
     aiRecommendedQuestions: evaluation?.aiRecommendedQuestions ?? [],
     aiStatus: evaluation?.aiStatus ?? 'idle',
     aiStatusUpdatedAt: evaluation?.aiStatusUpdatedAt ?? null,
+    capacity: group.capacity,
     criteria: criteriaWithScores,
     evaluationId: evaluation?.id ?? null,
     finalFeedback,

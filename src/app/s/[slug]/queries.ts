@@ -28,6 +28,8 @@ export type SessionStudentRecord = {
   schoolEmail: string;
 };
 
+export type PublicStudentSearchRecord = SessionStudentRecord;
+
 export async function getSessionBySlug(slug: string): Promise<PublicSessionRecord | null> {
   const rows = await db
     .select({
@@ -139,6 +141,23 @@ export async function getStudentMembership(
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+export async function getSessionStudentsForSession(
+  sessionId: string
+): Promise<PublicStudentSearchRecord[]> {
+  const rows = await db
+    .select({
+      id: sessionStudents.id,
+      firstName: sessionStudents.firstName,
+      lastName: sessionStudents.lastName,
+      schoolEmail: sessionStudents.schoolEmail
+    })
+    .from(sessionStudents)
+    .where(eq(sessionStudents.sessionId, sessionId))
+    .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName), asc(sessionStudents.schoolEmail));
+
+  return rows;
 }
 
 export async function getGroupForSession(sessionId: string, groupId: string) {

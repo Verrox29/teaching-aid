@@ -12,18 +12,23 @@ export async function GET(
 ) {
   const { sessionId } = await params;
   const context = await getPairagogieExportContext(sessionId);
+  const groupTotalByGroupId = new Map(
+    context.groups.map((group) => [group.id, group.evaluation?.totalScore ?? null])
+  );
 
   if (context.groups.length === 0) {
     return NextResponse.json({ errors: ['Create at least one group before exporting.'] }, { status: 400 });
   }
 
-  const rows = context.groups.flatMap((group) =>
-    group.members.map((member) => ({
+  const rows = context.groups.flatMap((group) => {
+    const groupTotal = groupTotalByGroupId.get(group.id) ?? null;
+
+    return group.members.map((member) => ({
       'Adresse de courriel': member.schoolEmail,
-      Note: group.evaluation?.totalScore ?? '',
+      Note: groupTotal === null ? '' : groupTotal + member.gradeAdjustment,
       Commentaire: group.evaluation?.finalFeedback ?? ''
-    }))
-  );
+    }));
+  });
 
   const csvBuffer = renderDelimitedCsvBuffer(rows);
 

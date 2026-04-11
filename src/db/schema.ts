@@ -53,6 +53,7 @@ export const sessionStudents = pgTable(
     firstName: varchar('first_name', { length: 120 }).notNull(),
     lastName: varchar('last_name', { length: 120 }).notNull(),
     schoolEmail: varchar('school_email', { length: 320 }).notNull(),
+    gradeAdjustment: real('grade_adjustment').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },

@@ -63,14 +63,7 @@ export default async function SessionEvaluationPage({
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
             Exports
           </Link>
-          <SessionContextPopover
-            metadata={metadata}
-            roster={workspace.groups.map((group) => ({
-              groupId: group.groupId,
-              groupName: group.groupName,
-              members: group.members
-            }))}
-          />
+          <SessionContextPopover metadata={metadata} />
         </>
       }
       currentStep={4}

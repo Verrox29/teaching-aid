@@ -11,16 +11,6 @@ type SessionContextPopoverProps = {
     sessionDate: string;
     subject: string;
   };
-  roster: Array<{
-    groupId: string;
-    groupName: string;
-    members: Array<{
-      firstName: string;
-      id: string;
-      lastName: string;
-      schoolEmail: string;
-    }>;
-  }>;
 };
 
 function ChevronIcon({ className }: { className?: string }) {
@@ -43,9 +33,9 @@ function ChevronIcon({ className }: { className?: string }) {
   );
 }
 
-export function SessionContextPopover({ metadata, roster }: SessionContextPopoverProps) {
+export function SessionContextPopover({ metadata }: SessionContextPopoverProps) {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const metadataEntries = [
     ['Programme', metadata.programme],
     ['Class', metadata.className],
@@ -56,29 +46,21 @@ export function SessionContextPopover({ metadata, roster }: SessionContextPopove
   ] as const;
 
   useEffect(() => {
-    function onPointerDown(event: PointerEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setOpen(false);
       }
     }
 
-    document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
   }, []);
 
   return (
-    <div ref={containerRef} className="relative">
+    <>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -91,38 +73,40 @@ export function SessionContextPopover({ metadata, roster }: SessionContextPopove
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-30 mt-3 w-[min(34rem,calc(100vw-1rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 shadow-lg">
-          <div className="grid gap-3 max-h-[min(70vh,42rem)] overflow-auto pr-1">
-            <dl className="grid gap-2 text-sm sm:grid-cols-2">
-              {metadataEntries.map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3"
-                >
-                  <dt className="ui-section-title">{label}</dt>
-                  <dd className="mt-1 font-medium leading-5">{value || 'Not set'}</dd>
+        <div
+          className="fixed inset-0 z-40 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
+          onClick={() => setOpen(false)}
+        >
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              ref={panelRef}
+              aria-modal="true"
+              className="w-[min(42rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="ui-section-title">Session context</p>
+                  <h2 className="text-xl font-semibold">Metadata</h2>
                 </div>
-              ))}
-            </dl>
-
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="ui-section-title">Group roster</p>
-                <span className="ui-chip px-2 py-1">{roster.length} groups</span>
+                <button
+                  className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                  onClick={() => setOpen(false)}
+                  type="button"
+                >
+                  Close
+                </button>
               </div>
-              <div className="grid gap-1.5">
-                {roster.map((group) => (
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {metadataEntries.map(([label, value]) => (
                   <div
-                    key={group.groupId}
-                    className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-xs"
+                    key={label}
+                    className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-[color:var(--app-fg)]">{group.groupName}</span>
-                      <span className="ui-chip px-2 py-1">{group.members.length}</span>
-                    </div>
-                    <p className="mt-1 leading-5 text-[color:var(--app-fg-muted)]">
-                      {group.members.map((member) => `${member.firstName} ${member.lastName}`).join(', ')}
-                    </p>
+                    <p className="ui-section-title">{label}</p>
+                    <p className="mt-1 font-medium leading-5">{value || 'Not set'}</p>
                   </div>
                 ))}
               </div>
@@ -130,6 +114,6 @@ export function SessionContextPopover({ metadata, roster }: SessionContextPopove
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

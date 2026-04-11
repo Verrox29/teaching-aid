@@ -57,6 +57,7 @@ type ExportGroupSnapshot = {
   id: string;
   members: Array<{
     firstName: string;
+    gradeAdjustment: number;
     id: string;
     lastName: string;
     schoolEmail: string;
@@ -462,6 +463,7 @@ export async function getPairagogieExportContext(sessionId: string): Promise<Pai
   const membershipRows = await db
     .select({
       firstName: sessionStudents.firstName,
+      gradeAdjustment: sessionStudents.gradeAdjustment,
       groupId: groupMembers.groupId,
       id: sessionStudents.id,
       lastName: sessionStudents.lastName,
@@ -477,6 +479,7 @@ export async function getPairagogieExportContext(sessionId: string): Promise<Pai
     const members = membershipByGroupId.get(membership.groupId) ?? [];
     members.push({
       firstName: membership.firstName,
+      gradeAdjustment: membership.gradeAdjustment,
       id: membership.id,
       lastName: membership.lastName,
       schoolEmail: membership.schoolEmail
