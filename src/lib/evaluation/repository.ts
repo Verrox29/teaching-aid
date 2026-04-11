@@ -92,6 +92,41 @@ function computeReadyForFinalization(
   );
 }
 
+function hydrateCriterionScores(params: {
+  aiRecommendedCriteria: EvaluationAiCriterionRecommendation[] | null | undefined;
+  criteria: Array<{
+    description: string | null;
+    feedback: string | null;
+    id: string;
+    label: string;
+    maxScore: number;
+    score: number | null;
+    sortOrder: number;
+  }>;
+  scoreRows: EvaluationScoreRow[];
+}) {
+  const recommendedScoreByCriterionId = new Map(
+    (params.aiRecommendedCriteria ?? []).map((recommendation) => [
+      recommendation.criterionId,
+      recommendation.recommendedScore
+    ])
+  );
+  const scoreRowByCriterionId = new Map(
+    params.scoreRows.map((row) => [row.rubricCriterionId, row])
+  );
+
+  return params.criteria.map((criterion) => {
+    const scoreRow = scoreRowByCriterionId.get(criterion.id) ?? null;
+    const recommendedScore = recommendedScoreByCriterionId.get(criterion.id) ?? null;
+
+    return {
+      ...criterion,
+      feedback: scoreRow?.feedback ?? criterion.feedback ?? null,
+      score: scoreRow?.score ?? recommendedScore ?? null
+    };
+  });
+}
+
 async function getSessionRecord(sessionId: string): Promise<EvaluationWorkspaceSessionRow | null> {
   const rows = await db
     .select({
@@ -246,14 +281,10 @@ function buildGroupWorkspace(params: {
   const evaluation = submission ? evaluationByGroupKey.get(`${submission.id}:${group.id}`) ?? null : null;
   const scoreRows = evaluation ? scoreRowsByEvaluationId.get(evaluation.id) ?? [] : [];
   const criteria = rubric?.criteria ?? [];
-
-  const criteriaWithScores = criteria.map((criterion) => {
-    const scoreRow = scoreRows.find((row) => row.rubricCriterionId === criterion.id) ?? null;
-    return {
-      ...criterion,
-      feedback: scoreRow?.feedback ?? criterion.feedback ?? null,
-      score: scoreRow?.score ?? null
-    };
+  const criteriaWithScores = hydrateCriterionScores({
+    aiRecommendedCriteria: evaluation?.aiRecommendedCriteria ?? null,
+    criteria,
+    scoreRows
   });
 
   const presentationComments = evaluation?.presentationComments ?? '';

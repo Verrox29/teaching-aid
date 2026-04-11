@@ -114,21 +114,6 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
-function hydrateCriteriaScores(group: SerializableGroup): GroupDraft {
-  const recommendationByCriterionId = new Map(
-    group.aiRecommendedCriteria.map((recommendation) => [recommendation.criterionId, recommendation.recommendedScore])
-  );
-
-  return {
-    ...group,
-    criteria: group.criteria.map((criterion) => ({
-      ...criterion,
-      score:
-        criterion.score ?? recommendationByCriterionId.get(criterion.id) ?? null
-    }))
-  };
-}
-
 function BatchActionButton({
   children,
   disabled,
@@ -158,7 +143,10 @@ function BatchActionButton({
 }
 
 function initialDraftGroups(groups: SerializableGroup[]) {
-  return groups.map((group) => hydrateCriteriaScores(group));
+  return groups.map((group) => ({
+    ...group,
+    criteria: group.criteria.map((criterion) => ({ ...criterion }))
+  }));
 }
 
 function initialPanelStates(groups: SerializableGroup[]) {
@@ -442,9 +430,7 @@ export function EvaluationWorkspaceClient({
 
       if (payload.group) {
         setGroups((current) =>
-          current.map((group) =>
-            group.groupId === groupId ? hydrateCriteriaScores(payload.group) : group
-          )
+          current.map((group) => (group.groupId === groupId ? payload.group : group))
         );
       }
 
@@ -497,7 +483,7 @@ export function EvaluationWorkspaceClient({
             const nextGroup = payload.groups.find(
               (entry: GroupDraft) => entry.groupId === group.groupId
             );
-            return nextGroup ? hydrateCriteriaScores(nextGroup) : group;
+            return nextGroup ? nextGroup : group;
           })
         );
 

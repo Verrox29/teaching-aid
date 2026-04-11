@@ -46,6 +46,14 @@ function ChevronIcon({ className }: { className?: string }) {
 export function SessionContextPopover({ metadata, roster }: SessionContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const metadataEntries = [
+    ['Programme', metadata.programme],
+    ['Class', metadata.className],
+    ['Subject', metadata.subject],
+    ['Season', metadata.season],
+    ['Professor', metadata.professorName],
+    ['Presentation date', metadata.sessionDate]
+  ] as const;
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -83,46 +91,38 @@ export function SessionContextPopover({ metadata, roster }: SessionContextPopove
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-30 mt-3 w-[min(36rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg">
-          <div className="grid gap-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                ['Programme', metadata.programme],
-                ['Class', metadata.className],
-                ['Subject', metadata.subject],
-                ['Season', metadata.season],
-                ['Professor', metadata.professorName],
-                ['Presentation date', metadata.sessionDate]
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm">
-                  <p className="ui-section-title">{label}</p>
-                  <p className="mt-2 font-medium">{value || 'Not set'}</p>
+        <div className="absolute right-0 top-full z-30 mt-3 w-[min(34rem,calc(100vw-1rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 shadow-lg">
+          <div className="grid gap-3 max-h-[min(70vh,42rem)] overflow-auto pr-1">
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              {metadataEntries.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3"
+                >
+                  <dt className="ui-section-title">{label}</dt>
+                  <dd className="mt-1 font-medium leading-5">{value || 'Not set'}</dd>
                 </div>
               ))}
-            </div>
+            </dl>
 
             <div className="grid gap-2">
-              <p className="ui-section-title">Group roster</p>
-              <div className="grid gap-2 max-h-72 overflow-auto pr-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="ui-section-title">Group roster</p>
+                <span className="ui-chip px-2 py-1">{roster.length} groups</span>
+              </div>
+              <div className="grid gap-1.5">
                 {roster.map((group) => (
                   <div
                     key={group.groupId}
-                    className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm"
+                    className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-xs"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold">{group.groupName}</span>
-                      <span className="ui-chip px-2 py-1">{group.members.length} students</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-[color:var(--app-fg)]">{group.groupName}</span>
+                      <span className="ui-chip px-2 py-1">{group.members.length}</span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-[color:var(--app-fg-muted)]">
-                      {group.members.map((member) => (
-                        <span
-                          key={member.id}
-                          className="rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-2 py-1"
-                        >
-                          {member.firstName} {member.lastName}
-                        </span>
-                      ))}
-                    </div>
+                    <p className="mt-1 leading-5 text-[color:var(--app-fg-muted)]">
+                      {group.members.map((member) => `${member.firstName} ${member.lastName}`).join(', ')}
+                    </p>
                   </div>
                 ))}
               </div>
