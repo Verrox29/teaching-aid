@@ -93,8 +93,22 @@ const QA_KEYWORDS: Record<EvaluationLanguage, string[]> = {
 };
 
 const QUESTION_STOP_WORDS: Record<EvaluationLanguage, string[]> = {
-  en: ['about', 'and', 'for', 'from', 'into', 'that', 'the', 'their', 'this', 'with', 'your'],
-  fr: ['avec', 'dans', 'des', 'du', 'et', 'les', 'pour', 'que', 'sur', 'une', 'vous']
+  en: [
+    'about',
+    'and',
+    'because',
+    'for',
+    'from',
+    'into',
+    'that',
+    'the',
+    'their',
+    'this',
+    'through',
+    'with',
+    'your'
+  ],
+  fr: ['avec', 'dans', 'des', 'du', 'et', 'les', 'pour', 'que', 'sur', 'une', 'vous', 'vos']
 };
 
 function normalizeLanguage(language: string): EvaluationLanguage {
@@ -239,13 +253,16 @@ function sectionHasContent(section: string) {
   return section.trim().length > 0;
 }
 
-function summarizeSubmissionFocus(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
-  const source = `${input.submissionTitle} ${input.submissionContent ?? ''}`.trim();
-  if (!source) {
-    return language === 'fr' ? 'le travail présenté' : 'the uploaded work';
-  }
+function splitSentences(text: string) {
+  return text
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
 
-  const keywords = tokenizeWords(source).filter((word) => {
+function trimQuestionFocus(value: string, language: EvaluationLanguage) {
+  const words = tokenizeWords(value).filter((word) => {
     if (word.length < 4) {
       return false;
     }
@@ -253,8 +270,41 @@ function summarizeSubmissionFocus(input: EvaluationChallengeQuestionInput, langu
     return !QUESTION_STOP_WORDS[language].includes(word);
   });
 
-  const candidate = keywords.slice(0, 5).join(' ');
-  return candidate || input.submissionTitle.trim() || (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+  const focus = words.slice(0, 10).join(' ');
+  return focus || value.trim();
+}
+
+function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
+  const title = input.submissionTitle.trim();
+  const content = input.submissionContent?.trim() ?? '';
+  const sentences = splitSentences(content);
+  const meaningfulSentences = sentences
+    .filter((sentence) => tokenizeWords(sentence).length >= 6)
+    .map((sentence) => trimQuestionFocus(sentence, language))
+    .filter(Boolean);
+  const keyTerms = tokenizeWords(`${title} ${content}`)
+    .filter((word) => word.length >= 4 && !QUESTION_STOP_WORDS[language].includes(word))
+    .reduce<string[]>((accumulator, word) => {
+      if (!accumulator.includes(word)) {
+        accumulator.push(word);
+      }
+      return accumulator;
+    }, []);
+
+  const primaryAnchor =
+    meaningfulSentences[0] ?? trimQuestionFocus(title, language) ?? (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+  const secondaryAnchor =
+    meaningfulSentences.find((sentence) => sentence !== primaryAnchor) ??
+    keyTerms.slice(1, 4).join(' ') ??
+    primaryAnchor;
+  const evidenceAnchor =
+    keyTerms[0] ?? meaningfulSentences[0] ?? trimQuestionFocus(title, language) ?? (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+
+  return {
+    evidenceAnchor,
+    primaryAnchor,
+    secondaryAnchor
+  };
 }
 
 function summarizeNotes(text: string, language: EvaluationLanguage) {
@@ -412,20 +462,23 @@ export function buildChallengeQuestions(
   input: EvaluationChallengeQuestionInput,
   language: EvaluationLanguage,
 ) {
-  const focus = summarizeSubmissionFocus(input, language);
+  const anchors = extractSubmissionAnchors(input, language);
+  const titleFocus =
+    trimQuestionFocus(input.submissionTitle, language) ||
+    (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
 
   if (language === 'fr') {
     return [
-      `Pourquoi le groupe ${input.groupName} a-t-il choisi de mettre l’accent sur ${focus} ?`,
-      'Quelle difficulté principale a été rencontrée pendant la préparation, et comment le groupe l’a-t-il résolue ?',
-      'Si vous deviez améliorer un seul élément de ce travail avant une nouvelle soutenance, lequel changeriez-vous et pourquoi ?'
+      `Dans la partie qui porte sur ${anchors.primaryAnchor}, quelle preuve concrète dans votre travail justifie ce choix ?`,
+      `Pourquoi avez-vous retenu ${anchors.secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
+      `Comment le groupe ${input.groupName} défend-il l’idée principale de ${titleFocus} face à une question critique ?`
     ];
   }
 
   return [
-    `Why did group ${input.groupName} choose to emphasize ${focus}?`,
-    'What was the main difficulty while preparing this work, and how did the group solve it?',
-    'If you had to improve one part of this work before presenting again, what would you change and why?'
+    `In the part about ${anchors.primaryAnchor}, what concrete evidence in the uploaded work justifies that choice?`,
+    `Why did you choose ${anchors.secondaryAnchor} instead of another option, and what trade-off did that require?`,
+    `How does group ${input.groupName} defend the main idea of ${titleFocus} when challenged on the details?`
   ];
 }
 

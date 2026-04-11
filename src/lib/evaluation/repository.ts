@@ -287,6 +287,7 @@ function buildGroupWorkspace(params: {
     ),
     submittedAt: evaluation?.submittedAt ?? null,
     submissionId: submission?.id ?? null,
+    submissionContent: submission?.content ?? null,
     submissionTitle: submission?.title ?? null,
     totalScore
   };

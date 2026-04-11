@@ -65,7 +65,7 @@ export default async function SessionEvaluationPage({
         </>
       }
       currentStep={4}
-      description="Evaluate groups in presentation order, save live notes, and generate advisory AI support one group at a time."
+      description="Evaluate groups in presentation order, save live notes, and use batch or per-group AI support."
       sessionId={sessionId}
       slug={session.slug}
       subtitle="AI scoring & feedback"
@@ -75,8 +75,8 @@ export default async function SessionEvaluationPage({
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Step 4 is the live evaluation workspace</h2>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Presentation order is visible here. Teacher notes autosave, AI support is per group, and
-            the final score remains teacher-controlled.
+            Presentation order is visible here. Teacher notes autosave, batch AI actions sit at the
+            top, and the final score remains teacher-controlled.
           </p>
         </div>
 

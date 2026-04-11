@@ -10,8 +10,10 @@ import {
   getEvaluationContext,
   getEvaluationWorkspace,
   saveEvaluationAiResult,
+  saveEvaluationDraft,
   setEvaluationAiStatus
 } from '@/lib/evaluation/repository';
+import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 
 const requestSchema = z.object({
@@ -82,6 +84,10 @@ export async function POST(request: Request, { params }: RouteParams) {
         aiRecommendedFeedback: result.feedback,
         groupId,
         sessionId
+      });
+
+      await saveEvaluationDraft(sessionId, groupId, {
+        finalFeedback: formatFeedbackSections(result.feedback, context.session.language)
       });
     }
 

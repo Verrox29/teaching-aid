@@ -51,6 +51,7 @@ export type EvaluationGroupWorkspace = {
   readyForFinalization: boolean;
   submittedAt: Date | null;
   submissionId: string | null;
+  submissionContent: string | null;
   submissionTitle: string | null;
   totalScore: number | null;
   members: EvaluationGroupMember[];
