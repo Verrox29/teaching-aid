@@ -1,53 +1,102 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-import { buildEvaluationRecommendations } from '@/lib/evaluation/engine';
 import {
+  buildChallengeQuestions,
+  buildEvaluationRecommendations,
+  getEvaluationLanguage
+} from '@/lib/evaluation/engine';
+import {
+  getEvaluationContext,
   getEvaluationWorkspace,
   saveEvaluationAiResult,
   setEvaluationAiStatus
 } from '@/lib/evaluation/repository';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 
+const requestSchema = z.object({
+  mode: z.enum(['grading', 'questions']).default('grading')
+});
+
 type RouteParams = {
   params: Promise<{ groupId: string; sessionId: string }>;
 };
 
-export async function POST(_request: Request, { params }: RouteParams) {
+export async function POST(request: Request, { params }: RouteParams) {
   const { groupId, sessionId } = await params;
+  const body = await request.json().catch(() => ({}));
+  const parsed = requestSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid AI request.', issues: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
 
   try {
-    await setEvaluationAiStatus(sessionId, groupId, 'generating');
-    const workspace = await getEvaluationWorkspace(sessionId);
-    const group = workspace.groups.find((entry) => entry.groupId === groupId);
+    const context = await getEvaluationContext(sessionId, groupId);
+    const metadata = await getSessionExportMetadataRecord(sessionId, context.session.title);
+    const mode = parsed.data.mode;
 
-    if (!group) {
-      throw new Error('Group not found.');
+    if (mode === 'grading' && !context.evaluation?.presentationComments?.trim()) {
+      throw new Error('Enter presentation comments before generating AI feedback and grades.');
     }
 
-    const metadata = await getSessionExportMetadataRecord(sessionId, workspace.session.title);
-    const result = buildEvaluationRecommendations({
-      className: metadata.className || workspace.session.title,
-      criteria: group.criteria,
-      groupName: group.groupName,
-      presentationComments: group.presentationComments,
-      qaComments: group.qaComments,
-      sessionLanguage: workspace.session.language,
-      subject: metadata.subject || workspace.session.title
-    });
+    await setEvaluationAiStatus(sessionId, groupId, 'generating');
 
-    await saveEvaluationAiResult({
-      aiGeneratedAt: new Date(),
-      aiRecommendedCriteria: result.recommendedCriteria,
-      aiRecommendedFeedback: result.feedback,
-      aiRecommendedQuestions: result.challengeQuestions,
-      groupId,
-      sessionId
-    });
+    if (mode === 'questions') {
+      const language = getEvaluationLanguage(context.session.language);
+      const challengeQuestions = buildChallengeQuestions(
+        {
+          className: metadata.className || context.session.title,
+          groupName: context.group.name,
+          sessionLanguage: context.session.language,
+          submissionContent: context.submission.content,
+          submissionTitle: context.submission.title,
+          subject: metadata.subject || context.session.title
+        },
+        language
+      );
+
+      await saveEvaluationAiResult({
+        aiGeneratedAt: new Date(),
+        aiRecommendedQuestions: challengeQuestions,
+        groupId,
+        sessionId
+      });
+    } else {
+      const result = buildEvaluationRecommendations({
+        className: metadata.className || context.session.title,
+        criteria: context.rubric.criteria,
+        groupName: context.group.name,
+        presentationComments: context.evaluation?.presentationComments ?? '',
+        qaComments: context.evaluation?.comments ?? '',
+        sessionLanguage: context.session.language,
+        subject: metadata.subject || context.session.title
+      });
+
+      await saveEvaluationAiResult({
+        aiGeneratedAt: new Date(),
+        aiRecommendedCriteria: result.recommendedCriteria,
+        aiRecommendedFeedback: result.feedback,
+        groupId,
+        sessionId
+      });
+    }
 
     const refreshed = await getEvaluationWorkspace(sessionId);
     const refreshedGroup = refreshed.groups.find((entry) => entry.groupId === groupId) ?? null;
-
-    return NextResponse.json({ ai: result, group: refreshedGroup });
+    return NextResponse.json({
+      ai:
+        mode === 'questions'
+          ? { challengeQuestions: refreshedGroup?.aiRecommendedQuestions ?? [] }
+          : {
+              feedback: refreshedGroup?.aiRecommendedFeedback ?? null,
+              recommendedCriteria: refreshedGroup?.aiRecommendedCriteria ?? []
+            },
+      group: refreshedGroup
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not generate AI recommendations.';
     await setEvaluationAiStatus(sessionId, groupId, 'failed', message).catch(() => undefined);

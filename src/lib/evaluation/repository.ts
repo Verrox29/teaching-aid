@@ -166,6 +166,7 @@ async function getGroupMembers(sessionId: string) {
 async function getSubmissions(sessionId: string) {
   return db
     .select({
+      content: submissions.content,
       groupId: submissions.groupId,
       id: submissions.id,
       submittedAt: submissions.submittedAt,
@@ -227,7 +228,10 @@ function buildGroupWorkspace(params: {
   rubric: Awaited<ReturnType<typeof getRubricSnapshot>>;
   scoreRowsByEvaluationId: Map<string, EvaluationScoreRow[]>;
   sessionLanguage: string;
-  submissionByGroupId: Map<string, { groupId: string; id: string; submittedAt: Date | null; title: string }>;
+  submissionByGroupId: Map<
+    string,
+    { content: string | null; groupId: string; id: string; submittedAt: Date | null; title: string }
+  >;
 }) {
   const {
     group,
@@ -350,7 +354,7 @@ export async function getEvaluationGroupWorkspace(sessionId: string, groupId: st
   return group;
 }
 
-async function getEvaluationContext(sessionId: string, groupId: string) {
+export async function getEvaluationContext(sessionId: string, groupId: string) {
   const session = await getSessionRecord(sessionId);
   if (!session) {
     throw new Error('Session not found.');
@@ -379,6 +383,7 @@ async function getEvaluationContext(sessionId: string, groupId: string) {
 
   const submissionRows = await db
     .select({
+      content: submissions.content,
       id: submissions.id,
       submittedAt: submissions.submittedAt,
       title: submissions.title
@@ -548,23 +553,29 @@ export async function setEvaluationAiStatus(
 
 export async function saveEvaluationAiResult(params: {
   aiGeneratedAt: Date;
-  aiRecommendedCriteria: EvaluationAiCriterionRecommendation[];
-  aiRecommendedFeedback: EvaluationAiFeedbackSections;
-  aiRecommendedQuestions: string[];
+  aiRecommendedCriteria?: EvaluationAiCriterionRecommendation[] | null;
+  aiRecommendedFeedback?: EvaluationAiFeedbackSections | null;
+  aiRecommendedQuestions?: string[] | null;
   sessionId: string;
   groupId: string;
 }) {
   const context = await getEvaluationContext(params.sessionId, params.groupId);
   const evaluationId = context.evaluation?.id ?? (await saveEvaluationDraft(params.sessionId, params.groupId, {}));
+  const nextAiRecommendedCriteria =
+    params.aiRecommendedCriteria ?? context.evaluation?.aiRecommendedCriteria ?? null;
+  const nextAiRecommendedFeedback =
+    params.aiRecommendedFeedback ?? context.evaluation?.aiRecommendedFeedback ?? null;
+  const nextAiRecommendedQuestions =
+    params.aiRecommendedQuestions ?? context.evaluation?.aiRecommendedQuestions ?? null;
 
   await db
     .update(evaluations)
     .set({
       aiGeneratedAt: params.aiGeneratedAt,
       aiLastError: null,
-      aiRecommendedCriteria: params.aiRecommendedCriteria,
-      aiRecommendedFeedback: params.aiRecommendedFeedback,
-      aiRecommendedQuestions: params.aiRecommendedQuestions,
+      aiRecommendedCriteria: nextAiRecommendedCriteria,
+      aiRecommendedFeedback: nextAiRecommendedFeedback,
+      aiRecommendedQuestions: nextAiRecommendedQuestions,
       aiStatus: 'ready',
       aiStatusUpdatedAt: params.aiGeneratedAt,
       updatedAt: params.aiGeneratedAt

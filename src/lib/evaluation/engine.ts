@@ -16,6 +16,15 @@ type EvaluationRecommendationInput = {
   subject: string;
 };
 
+type EvaluationChallengeQuestionInput = {
+  className: string;
+  groupName: string;
+  sessionLanguage: string;
+  submissionContent: string | null;
+  submissionTitle: string;
+  subject: string;
+};
+
 type EvaluationFeedbackLabels = Record<keyof EvaluationAiFeedbackSections, string>;
 
 const FEEDBACK_LABELS: Record<EvaluationLanguage, EvaluationFeedbackLabels> = {
@@ -81,6 +90,11 @@ const NEGATIVE_KEYWORDS: Record<EvaluationLanguage, string[]> = {
 const QA_KEYWORDS: Record<EvaluationLanguage, string[]> = {
   en: ['answer', 'answers', 'confidence', 'question', 'questions', 'response', 'teamwork'],
   fr: ['réponse', 'réponses', 'confiance', 'question', 'questions', 'interaction', 'équipe']
+};
+
+const QUESTION_STOP_WORDS: Record<EvaluationLanguage, string[]> = {
+  en: ['about', 'and', 'for', 'from', 'into', 'that', 'the', 'their', 'this', 'with', 'your'],
+  fr: ['avec', 'dans', 'des', 'du', 'et', 'les', 'pour', 'que', 'sur', 'une', 'vous']
 };
 
 function normalizeLanguage(language: string): EvaluationLanguage {
@@ -225,6 +239,24 @@ function sectionHasContent(section: string) {
   return section.trim().length > 0;
 }
 
+function summarizeSubmissionFocus(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
+  const source = `${input.submissionTitle} ${input.submissionContent ?? ''}`.trim();
+  if (!source) {
+    return language === 'fr' ? 'le travail présenté' : 'the uploaded work';
+  }
+
+  const keywords = tokenizeWords(source).filter((word) => {
+    if (word.length < 4) {
+      return false;
+    }
+
+    return !QUESTION_STOP_WORDS[language].includes(word);
+  });
+
+  const candidate = keywords.slice(0, 5).join(' ');
+  return candidate || input.submissionTitle.trim() || (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+}
+
 function summarizeNotes(text: string, language: EvaluationLanguage) {
   const normalized = text.trim();
   if (!normalized) {
@@ -278,6 +310,7 @@ function buildDevelopmentSummary(
     .sort((left, right) => left.recommendedScore - right.recommendedScore)
     .slice(0, 2);
   const qaSummary = summarizeNotes(input.qaComments, language);
+  const interactionSummary = buildQaInteractionSummary(input.qaComments, language);
 
   if (language === 'fr') {
     const parts = [
@@ -286,9 +319,8 @@ function buildDevelopmentSummary(
             .map((criterion) => criterion.criterionLabel.toLowerCase())
             .join(' et ')}.`
         : '',
-      sectionHasContent(input.qaComments)
-        ? `Les échanges en questions-réponses montrent que ${qaSummary.toLowerCase()}`
-        : ''
+      sectionHasContent(input.qaComments) ? `Les échanges en questions-réponses montrent que ${qaSummary.toLowerCase()}` : '',
+      interactionSummary
     ];
     return sentenceJoin(parts);
   }
@@ -299,9 +331,8 @@ function buildDevelopmentSummary(
           .map((criterion) => criterion.criterionLabel.toLowerCase())
           .join(' and ')}.`
       : '',
-    sectionHasContent(input.qaComments)
-      ? `The Q&A notes suggest that ${qaSummary.toLowerCase()}`
-      : ''
+    sectionHasContent(input.qaComments) ? `The Q&A notes suggest that ${qaSummary.toLowerCase()}` : '',
+    interactionSummary
   ];
   return sentenceJoin(parts);
 }
@@ -328,37 +359,74 @@ function buildGeneralSummary(
     : `Overall encouraging assessment with clear room for growth for ${input.className}.`;
 }
 
-function buildChallengeQuestions(
-  input: EvaluationRecommendationInput,
-  language: EvaluationLanguage,
-  recommendedCriteria: EvaluationAiCriterionRecommendation[]
-) {
-  const sorted = [...recommendedCriteria].sort(
-    (left, right) => left.recommendedScore - right.recommendedScore
-  );
-  const questions: string[] = [];
+function buildQaInteractionSummary(qaComments: string, language: EvaluationLanguage) {
+  if (!sectionHasContent(qaComments)) {
+    return '';
+  }
 
-  for (const criterion of sorted.slice(0, 3)) {
-    if (language === 'fr') {
-      questions.push(
-        `Comment le groupe ${input.groupName} peut-il renforcer ${criterion.criterionLabel.toLowerCase()} ?`
-      );
-    } else {
-      questions.push(
-        `How can group ${input.groupName} strengthen ${criterion.criterionLabel.toLowerCase()}?`
-      );
+  const normalized = qaComments.toLowerCase();
+  const teacherMentions =
+    language === 'fr'
+      ? ['enseignant', 'enseignante', 'professeur', 'questions du professeur', 'question du professeur']
+      : ['teacher', 'professor', 'teacher question', 'teacher questions', 'teacher asked'];
+  const peerMentions =
+    language === 'fr'
+      ? ['autre groupe', 'autres groupes', 'questions des autres groupes', 'questions du groupe']
+      : ['other group', 'other groups', 'peer question', 'peer questions', 'class question'];
+
+  const mentionsTeacher = teacherMentions.some((phrase) => normalized.includes(phrase));
+  const mentionsPeers = peerMentions.some((phrase) => normalized.includes(phrase));
+
+  if (language === 'fr') {
+    if (mentionsTeacher && mentionsPeers) {
+      return 'Les questions du professeur et des autres groupes montrent que le groupe a dû défendre ses choix à l’oral.';
     }
+
+    if (mentionsTeacher) {
+      return 'Les questions du professeur montrent que le groupe a dû défendre ses choix à l’oral.';
+    }
+
+    if (mentionsPeers) {
+      return 'Les questions des autres groupes montrent que le groupe a dû défendre ses choix à l’oral.';
+    }
+
+    return 'Les échanges en questions-réponses confirment une maîtrise orale à vérifier dans la discussion.';
   }
 
-  if (sectionHasContent(input.qaComments)) {
-    questions.unshift(
-      language === 'fr'
-        ? 'Quelle question de la soutenance a le mieux révélé la maîtrise du sujet par le groupe ?'
-        : 'Which presentation question best revealed the group’s command of the topic?'
-    );
+  if (mentionsTeacher && mentionsPeers) {
+    return 'Questions from the teacher and other groups show the team had to defend its choices orally.';
   }
 
-  return questions.slice(0, 3);
+  if (mentionsTeacher) {
+    return 'Teacher questions show the team had to defend its choices orally.';
+  }
+
+  if (mentionsPeers) {
+    return 'Questions from other groups show the team had to defend its choices orally.';
+  }
+
+  return 'The Q&A exchanges confirm that oral mastery should be checked through discussion.';
+}
+
+export function buildChallengeQuestions(
+  input: EvaluationChallengeQuestionInput,
+  language: EvaluationLanguage,
+) {
+  const focus = summarizeSubmissionFocus(input, language);
+
+  if (language === 'fr') {
+    return [
+      `Pourquoi le groupe ${input.groupName} a-t-il choisi de mettre l’accent sur ${focus} ?`,
+      'Quelle difficulté principale a été rencontrée pendant la préparation, et comment le groupe l’a-t-il résolue ?',
+      'Si vous deviez améliorer un seul élément de ce travail avant une nouvelle soutenance, lequel changeriez-vous et pourquoi ?'
+    ];
+  }
+
+  return [
+    `Why did group ${input.groupName} choose to emphasize ${focus}?`,
+    'What was the main difficulty while preparing this work, and how did the group solve it?',
+    'If you had to improve one part of this work before presenting again, what would you change and why?'
+  ];
 }
 
 function scoreCriterion(
@@ -384,8 +452,13 @@ function scoreCriterion(
     upperLabel.includes('confidence');
 
   const notesBoost = baseSignal + (isOralCriterion ? qaSignal : Math.floor(qaSignal / 2)) + criterionSignal;
-  const normalized = 0.55 + notesBoost * 0.08;
-  const recommendedScore = clamp(Math.round(criterion.maxScore * normalized), 0, criterion.maxScore);
+  const normalized = 0.34 + notesBoost * 0.06;
+  let recommendedScore = clamp(Math.round(criterion.maxScore * normalized), 0, criterion.maxScore);
+
+  const exceptionalThreshold = 10;
+  if (recommendedScore >= criterion.maxScore && notesBoost < exceptionalThreshold) {
+    recommendedScore = Math.max(0, criterion.maxScore - 1);
+  }
 
   const rationale =
     language === 'fr'
@@ -409,7 +482,6 @@ export function buildEvaluationRecommendations(input: EvaluationRecommendationIn
     .map((criterion) => scoreCriterion(input, language, criterion));
 
   return {
-    challengeQuestions: buildChallengeQuestions(input, language, recommendedCriteria),
     feedback: {
       development: buildDevelopmentSummary(input, language, recommendedCriteria),
       general: buildGeneralSummary(input, language, recommendedCriteria),

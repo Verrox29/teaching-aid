@@ -11,7 +11,9 @@ import {
 const scoreSchema = z.object({
   criterionId: z.string().uuid(),
   feedback: z.string().nullable().optional(),
-  score: z.coerce.number().int().min(0)
+  score: z.coerce.number().min(0).refine((value) => Number.isInteger(value * 2), {
+    message: 'Score must use 0.5 increments.'
+  })
 });
 
 const saveSchema = z.object({

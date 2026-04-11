@@ -142,7 +142,8 @@ export async function ensurePairagogieRubric(sessionId: string): Promise<Pairago
       })
       .returning({
         id: rubrics.id,
-        title: rubrics.title
+        title: rubrics.title,
+        updatedAt: rubrics.updatedAt
       });
 
     rubric = inserted[0] ?? null;

@@ -4,6 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
@@ -229,7 +230,7 @@ export const evaluationScores = pgTable(
     rubricCriterionId: uuid('rubric_criterion_id')
       .notNull()
       .references(() => rubricCriteria.id, { onDelete: 'cascade' }),
-    score: integer('score').notNull(),
+    score: real('score').notNull(),
     feedback: text('feedback'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
