@@ -77,3 +77,4 @@ Always end with:
 - Never output multiple alternative terminal blocks.
 - Never assume Supabase has already been configured unless explicitly stated.
 - If a task requires Supabase project-specific values, clearly say which values are needed from the user.
+If a task depends on repo files such as templates, docs, mappings, or assets, first verify they exist on the current branch. If they are only present locally and not committed, stop and tell the user to commit/push them first, unless running in Local mode.
