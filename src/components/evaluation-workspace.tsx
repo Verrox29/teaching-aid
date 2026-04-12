@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { CollapsiblePanel } from '@/components/collapsible-panel';
@@ -72,18 +72,6 @@ type BatchState = {
   message: string;
 };
 
-type WorkspaceSectionKey = 'currentGroup' | 'order' | 'workflow';
-
-type BatchActionProps = {
-  disabled: boolean;
-  onClick: () => void;
-  statusLabel?: string;
-  tooltipBody: string;
-  tooltipTitle: string;
-  variant: 'primary' | 'secondary';
-  children: ReactNode;
-};
-
 function buildFeedbackString(sections: EvaluationAiFeedbackSections, language: string) {
   return formatFeedbackSections(sections, language);
 }
@@ -116,34 +104,6 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
-function BatchActionButton({
-  children,
-  disabled,
-  onClick,
-  statusLabel,
-  tooltipBody,
-  tooltipTitle,
-  variant
-}: BatchActionProps) {
-  return (
-    <span className="group relative inline-flex">
-      <button
-        className={`ui-button ui-button-${variant} disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:transform-none`}
-        disabled={disabled}
-        onClick={onClick}
-        type="button"
-      >
-        {children}
-      </button>
-      <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-80 -translate-x-1/2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-left text-xs shadow-lg group-hover:block group-focus-within:block">
-        <span className="block font-semibold text-[color:var(--app-fg)]">{tooltipTitle}</span>
-        <span className="mt-1 block leading-5 text-[color:var(--app-fg-muted)]">{tooltipBody}</span>
-        {statusLabel ? <span className="mt-2 block text-[color:var(--app-fg-muted)]">{statusLabel}</span> : null}
-      </span>
-    </span>
-  );
-}
-
 function initialDraftGroups(groups: SerializableGroup[]) {
   return groups.map((group) => ({
     ...group,
@@ -154,16 +114,11 @@ function initialDraftGroups(groups: SerializableGroup[]) {
 function initialPanelStates(groups: SerializableGroup[]) {
   return Object.fromEntries(
     groups.map((group) => {
-      const hasExistingAi =
-        Boolean(group.aiRecommendedFeedback) ||
-        group.aiRecommendedCriteria.length > 0 ||
-        group.finalFeedback.trim().length > 0;
-
       return [
         group.groupId,
         {
-          gradingOpen: hasExistingAi,
-          notesOpen: !hasExistingAi
+          gradingOpen: false,
+          notesOpen: true
         } satisfies PanelState
       ];
     })
@@ -199,11 +154,6 @@ export function EvaluationWorkspaceClient({
     {}
   );
   const [rosterGroupId, setRosterGroupId] = useState<string | null>(null);
-  const [sectionOpen, setSectionOpen] = useState<Record<WorkspaceSectionKey, boolean>>({
-    currentGroup: true,
-    order: true,
-    workflow: true
-  });
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>(() =>
     Object.fromEntries(
       initialGroups.map((group) => [
@@ -226,7 +176,9 @@ export function EvaluationWorkspaceClient({
   const notesOpen = selectedGroupPanelState?.notesOpen ?? true;
   const gradingOpen = selectedGroupPanelState?.gradingOpen ?? false;
   const selectedGroupHasUploadedWork = Boolean(selectedGroup?.submissionId);
-  const selectedGroupHasPresentationComments = Boolean(selectedGroup?.presentationComments.trim());
+  const selectedGroupHasFeedbackInputs = Boolean(
+    selectedGroup?.presentationComments.trim() || selectedGroup?.submissionContent?.trim()
+  );
   const selectedGroupChallengeQuestionSkip =
     selectedGroup && challengeQuestionsSkipped[selectedGroup.groupId]
       ? challengeQuestionsSkipped[selectedGroup.groupId]
@@ -235,11 +187,6 @@ export function EvaluationWorkspaceClient({
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
-  const uploadedGroups = groups.filter((group) => Boolean(group.submissionId));
-  const canRunChallengeQuestions = uploadedGroups.length > 0;
-  const canRunBatchGrading =
-    uploadedGroups.length > 0 &&
-    uploadedGroups.every((group) => Boolean(group.presentationComments.trim()));
   const selectedGroupTotal = selectedGroup
     ? selectedGroup.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0)
     : 0;
@@ -248,12 +195,7 @@ export function EvaluationWorkspaceClient({
     : 0;
   const previousGroup = selectedIndex > 0 ? groups[selectedIndex - 1] : null;
   const nextGroup = selectedIndex < groups.length - 1 ? groups[selectedIndex + 1] : null;
-  const orderReady = groups.some((group) => group.presentationOrder !== null);
   const rosterGroup = rosterGroupId ? groups.find((group) => group.groupId === rosterGroupId) ?? null : null;
-
-  function setSectionVisibility(section: WorkspaceSectionKey, open: boolean) {
-    setSectionOpen((current) => ({ ...current, [section]: open }));
-  }
 
   function updateUrl(groupId: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -402,7 +344,23 @@ export function EvaluationWorkspaceClient({
     }));
   }
 
+  useEffect(() => {
+    function onAiWorkflow(event: Event) {
+      const customEvent = event as CustomEvent<{ mode?: 'grading' | 'questions' }>;
+      const mode = customEvent.detail?.mode;
+      if (mode === 'grading' || mode === 'questions') {
+        void runBatchAi(mode);
+      }
+    }
+
+    window.addEventListener('evaluation-ai-workflow', onAiWorkflow as EventListener);
+    return () => {
+      window.removeEventListener('evaluation-ai-workflow', onAiWorkflow as EventListener);
+    };
+  }, [runBatchAi]);
+
   async function generateGroupFeedback(groupId: string) {
+    openGradingForGroup(groupId);
     setGroups((current) =>
       current.map((group) =>
         group.groupId === groupId
@@ -439,7 +397,6 @@ export function EvaluationWorkspaceClient({
       }
 
       setSpellcheckReady((current) => ({ ...current, [groupId]: false }));
-      openGradingForGroup(groupId);
       setSaveStates((current) => ({
         ...current,
         [groupId]: { kind: 'saved', at: new Date().toISOString() }
@@ -653,92 +610,9 @@ export function EvaluationWorkspaceClient({
 
   return (
     <div className="grid gap-4">
-      <CollapsiblePanel
-        description="Step 4 is the live evaluation workspace. Presentation order is visible here. Teacher notes autosave, batch AI actions sit at the top, and the final score remains teacher-controlled."
-        open={sectionOpen.workflow}
-        onOpenChange={(open) => setSectionVisibility('workflow', open)}
-        title="AI workflow"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <BatchActionButton
-            disabled={!canRunChallengeQuestions || challengeQuestionsBatchState.kind === 'running'}
-            onClick={() => void runBatchAi('questions')}
-            statusLabel={
-              challengeQuestionsBatchState.kind === 'running' ? 'Generating challenge questions...' : undefined
-            }
-            tooltipBody="Uses each uploaded work to create specific challenge questions about rationale, assumptions, evidence, and trade-offs."
-            tooltipTitle="Challenge questions"
-            variant="secondary"
-          >
-            {challengeQuestionsBatchState.kind === 'running'
-              ? 'Generating questions...'
-              : 'Generate AI challenge questions'}
-          </BatchActionButton>
-          <BatchActionButton
-            disabled={!canRunBatchGrading || gradingBatchState.kind === 'running'}
-            onClick={() => void runBatchAi('grading')}
-            statusLabel={
-              gradingBatchState.kind === 'running' ? 'Generating feedback and grades...' : undefined
-            }
-            tooltipBody="Generates conservative grade recommendations and editable feedback for groups with presentation comments."
-            tooltipTitle="Late grading"
-            variant="primary"
-          >
-            {gradingBatchState.kind === 'running'
-              ? 'Generating feedback...'
-              : 'Generate AI feedback & grades for all groups'}
-          </BatchActionButton>
-        </div>
-
-        {challengeQuestionsBatchState.message || gradingBatchState.message ? (
-          <div className="grid gap-1 text-sm text-[color:var(--app-fg-muted)]">
-            {challengeQuestionsBatchState.message ? (
-              <p>Challenge questions: {challengeQuestionsBatchState.message}</p>
-            ) : null}
-            {gradingBatchState.message ? <p>Late grading: {gradingBatchState.message}</p> : null}
-          </div>
-        ) : null}
-      </CollapsiblePanel>
-
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <CollapsiblePanel
-          className="h-fit"
-          description="Groups appear as a compact row. Click one to open its workspace."
-          actions={<span className="ui-chip">{orderReady ? 'Ordered' : 'Using creation order'}</span>}
-          contentClassName="gap-2"
-          open={sectionOpen.order}
-          onOpenChange={(open) => setSectionVisibility('order', open)}
-          title="Presentation order"
-        >
-          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
-            {groups.map((group, index) => {
-              const isActive = group.groupId === selectedGroupId;
-
-              return (
-                <button
-                  key={group.groupId}
-                  className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
-                    isActive
-                      ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)] text-[color:var(--app-accent-strong)]'
-                      : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)] hover:border-[color:var(--app-accent)]'
-                  }`}
-                  onClick={() => {
-                    setSelectedGroupId(group.groupId);
-                    updateUrl(group.groupId);
-                  }}
-                  type="button"
-                >
-                  <span className="ui-chip px-2 py-1">#{group.presentationOrder ?? index + 1}</span>
-                  <span className="max-w-[12rem] truncate font-medium">{group.groupName}</span>
-                  {isActive ? <span className="ui-chip ui-chip-accent px-2 py-1">Current</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        </CollapsiblePanel>
-
-        <section className="grid gap-4">
-          {selectedGroup ? (
+      {selectedGroup ? (
+        <>
+          <section className="grid gap-4">
             <CollapsiblePanel
               actions={
                 <div className="flex flex-wrap items-center gap-2">
@@ -782,8 +656,6 @@ export function EvaluationWorkspaceClient({
                   </p>
                 </>
               }
-              open={sectionOpen.currentGroup}
-              onOpenChange={(open) => setSectionVisibility('currentGroup', open)}
               title={
                 <span className="inline-flex flex-wrap items-center gap-2">
                   <span>{selectedGroup.groupName}</span>
@@ -799,12 +671,6 @@ export function EvaluationWorkspaceClient({
               titleLabel={selectedGroup.groupName}
               titleClassName="text-2xl font-semibold"
             >
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm">
-                <span className="ui-chip">Previous: {previousGroup ? previousGroup.groupName : 'None'}</span>
-                <span className="ui-chip ui-chip-accent">Current: {selectedGroup.groupName}</span>
-                <span className="ui-chip">Next: {nextGroup ? nextGroup.groupName : 'None'}</span>
-              </div>
-
               <div className="grid gap-4">
                 <CollapsiblePanel
                   actions={
@@ -888,14 +754,14 @@ export function EvaluationWorkspaceClient({
                     <span
                       className="inline-flex"
                       title={
-                        selectedGroupHasPresentationComments
-                          ? 'Send the presentation notes to AI for structured feedback and conservative grade suggestions.'
-                          : 'Add presentation comments before generating AI feedback and grades.'
+                        selectedGroupHasFeedbackInputs
+                          ? 'Send the notes or uploaded work to AI for structured feedback and conservative grade suggestions.'
+                          : 'Add comments or upload work before generating AI feedback and grades.'
                       }
                     >
                       <button
                         className="ui-button ui-button-primary"
-                        disabled={!selectedGroupHasPresentationComments || selectedGroup.aiStatus === 'generating'}
+                        disabled={!selectedGroupHasFeedbackInputs || selectedGroup.aiStatus === 'generating'}
                         onClick={() => void generateGroupFeedback(selectedGroup.groupId)}
                         type="button"
                       >
@@ -1059,20 +925,60 @@ export function EvaluationWorkspaceClient({
                 </CollapsiblePanel>
               </div>
             </CollapsiblePanel>
-        ) : (
-          <section className="ui-panel p-6">
-            <h2 className="text-lg font-semibold">No groups available</h2>
-              <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
-                Create or assign groups before using the evaluation workspace.
-              </p>
-            </section>
-          )}
+          </section>
+          <section className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="ui-section-title">Presentation order</p>
+                <h2 className="text-lg font-semibold">Sequence overview</h2>
+                <p className="text-sm text-[color:var(--app-fg-muted)]">
+                  Keep the current order visible without taking over the workspace.
+                </p>
+              </div>
+              <span className="ui-chip">
+                {selectedGroup.presentationOrder !== null ? 'Ordered' : 'Using creation order'}
+              </span>
+            </div>
+            <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+              {groups.map((group, index) => {
+                const isActive = group.groupId === selectedGroupId;
+
+                return (
+                  <button
+                    key={group.groupId}
+                    className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+                      isActive
+                        ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)] text-[color:var(--app-accent-strong)]'
+                        : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)] hover:border-[color:var(--app-accent)]'
+                    }`}
+                    onClick={() => {
+                      setSelectedGroupId(group.groupId);
+                      updateUrl(group.groupId);
+                    }}
+                    type="button"
+                  >
+                    <span className="ui-chip px-2 py-1">#{group.presentationOrder ?? index + 1}</span>
+                    <span className="max-w-[12rem] truncate font-medium">{group.groupName}</span>
+                    {isActive ? <span className="ui-chip ui-chip-accent px-2 py-1">Current</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="ui-panel p-6">
+          <h2 className="text-lg font-semibold">No groups available</h2>
+          <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
+            Create or assign groups before using the evaluation workspace.
+          </p>
         </section>
-      </div>
+      )}
 
       <EvaluationRosterDialog
         groups={groups}
         groupId={rosterGroup?.groupId ?? ''}
+        groupTotal={selectedGroup ? selectedGroupTotal : null}
         onClose={() => setRosterGroupId(null)}
         open={Boolean(rosterGroup)}
         sessionId={sessionId}

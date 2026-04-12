@@ -12,6 +12,8 @@ type EvaluationRecommendationInput = {
   groupName: string;
   presentationComments: string;
   qaComments: string;
+  submissionContent?: string | null;
+  submissionTitle?: string | null;
   sessionLanguage: string;
   subject: string;
 };
@@ -543,8 +545,8 @@ export function buildEvaluationRecommendations(input: EvaluationRecommendationIn
     recommendedCriteria,
     rationale:
       language === 'fr'
-        ? 'Répartition recommandée à partir des notes de présentation et de questions-réponses.'
-        : 'Recommended distribution based on presentation and Q&A notes.'
+        ? 'Répartition recommandée à partir des notes de présentation, des questions-réponses et, si disponible, du travail remis.'
+        : 'Recommended distribution based on presentation notes, Q&A notes, and submitted work when available.'
   };
 }
 

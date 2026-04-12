@@ -40,9 +40,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     const context = await getEvaluationContext(sessionId, groupId);
     const metadata = await getSessionExportMetadataRecord(sessionId, context.session.title);
     const mode = parsed.data.mode;
+    const hasTeacherComments = Boolean(context.evaluation?.presentationComments?.trim());
+    const hasSubmissionContent = Boolean(context.submission?.content?.trim());
 
-    if (mode === 'grading' && !context.evaluation?.presentationComments?.trim()) {
-      throw new Error('Enter presentation comments before generating AI feedback and grades.');
+    if (mode === 'grading' && !hasTeacherComments && !hasSubmissionContent) {
+      throw new Error('Enter comments or upload work before generating AI feedback and grades.');
     }
 
     await setEvaluationAiStatus(sessionId, groupId, 'generating');
@@ -74,6 +76,8 @@ export async function POST(request: Request, { params }: RouteParams) {
         groupName: context.group.name,
         presentationComments: context.evaluation?.presentationComments ?? '',
         qaComments: context.evaluation?.comments ?? '',
+        submissionContent: context.submission?.content ?? null,
+        submissionTitle: context.submission?.title ?? null,
         sessionLanguage: context.session.language,
         subject: metadata.subject || context.session.title
       });

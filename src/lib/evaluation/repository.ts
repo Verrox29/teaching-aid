@@ -37,7 +37,7 @@ type EvaluationRow = {
   id: string;
   presentationComments: string | null;
   submittedAt: Date | null;
-  submissionId: string;
+  submissionId: string | null;
   teacherNotes: string | null;
   updatedAt: Date;
 };
@@ -281,7 +281,7 @@ function buildGroupWorkspace(params: {
     submissionByGroupId
   } = params;
   const submission = submissionByGroupId.get(group.id) ?? null;
-  const evaluation = submission ? evaluationByGroupKey.get(`${submission.id}:${group.id}`) ?? null : null;
+  const evaluation = evaluationByGroupKey.get(group.id) ?? null;
   const scoreRows = evaluation ? scoreRowsByEvaluationId.get(evaluation.id) ?? [] : [];
   const criteria = rubric?.criteria ?? [];
   const criteriaWithScores = hydrateCriterionScores({
@@ -352,9 +352,12 @@ export async function getEvaluationWorkspace(sessionId: string): Promise<Evaluat
   const scoreRows = await getEvaluationScoreRows(evaluationsRows.map((evaluation) => evaluation.id));
 
   const submissionByGroupId = new Map(submissionsRows.map((submission) => [submission.groupId, submission]));
-  const evaluationByGroupKey = new Map(
-    evaluationsRows.map((evaluation) => [`${evaluation.submissionId}:${evaluation.evaluatorGroupId}`, evaluation])
-  );
+  const evaluationByGroupKey = new Map<string, EvaluationRow>();
+  for (const evaluation of evaluationsRows) {
+    if (!evaluationByGroupKey.has(evaluation.evaluatorGroupId)) {
+      evaluationByGroupKey.set(evaluation.evaluatorGroupId, evaluation);
+    }
+  }
   const scoreRowsByEvaluationId = new Map<string, EvaluationScoreRow[]>();
   for (const scoreRow of scoreRows) {
     const current = scoreRowsByEvaluationId.get(scoreRow.evaluationId) ?? [];
@@ -429,9 +432,6 @@ export async function getEvaluationContext(sessionId: string, groupId: string) {
     .limit(1);
 
   const submission = submissionRows[0] ?? null;
-  if (!submission) {
-    throw new Error('Upload a submission before evaluating this group.');
-  }
 
   const evaluationRows = await db
     .select({
@@ -454,11 +454,7 @@ export async function getEvaluationContext(sessionId: string, groupId: string) {
     })
     .from(evaluations)
     .where(
-      and(
-        eq(evaluations.sessionId, sessionId),
-        eq(evaluations.submissionId, submission.id),
-        eq(evaluations.evaluatorGroupId, groupId)
-      )
+      and(eq(evaluations.sessionId, sessionId), eq(evaluations.evaluatorGroupId, groupId))
     )
     .orderBy(desc(evaluations.updatedAt))
     .limit(1);
@@ -514,7 +510,7 @@ export async function saveEvaluationDraft(
           evaluatorGroupId: groupId,
           finalFeedback,
           sessionId,
-          submissionId: context.submission.id,
+          submissionId: context.submission?.id ?? null,
           teacherNotes: presentationComments,
           updatedAt: now
         })

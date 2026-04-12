@@ -15,6 +15,7 @@ type RosterGroup = {
 type EvaluationRosterDialogProps = {
   groups: RosterGroup[];
   groupId: string;
+  groupTotal: number | null;
   onClose: () => void;
   open: boolean;
   sessionId: string;
@@ -29,9 +30,14 @@ function formatAdjustment(value: number) {
   return value > 0 ? `+${formatted}` : `-${formatted}`;
 }
 
+function formatGrade(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+}
+
 export function EvaluationRosterDialog({
   groups,
   groupId,
+  groupTotal,
   onClose,
   open,
   sessionId
@@ -39,7 +45,8 @@ export function EvaluationRosterDialog({
   const router = useRouter();
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [destinationGroupId, setDestinationGroupId] = useState<string>('');
-  const [adjustmentValue, setAdjustmentValue] = useState('1');
+  const [adjustmentValue, setAdjustmentValue] = useState('');
+  const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
   const [status, setStatus] = useState<string>('');
 
   const currentGroup = groups.find((group) => group.groupId === groupId) ?? null;
@@ -53,11 +60,16 @@ export function EvaluationRosterDialog({
     }
 
     setSelectedStudentId(currentGroup?.members[0]?.id ?? '');
+    setDraftAdjustments(
+      Object.fromEntries(
+        (currentGroup?.members ?? []).map((member) => [member.id, member.gradeAdjustment])
+      )
+    );
     setDestinationGroupId(
       groups.find((group) => group.groupId !== groupId && group.members.length < group.capacity)?.groupId ??
         ''
     );
-    setAdjustmentValue('1');
+    setAdjustmentValue('');
     setStatus('');
   }, [currentGroup, groupId, groups, open]);
 
@@ -78,6 +90,19 @@ export function EvaluationRosterDialog({
     return null;
   }
 
+  function getAdjustment(memberId: string, fallback: number) {
+    return draftAdjustments[memberId] ?? fallback;
+  }
+
+  function getFinalGrade(memberId: string, fallback: number) {
+    if (groupTotal === null || groupTotal === undefined) {
+      return null;
+    }
+
+    const adjustment = getAdjustment(memberId, fallback);
+    return Math.min(20, Math.max(0, groupTotal + adjustment));
+  }
+
   async function sendAction(payload: Record<string, string | number | null>) {
     setStatus('Saving...');
 
@@ -95,28 +120,57 @@ export function EvaluationRosterDialog({
     }
 
     router.refresh();
-    onClose();
+    setStatus('Saved.');
   }
 
-  async function applyAdjustment(sign: 1 | -1) {
+  function parseSignedAdjustment(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (trimmed === '+' || trimmed === '-') {
+      return null;
+    }
+
+    if (!/^[+-]?\d+$/.test(trimmed)) {
+      return undefined;
+    }
+
+    return Number.parseInt(trimmed, 10);
+  }
+
+  async function applyAdjustment(nextValue: string) {
     if (!selectedStudent) {
       return;
     }
 
-    const parsed = Number.parseFloat(adjustmentValue);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setStatus('Enter a positive adjustment amount.');
+    const parsed = parseSignedAdjustment(nextValue);
+    if (parsed === undefined) {
+      setStatus('Enter a signed whole-number adjustment.');
       return;
     }
 
-    const adjustment = Number((parsed * sign).toFixed(1));
+    if (parsed === null) {
+      return;
+    }
+
+    setDraftAdjustments((current) => ({
+      ...current,
+      [selectedStudent.id]: parsed
+    }));
+
     try {
       await sendAction({
         action: 'adjust',
-        adjustment,
+        adjustment: parsed,
         sessionStudentId: selectedStudent.id
       });
     } catch (error) {
+      setDraftAdjustments((current) => ({
+        ...current,
+        [selectedStudent.id]: selectedStudent.gradeAdjustment
+      }));
       setStatus(error instanceof Error ? error.message : 'Could not save roster change.');
     }
   }
@@ -161,7 +215,7 @@ export function EvaluationRosterDialog({
       <div className="flex min-h-full items-center justify-center p-4">
         <div
           aria-modal="true"
-          className="w-[min(52rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
+          className="w-[min(48rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
           onClick={(event) => event.stopPropagation()}
           role="dialog"
         >
@@ -199,9 +253,15 @@ export function EvaluationRosterDialog({
                         <span className="font-semibold">
                           {member.firstName} {member.lastName}
                         </span>
-                        <span className="ui-chip px-2 py-1">{formatAdjustment(member.gradeAdjustment)}</span>
+                        <span className="ui-chip px-2 py-1">
+                          {getFinalGrade(member.id, member.gradeAdjustment) === null
+                            ? 'No grade'
+                            : `Grade ${formatGrade(getFinalGrade(member.id, member.gradeAdjustment) ?? 0)}`}
+                        </span>
                       </div>
-                      <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">{member.schoolEmail}</p>
+                      <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
+                        {member.schoolEmail} · Adjustment {formatAdjustment(getAdjustment(member.id, member.gradeAdjustment))}
+                      </p>
                     </button>
                   );
                 })}
@@ -223,7 +283,20 @@ export function EvaluationRosterDialog({
                     </h3>
                     <p className="text-sm text-[color:var(--app-fg-muted)]">{selectedStudent.schoolEmail}</p>
                     <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      Adjustment: <span className="font-medium text-[color:var(--app-fg)]">{formatAdjustment(selectedStudent.gradeAdjustment)}</span>
+                      Adjustment:{' '}
+                      <span className="font-medium text-[color:var(--app-fg)]">
+                        {formatAdjustment(getAdjustment(selectedStudent.id, selectedStudent.gradeAdjustment))}
+                      </span>
+                    </p>
+                    <p className="text-sm text-[color:var(--app-fg-muted)]">
+                      Final grade:{' '}
+                      <span className="font-medium text-[color:var(--app-fg)]">
+                        {getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) === null
+                          ? 'No grade yet'
+                          : formatGrade(
+                              getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) ?? 0
+                            )}
+                      </span>
                     </p>
                   </div>
 
@@ -257,31 +330,31 @@ export function EvaluationRosterDialog({
                   </div>
 
                   <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3">
-                    <p className="ui-section-title">Grade adjustment</p>
+                    <p className="ui-section-title">Individual grading</p>
                     <label className="grid gap-2 text-sm font-medium">
-                      Points
+                      Adjustment
                       <input
                         className="ui-input w-full"
-                        min="0"
-                        step="0.5"
-                        type="number"
+                        inputMode="numeric"
+                        pattern="[+-]?[0-9]*"
+                        placeholder="+1 or -1"
+                        type="text"
                         value={adjustmentValue}
-                        onChange={(event) => setAdjustmentValue(event.target.value)}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setAdjustmentValue(nextValue);
+                          void applyAdjustment(nextValue);
+                        }}
                       />
                     </label>
-                    <div className="flex flex-wrap gap-2">
-                      <button className="ui-button ui-button-secondary" onClick={() => void applyAdjustment(1)} type="button">
-                        Bonus points
-                      </button>
-                      <button className="ui-button ui-button-secondary" onClick={() => void applyAdjustment(-1)} type="button">
-                        Penalty points
-                      </button>
-                    </div>
+                    <p className="text-xs text-[color:var(--app-fg-muted)]">
+                      Apply a signed whole-number adjustment. The student&apos;s final grade stays between 0 and 20.
+                    </p>
                   </div>
                 </>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                  Select a student to move them, remove them, or apply a grade adjustment.
+                  Select a student to move them, remove them, or apply individual grading.
                 </div>
               )}
 

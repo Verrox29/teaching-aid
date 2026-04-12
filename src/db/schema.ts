@@ -187,9 +187,7 @@ export const evaluations = pgTable(
     sessionId: uuid('session_id')
       .notNull()
       .references(() => sessions.id, { onDelete: 'cascade' }),
-    submissionId: uuid('submission_id')
-      .notNull()
-      .references(() => submissions.id, { onDelete: 'cascade' }),
+    submissionId: uuid('submission_id').references(() => submissions.id, { onDelete: 'cascade' }),
     evaluatorGroupId: uuid('evaluator_group_id')
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
@@ -214,7 +212,11 @@ export const evaluations = pgTable(
   (table) => ({
     bySessionIdx: index('evaluations_session_id_idx').on(table.sessionId),
     bySubmissionIdx: index('evaluations_submission_id_idx').on(table.submissionId),
-    uniqueEvaluationPerGroup: unique('evaluations_submission_id_evaluator_group_id_uk').on(
+    uniqueEvaluationPerSessionGroup: unique('evaluations_session_id_evaluator_group_id_uk').on(
+      table.sessionId,
+      table.evaluatorGroupId
+    ),
+    uniqueEvaluationPerSubmissionGroup: unique('evaluations_submission_id_evaluator_group_id_uk').on(
       table.submissionId,
       table.evaluatorGroupId
     )

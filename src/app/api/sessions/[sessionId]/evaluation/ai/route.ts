@@ -73,11 +73,11 @@ export async function POST(request: Request, { params }: RouteParams) {
         continue;
       }
 
-      if (!group.presentationComments.trim()) {
+      if (!group.presentationComments.trim() && !group.submissionContent?.trim()) {
         skipped.push({
           groupId: group.groupId,
           groupName: group.groupName,
-          reason: 'Presentation comments are required.'
+          reason: 'Add comments or upload work first.'
         });
         continue;
       }
@@ -88,6 +88,8 @@ export async function POST(request: Request, { params }: RouteParams) {
         groupName: group.groupName,
         presentationComments: group.presentationComments,
         qaComments: group.qaComments,
+        submissionContent: group.submissionContent,
+        submissionTitle: group.submissionTitle,
         sessionLanguage: workspace.session.language,
         subject: metadata.subject || workspace.session.title
       });

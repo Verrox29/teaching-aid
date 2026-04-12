@@ -6,6 +6,10 @@ import { getPairagogieExportContext } from '@/lib/exports/repository';
 
 export const runtime = 'nodejs';
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
@@ -25,7 +29,7 @@ export async function GET(
 
     return group.members.map((member) => ({
       'Adresse de courriel': member.schoolEmail,
-      Note: groupTotal === null ? '' : groupTotal + member.gradeAdjustment,
+      Note: groupTotal === null ? '' : clamp(groupTotal + member.gradeAdjustment, 0, 20),
       Commentaire: group.evaluation?.finalFeedback ?? ''
     }));
   });

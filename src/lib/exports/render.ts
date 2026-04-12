@@ -123,6 +123,10 @@ function sanitizeSheetName(value: string) {
   return cleaned.slice(0, 31) || 'Group';
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
 function cloneWorksheetModel(
   workbook: ExcelJS.Workbook,
   sourceModel: ExcelJS.Worksheet['model'],
@@ -259,15 +263,17 @@ function buildSubjectProgramme(metadata: SessionExportMetadata) {
 function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[] {
   return input.groups.flatMap((group) =>
     group.groupMembers.map((member) => {
+      const finalScore =
+        group.totalScore === null || group.totalScore === undefined
+          ? null
+          : clamp(group.totalScore + member.gradeAdjustment, 0, 20);
+
       return {
         firstName: member.firstName,
         groupName: group.groupName,
         lastName: member.lastName,
         remarks: sanitizeText(group.finalFeedback),
-        totalScore:
-          group.totalScore === null || group.totalScore === undefined
-            ? null
-            : group.totalScore + member.gradeAdjustment
+        totalScore: finalScore
       };
     })
   );

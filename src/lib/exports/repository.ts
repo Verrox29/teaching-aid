@@ -533,19 +533,17 @@ export async function getPairagogieExportContext(sessionId: string): Promise<Pai
     scoresByEvaluationId.set(score.evaluationId, current);
   }
 
-  const latestEvaluationBySubmissionId = new Map<string, (typeof evaluationsRows)[number]>();
+  const latestEvaluationByGroupId = new Map<string, (typeof evaluationsRows)[number]>();
   for (const evaluation of evaluationsRows) {
-    if (!latestEvaluationBySubmissionId.has(evaluation.submissionId)) {
-      latestEvaluationBySubmissionId.set(evaluation.submissionId, evaluation);
+    if (!latestEvaluationByGroupId.has(evaluation.evaluatorGroupId)) {
+      latestEvaluationByGroupId.set(evaluation.evaluatorGroupId, evaluation);
     }
   }
 
   const groupsWithData: ExportGroupSnapshot[] = groupRows.map((group) => {
     const members = membershipByGroupId.get(group.id) ?? [];
     const submission = submissionRows.find((entry) => entry.groupId === group.id) ?? null;
-    const evaluation = submission
-      ? latestEvaluationBySubmissionId.get(submission.id) ?? null
-      : null;
+    const evaluation = latestEvaluationByGroupId.get(group.id) ?? null;
     const scores = evaluation ? scoresByEvaluationId.get(evaluation.id) ?? [] : [];
 
     return {

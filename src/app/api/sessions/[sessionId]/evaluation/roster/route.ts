@@ -8,8 +8,8 @@ import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
 const requestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('adjust'),
-    adjustment: z.number().refine((value) => Number.isInteger(value * 2), {
-      message: 'Adjustments must use 0.5 increments.'
+    adjustment: z.number().int({
+      message: 'Adjustments must be signed whole numbers.'
     }),
     sessionStudentId: z.string().uuid('Invalid student id')
   }),
