@@ -22,6 +22,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Group lock / unlock
 - Presentation order & upload
 - AI scoring & feedback
+- Branching AI admin settings (Module 1)
 - Export architecture/module has been implemented and validated in Local mode against the real repo files, including a debug export preview for Pairagogie mapping review
 
 ## Current Export / Template Rules

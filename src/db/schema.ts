@@ -313,6 +313,35 @@ export const exportSettings = pgTable('export_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 });
 
+export const branchingAiSettings = pgTable('branching_ai_settings', {
+  key: text('key').primaryKey(),
+  enabled: boolean('enabled').notNull().default(false),
+  provider: varchar('provider', { length: 64 }).notNull().default('openai-compatible'),
+  apiBaseUrl: text('api_base_url'),
+  model: varchar('model', { length: 160 }),
+  timeoutMs: integer('timeout_ms').notNull().default(15000),
+  verificationStatus: varchar('verification_status', { length: 32 })
+    .notNull()
+    .default('not_configured'),
+  lastTestError: text('last_test_error'),
+  lastTestedAt: timestamp('last_tested_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const branchingAiSecrets = pgTable('branching_ai_secrets', {
+  key: text('key').primaryKey(),
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const branchingAiPromptTemplates = pgTable('branching_ai_prompt_templates', {
+  promptKey: varchar('prompt_key', { length: 80 }).primaryKey(),
+  title: varchar('title', { length: 160 }).notNull(),
+  description: text('description').notNull(),
+  template: text('template').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
 export const sessionExportMetadata = pgTable('session_export_metadata', {
   sessionId: uuid('session_id')
     .primaryKey()

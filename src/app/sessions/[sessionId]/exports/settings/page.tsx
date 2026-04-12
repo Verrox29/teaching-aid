@@ -5,12 +5,11 @@ import { notFound } from 'next/navigation';
 import { saveExportMappingAction, saveExportTemplateAction } from '../actions';
 
 import { AdminShell } from '@/components/admin-shell';
+import { BranchingAiSettingsPanel } from '@/components/branching-ai-settings-panel';
 import { db, sessions } from '@/db';
-import {
-  getActiveExportVersions,
-  listExportMappingVersions,
-  listExportTemplateVersions
-} from '@/lib/exports/repository';
+import { getBranchingAiAdminAccessState } from '@/lib/ai/admin-auth';
+import { getBranchingAiAdminView } from '@/lib/ai';
+import { getActiveExportVersions, listExportMappingVersions, listExportTemplateVersions } from '@/lib/exports/repository';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionExportSettingsPageProps = {
@@ -50,6 +49,8 @@ export default async function SessionExportSettingsPage({
 
   await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/exports/settings`);
 
+  const branchingAiAccessState = await getBranchingAiAdminAccessState();
+  const branchingAiView = branchingAiAccessState.unlocked ? await getBranchingAiAdminView() : null;
   const active = await getActiveExportVersions();
   const templateVersions = await listExportTemplateVersions();
   const mappingVersions = await listExportMappingVersions();
@@ -67,7 +68,7 @@ export default async function SessionExportSettingsPage({
         </>
       }
       currentStep={5}
-      description="Manage the active Pairagogie template and mapping."
+      description="Manage the active Pairagogie template, mapping, and Branching AI setup."
       sessionId={sessionId}
       slug={session.slug}
       subtitle="Main admin settings"
@@ -84,6 +85,13 @@ export default async function SessionExportSettingsPage({
           {notice ?? error}
         </div>
       ) : null}
+
+      <section className="mb-6">
+        <BranchingAiSettingsPanel
+          accessState={branchingAiAccessState}
+          initialView={branchingAiView}
+        />
+      </section>
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="ui-card p-4">
