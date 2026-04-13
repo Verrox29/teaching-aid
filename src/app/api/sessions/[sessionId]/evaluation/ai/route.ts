@@ -81,7 +81,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     for (const group of workspace.groups) {
       if (mode === 'questions') {
-        if (!group.submissionId || !group.submissionContent?.trim()) {
+        if (!group.submissionId) {
           skipped.push({
             groupId: group.groupId,
             groupName: group.groupName,
@@ -95,8 +95,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             className: metadata.className || workspace.session.title,
             groupName: group.groupName,
             sessionLanguage: workspace.session.language,
-            submissionContent: group.submissionContent,
-            submissionTitle: group.submissionTitle ?? workspace.session.title,
+            submissionText: group.submissionText,
             subject: metadata.subject || workspace.session.title
           },
           language

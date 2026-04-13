@@ -13,6 +13,7 @@ import {
 
 import { parseFeedbackSections } from './engine';
 import { ensurePairagogieRubric } from './rubric';
+import { extractSubmissionTextForAi } from '@/lib/submission-text';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -281,6 +282,7 @@ function buildGroupWorkspace(params: {
     submissionByGroupId
   } = params;
   const submission = submissionByGroupId.get(group.id) ?? null;
+  const submissionText = extractSubmissionTextForAi(submission?.content ?? null, submission?.title ?? null);
   const evaluation = evaluationByGroupKey.get(group.id) ?? null;
   const scoreRows = evaluation ? scoreRowsByEvaluationId.get(evaluation.id) ?? [] : [];
   const criteria = rubric?.criteria ?? [];
@@ -323,6 +325,7 @@ function buildGroupWorkspace(params: {
     submittedAt: evaluation?.submittedAt ?? null,
     submissionId: submission?.id ?? null,
     submissionContent: submission?.content ?? null,
+    submissionText,
     submissionTitle: submission?.title ?? null,
     totalScore
   };
@@ -432,6 +435,7 @@ export async function getEvaluationContext(sessionId: string, groupId: string) {
     .limit(1);
 
   const submission = submissionRows[0] ?? null;
+  const submissionText = extractSubmissionTextForAi(submission?.content ?? null, submission?.title ?? null);
 
   const evaluationRows = await db
     .select({
@@ -477,7 +481,8 @@ export async function getEvaluationContext(sessionId: string, groupId: string) {
     rubric,
     scoreRows,
     session,
-    submission
+    submission,
+    submissionText
   };
 }
 

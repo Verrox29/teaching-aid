@@ -54,6 +54,7 @@ export type EvaluationGroupWorkspace = {
   submittedAt: Date | null;
   submissionId: string | null;
   submissionContent: string | null;
+  submissionText: string | null;
   submissionTitle: string | null;
   totalScore: number | null;
   members: EvaluationGroupMember[];

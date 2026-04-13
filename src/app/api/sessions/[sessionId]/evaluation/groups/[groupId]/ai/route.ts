@@ -96,8 +96,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           className: metadata.className || context.session.title,
           groupName: context.group.name,
           sessionLanguage: context.session.language,
-          submissionContent: context.submission.content,
-          submissionTitle: context.submission.title,
+          submissionText: context.submissionText,
           subject: metadata.subject || context.session.title
         },
         language

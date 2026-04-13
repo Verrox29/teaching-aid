@@ -22,8 +22,7 @@ type EvaluationChallengeQuestionInput = {
   className: string;
   groupName: string;
   sessionLanguage: string;
-  submissionContent: string | null;
-  submissionTitle: string;
+  submissionText: string | null;
   subject: string;
 };
 
@@ -276,15 +275,21 @@ function trimQuestionFocus(value: string, language: EvaluationLanguage) {
   return focus || value.trim();
 }
 
+function getFallbackTopic(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
+  const subjectFocus = trimQuestionFocus(input.subject, language);
+  const classFocus = trimQuestionFocus(input.className, language);
+
+  return subjectFocus || classFocus || (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+}
+
 function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
-  const title = input.submissionTitle.trim();
-  const content = input.submissionContent?.trim() ?? '';
+  const content = input.submissionText?.trim() ?? '';
   const sentences = splitSentences(content);
   const meaningfulSentences = sentences
     .filter((sentence) => tokenizeWords(sentence).length >= 6)
     .map((sentence) => trimQuestionFocus(sentence, language))
     .filter(Boolean);
-  const keyTerms = tokenizeWords(`${title} ${content}`)
+  const keyTerms = tokenizeWords(content)
     .filter((word) => word.length >= 4 && !QUESTION_STOP_WORDS[language].includes(word))
     .reduce<string[]>((accumulator, word) => {
       if (!accumulator.includes(word)) {
@@ -292,15 +297,14 @@ function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, langu
       }
       return accumulator;
     }, []);
+  const fallbackTopic = getFallbackTopic(input, language);
 
-  const primaryAnchor =
-    meaningfulSentences[0] ?? trimQuestionFocus(title, language) ?? (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+  const primaryAnchor = meaningfulSentences[0] ?? fallbackTopic;
   const secondaryAnchor =
     meaningfulSentences.find((sentence) => sentence !== primaryAnchor) ??
     keyTerms.slice(1, 4).join(' ') ??
-    primaryAnchor;
-  const evidenceAnchor =
-    keyTerms[0] ?? meaningfulSentences[0] ?? trimQuestionFocus(title, language) ?? (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+    fallbackTopic;
+  const evidenceAnchor = keyTerms[0] ?? meaningfulSentences[0] ?? fallbackTopic;
 
   return {
     evidenceAnchor,
@@ -465,22 +469,20 @@ export function buildChallengeQuestions(
   language: EvaluationLanguage,
 ) {
   const anchors = extractSubmissionAnchors(input, language);
-  const titleFocus =
-    trimQuestionFocus(input.submissionTitle, language) ||
-    (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+  const topicFocus = getFallbackTopic(input, language);
 
   if (language === 'fr') {
     return [
       `Dans la partie qui porte sur ${anchors.primaryAnchor}, quelle preuve concrète dans votre travail justifie ce choix ?`,
       `Pourquoi avez-vous retenu ${anchors.secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
-      `Comment le groupe ${input.groupName} défend-il l’idée principale de ${titleFocus} face à une question critique ?`
+      `Comment le groupe ${input.groupName} défend-il l’idée principale de ${topicFocus} face à une question critique ?`
     ];
   }
 
   return [
     `In the part about ${anchors.primaryAnchor}, what concrete evidence in the uploaded work justifies that choice?`,
     `Why did you choose ${anchors.secondaryAnchor} instead of another option, and what trade-off did that require?`,
-    `How does group ${input.groupName} defend the main idea of ${titleFocus} when challenged on the details?`
+    `How does group ${input.groupName} defend the main idea of ${topicFocus} when challenged on the details?`
   ];
 }
 
