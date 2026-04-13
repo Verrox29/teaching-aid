@@ -48,7 +48,6 @@ export function GroupSubmissionDropzone({
     <form
       action={uploadGroupSubmissionAction}
       className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
-      encType="multipart/form-data"
       ref={formRef}
     >
       <input name="sessionId" type="hidden" value={sessionId} />
