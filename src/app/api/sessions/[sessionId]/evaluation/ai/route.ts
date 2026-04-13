@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
@@ -7,6 +8,7 @@ import {
   getEvaluationLanguage
 } from '@/lib/evaluation/engine';
 import { generateBranchingAiGradingRecommendations } from '@/lib/ai';
+import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import {
   getEvaluationWorkspace,
@@ -21,6 +23,33 @@ const requestSchema = z.object({
 type RouteParams = {
   params: Promise<{ sessionId: string }>;
 };
+
+function buildSessionContextSummary(params: {
+  className: string;
+  instructions: string | null;
+  metadata: {
+    className: string;
+    professorName: string;
+    programme: string;
+    season: string;
+    sessionDate: string;
+    subject: string;
+  };
+  sessionLanguage: string;
+  sessionTitle: string;
+}) {
+  return [
+    `Session title: ${params.sessionTitle}`,
+    `Session language: ${params.sessionLanguage}`,
+    `Class name: ${params.metadata.className || params.className || params.sessionTitle}`,
+    `Subject: ${params.metadata.subject || params.sessionTitle}`,
+    `Programme: ${params.metadata.programme || 'Not provided'}`,
+    `Season: ${params.metadata.season || 'Not provided'}`,
+    `Professor: ${params.metadata.professorName || 'Not provided'}`,
+    `Session date: ${params.metadata.sessionDate || 'Not provided'}`,
+    `Project brief: ${params.instructions?.trim() || 'Not provided'}`
+  ].join('\n');
+}
 
 export async function POST(request: Request, { params }: RouteParams) {
   const { sessionId } = await params;
@@ -37,6 +66,15 @@ export async function POST(request: Request, { params }: RouteParams) {
   try {
     const workspace = await getEvaluationWorkspace(sessionId);
     const metadata = await getSessionExportMetadataRecord(sessionId, workspace.session.title);
+    const sessionRows = await db
+      .select({
+        instructions: sessions.instructions,
+        title: sessions.title
+      })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+    const sessionRecord = sessionRows[0] ?? null;
     const language = getEvaluationLanguage(workspace.session.language);
     const mode = parsed.data.mode;
     const skipped: Array<{ groupId: string; groupName: string; reason: string }> = [];
@@ -90,6 +128,13 @@ export async function POST(request: Request, { params }: RouteParams) {
         peerQuestionsObserved: group.qaComments,
         qaComments: group.qaComments,
         rubric: workspace.rubric,
+        sessionContext: buildSessionContextSummary({
+          className: metadata.className || workspace.session.title,
+          instructions: sessionRecord?.instructions ?? null,
+          metadata,
+          sessionLanguage: workspace.session.language,
+          sessionTitle: sessionRecord?.title ?? workspace.session.title
+        }),
         submissionContent: group.submissionContent,
         submissionTitle: group.submissionTitle,
         sessionLanguage: workspace.session.language,

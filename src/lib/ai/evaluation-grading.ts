@@ -15,14 +15,15 @@ type EvaluationGradingPromptInput = {
   className: string;
   criteria: EvaluationCriterionRow[];
   groupName: string;
-  presentationComments: string;
   peerQuestionsObserved: string;
+  presentationComments: string;
   qaComments: string;
   rubric: {
     criteria: EvaluationCriterionRow[];
     id: string;
     title: string;
   } | null;
+  sessionContext: string;
   sessionLanguage: string;
   subject: string;
   submissionContent?: string | null;
@@ -30,62 +31,108 @@ type EvaluationGradingPromptInput = {
 };
 
 type ParsedEvaluationGradingResponse = {
-  criterion_grading: Array<{
-    criterion_name: string;
-    evidence_used: string[];
+  commentSections: {
+    areasForDevelopment: string;
+    gradeBreakdown: string;
+    overallFeedback: string;
+    questionsAndComments: string;
+    strengths: string;
+  };
+  criteria: Array<{
+    id: string;
     justification: string;
     score: number;
   }>;
-  general_feedback: string | null;
-  points_for_development: string[] | null;
-  strengths: string[] | null;
+};
+
+export type BranchingAiGradingResult = {
+  feedback: EvaluationAiFeedbackSections;
+  recommendedCriteria: EvaluationAiCriterionRecommendation[];
+  recommendedTotalScore: number;
 };
 
 const gradingResponseSchema = z
   .object({
-    criterion_grading: z
+    commentSections: z
+      .object({
+        areasForDevelopment: z.string().trim().min(1),
+        gradeBreakdown: z.string().trim().min(1),
+        overallFeedback: z.string().trim().min(1),
+        questionsAndComments: z.string().trim().min(1),
+        strengths: z.string().trim().min(1)
+      })
+      .strict(),
+    criteria: z
       .array(
-        z.object({
-          criterion_name: z.string().trim().min(1),
-          evidence_used: z.array(z.string().trim()).optional().default([]),
-          justification: z.string().trim().min(1),
-          score: z.coerce.number().int().min(0)
-        })
+        z
+          .object({
+            id: z.string().trim().min(1),
+            justification: z.string().trim().min(1),
+            score: z.number().finite()
+          })
+          .strict()
       )
-      .optional(),
-    general_feedback: z.string().trim().optional(),
-    points_for_development: z.array(z.string().trim()).optional(),
-    strengths: z.array(z.string().trim()).optional()
+      .min(1)
   })
   .strict();
 
-function normalizeKey(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+function normalizeLanguage(language: string) {
+  return language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
 }
 
-function joinLines(lines: string[]) {
-  return lines.map((line) => line.trim()).filter(Boolean).join('\n');
+function normalizeText(value: string | null | undefined) {
+  return value?.trim() ?? '';
+}
+
+function joinNonEmpty(parts: string[]) {
+  return parts.map((part) => part.trim()).filter(Boolean).join('\n\n');
+}
+
+function roundToIncrement(value: number, increment = 0.5) {
+  return Math.round(value / increment) * increment;
+}
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function computeTotalScore(criteria: Array<{ recommendedScore: number }>) {
+  return criteria.reduce((sum, criterion) => sum + criterion.recommendedScore, 0);
+}
+
+function sortCriteria(criteria: EvaluationCriterionRow[]) {
+  return [...criteria].sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
 function stringifyCriteria(criteria: EvaluationCriterionRow[]) {
-  return criteria
-    .slice()
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .map((criterion, index) => {
+  return sortCriteria(criteria)
+    .map((criterion) => {
       const description = criterion.description?.trim() ?? '';
       return [
-        `${index + 1}. ${criterion.label} (${criterion.maxScore} points)`,
-        description ? `   Description: ${description}` : null
+        `- id: ${criterion.id}`,
+        `  label: ${criterion.label}`,
+        `  maxScore: ${criterion.maxScore}`,
+        `  sortOrder: ${criterion.sortOrder}`,
+        description ? `  description: ${description}` : null
       ]
         .filter(Boolean)
         .join('\n');
     })
     .join('\n\n');
+}
+
+function stringifyCriteriaJson(criteria: EvaluationCriterionRow[]) {
+  return JSON.stringify(
+    sortCriteria(criteria).map((criterion) => ({
+      description: criterion.description,
+      id: criterion.id,
+      label: criterion.label,
+      maxScore: criterion.maxScore,
+      sortOrder: criterion.sortOrder
+    })),
+    null,
+    2
+  );
 }
 
 function stringifyRubric(rubric: EvaluationGradingPromptInput['rubric']) {
@@ -116,7 +163,9 @@ function summarizePeerQuestionsObserved(qaComments: string) {
     )
   );
 
-  return peerSentences.length > 0 ? joinLines(peerSentences) : 'No peer questions were explicitly noted.';
+  return peerSentences.length > 0
+    ? peerSentences.map((line) => line.trim()).filter(Boolean).join('\n')
+    : 'No peer questions were explicitly noted.';
 }
 
 function stripJsonFences(value: string) {
@@ -125,51 +174,99 @@ function stripJsonFences(value: string) {
   return fenced ? fenced[1].trim() : trimmed;
 }
 
-function stringifyAiSection(lines: string[] | null | undefined) {
-  const entries = (lines ?? []).map((line) => line.trim()).filter(Boolean);
-  return entries.length > 0 ? entries.join('\n') : '';
-}
-
 function getPromptTemplate(prompts: Array<{ promptKey: string; template: string }>) {
   return prompts.find((prompt) => prompt.promptKey === 'generate_feedback_and_grading')?.template ?? null;
 }
 
 function buildPromptVariables(input: EvaluationGradingPromptInput) {
+  const sessionLanguage = normalizeLanguage(input.sessionLanguage);
+
   return {
+    class_name: input.className,
     evaluation_criteria: stringifyCriteria(input.criteria),
     group_name: input.groupName,
     peer_questions_observed: summarizePeerQuestionsObserved(input.peerQuestionsObserved),
+    project_brief: normalizeText(input.sessionContext) || 'No project brief was provided.',
     rubric: stringifyRubric(input.rubric),
-    teacher_qa_comments: input.qaComments.trim() || 'No teacher Q&A comments were recorded.',
+    rubric_criteria_json: stringifyCriteriaJson(input.criteria),
+    session_context: normalizeText(input.sessionContext) || 'No session context was provided.',
+    session_language: sessionLanguage,
+    subject: input.subject,
+    submission_text: normalizeText(input.submissionContent) || 'No submission text was provided.',
+    submission_title: normalizeText(input.submissionTitle) || 'No submission title was provided.',
+    teacher_qa_comments:
+      normalizeText(input.qaComments) || 'No teacher Q&A comments were recorded.',
     teacher_presentation_comments:
-      input.presentationComments.trim() || 'No teacher presentation comments were recorded.'
+      normalizeText(input.presentationComments) || 'No teacher presentation comments were recorded.'
   };
 }
 
-function formatEvidenceUsed(evidenceUsed: string[]) {
-  const entries = evidenceUsed.map((entry) => entry.trim()).filter(Boolean);
-  return entries.length > 0 ? ` Evidence used: ${entries.join('; ')}.` : '';
+function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPromptInput) {
+  const criteria = sortCriteria(input.criteria);
+  const criteriaJson = stringifyCriteriaJson(criteria);
+  const maxTotal = criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0);
+
+  return [
+    'Runtime grading contract:',
+    '- Return valid JSON only, with no markdown and no prose outside the JSON object.',
+    '- Use the exact rubric criterion ids provided below.',
+    '- Return exactly one criterion result per rubric criterion id, with no omissions and no extras.',
+    '- Never rename, merge, duplicate, or invent criteria.',
+    '- If evidence is missing, say so explicitly and score conservatively.',
+    '- Keep justifications criterion-specific; do not reuse one generic explanation across all criteria.',
+    '- Clamp every score to the criterion maxScore.',
+    '- Use conservative scoring and reserve the top score for truly exceptional evidence.',
+    '- A perfect 20/20 total should be extremely rare.',
+    '- Write the feedback sections in the session language.',
+    '',
+    'Editable prompt template:',
+    renderedPrompt.trim() || 'No editable prompt template was provided.',
+    '',
+    'Session context:',
+    normalizeText(input.sessionContext) || 'No session context was provided.',
+    '',
+    'Canonical Pairagogie rubric criteria JSON:',
+    criteriaJson,
+    '',
+    `Canonical rubric max total: ${maxTotal}`,
+    '',
+    'Required output schema:',
+    '{',
+    '  "criteria": [',
+    '    {',
+    '      "id": "criterion-id",',
+    '      "score": 0,',
+    '      "justification": "..."',
+    '    }',
+    '  ],',
+    '  "commentSections": {',
+    '    "strengths": "...",',
+    '    "areasForDevelopment": "...",',
+    '    "overallFeedback": "...",',
+    '    "questionsAndComments": "...",',
+    '    "gradeBreakdown": "..."',
+    '  }',
+    '}'
+  ].join('\n');
 }
 
 function parseModelPayload(rawContent: string): ParsedEvaluationGradingResponse | null {
-  const parsedContent = stripJsonFences(rawContent);
-  if (!parsedContent.startsWith('{') || !parsedContent.endsWith('}')) {
+  try {
+    const parsedContent = stripJsonFences(rawContent);
+    if (!parsedContent.startsWith('{') || !parsedContent.endsWith('}')) {
+      return null;
+    }
+
+    const jsonValue = JSON.parse(parsedContent) as unknown;
+    const parsed = gradingResponseSchema.safeParse(jsonValue);
+    if (!parsed.success) {
+      return null;
+    }
+
+    return parsed.data;
+  } catch {
     return null;
   }
-
-  const jsonValue = JSON.parse(parsedContent) as unknown;
-  const parsed = gradingResponseSchema.safeParse(jsonValue);
-
-  if (!parsed.success) {
-    return null;
-  }
-
-  return {
-    criterion_grading: parsed.data.criterion_grading ?? [],
-    general_feedback: parsed.data.general_feedback ?? null,
-    points_for_development: parsed.data.points_for_development ?? null,
-    strengths: parsed.data.strengths ?? null
-  };
 }
 
 function buildFeedbackSectionsFromModel(
@@ -181,30 +278,35 @@ function buildFeedbackSectionsFromModel(
   }
 
   return {
-    development: stringifyAiSection(parsed.points_for_development) || fallback.development,
-    general: parsed.general_feedback?.trim() || fallback.general,
-    strengths: stringifyAiSection(parsed.strengths) || fallback.strengths
+    development: parsed.commentSections.areasForDevelopment.trim() || fallback.development,
+    general:
+      joinNonEmpty([
+        parsed.commentSections.overallFeedback,
+        parsed.commentSections.questionsAndComments,
+        parsed.commentSections.gradeBreakdown
+      ]) || fallback.general,
+    strengths: parsed.commentSections.strengths.trim() || fallback.strengths
   };
 }
 
-function matchModelCriterion(
-  entry: ParsedEvaluationGradingResponse['criterion_grading'][number],
+function validateCriterionSet(
+  parsed: ParsedEvaluationGradingResponse,
   criteria: EvaluationCriterionRow[]
 ) {
-  const normalizedName = normalizeKey(entry.criterion_name);
-  if (!normalizedName) {
-    return null;
+  const expectedIds = new Set(criteria.map((criterion) => criterion.id));
+  if (parsed.criteria.length !== expectedIds.size) {
+    return false;
   }
 
-  return (
-    criteria.find((criterion) => normalizeKey(criterion.label) === normalizedName) ??
-    criteria.find(
-      (criterion) =>
-        normalizeKey(criterion.label).includes(normalizedName) ||
-        normalizedName.includes(normalizeKey(criterion.label))
-    ) ??
-    null
-  );
+  const seenIds = new Set<string>();
+  for (const entry of parsed.criteria) {
+    if (!expectedIds.has(entry.id) || seenIds.has(entry.id)) {
+      return false;
+    }
+    seenIds.add(entry.id);
+  }
+
+  return seenIds.size === expectedIds.size;
 }
 
 function buildCriterionRecommendationsFromModel(
@@ -212,73 +314,41 @@ function buildCriterionRecommendationsFromModel(
   input: EvaluationGradingPromptInput,
   fallbackCriteria: EvaluationAiCriterionRecommendation[]
 ) {
-  if (!parsed || parsed.criterion_grading.length === 0) {
+  if (!parsed || !validateCriterionSet(parsed, input.criteria)) {
     return fallbackCriteria;
   }
 
-  const fallbackByCriterionId = new Map(
-    fallbackCriteria.map((recommendation) => [recommendation.criterionId, recommendation])
-  );
-  const assignedCriterionIds = new Set<string>();
-  const recommendations: EvaluationAiCriterionRecommendation[] = [];
+  const parsedByCriterionId = new Map(parsed.criteria.map((entry) => [entry.id, entry]));
 
-  for (const criterion of input.criteria.slice().sort((left, right) => left.sortOrder - right.sortOrder)) {
-    const matchedEntry = parsed.criterion_grading.find((entry) => {
-      const matchedCriterion = matchModelCriterion(entry, input.criteria);
-      return matchedCriterion?.id === criterion.id && !assignedCriterionIds.has(criterion.id);
-    });
+  return sortCriteria(input.criteria).map((criterion) => {
+    const matchedEntry = parsedByCriterionId.get(criterion.id);
+    const normalizedScore = matchedEntry
+      ? clamp(roundToIncrement(matchedEntry.score, 0.5), 0, criterion.maxScore)
+      : 0;
 
-    if (matchedEntry) {
-      const score = Number.isFinite(matchedEntry.score)
-        ? Math.max(0, Math.min(criterion.maxScore, matchedEntry.score))
-        : fallbackByCriterionId.get(criterion.id)?.recommendedScore ?? 0;
-      const rationale = `${matchedEntry.justification.trim()}${formatEvidenceUsed(
-        matchedEntry.evidence_used
-      )}`;
-
-      recommendations.push({
-        criterionId: criterion.id,
-        criterionLabel: criterion.label,
-        maxScore: criterion.maxScore,
-        rationale,
-        recommendedScore: score
-      });
-      assignedCriterionIds.add(criterion.id);
-      continue;
-    }
-
-    const fallback = fallbackByCriterionId.get(criterion.id);
-    if (fallback) {
-      recommendations.push(fallback);
-      assignedCriterionIds.add(criterion.id);
-      continue;
-    }
-
-    recommendations.push({
+    return {
       criterionId: criterion.id,
       criterionLabel: criterion.label,
       maxScore: criterion.maxScore,
-      rationale: 'No AI recommendation was available for this criterion.',
-      recommendedScore: 0
-    });
-  }
-
-  return recommendations;
+      rationale: matchedEntry?.justification.trim() ?? 'No AI recommendation was available for this criterion.',
+      recommendedScore: normalizedScore
+    };
+  });
 }
 
 export async function generateBranchingAiGradingRecommendations(
   input: EvaluationGradingPromptInput
-): Promise<{
-  feedback: EvaluationAiFeedbackSections;
-  recommendedCriteria: EvaluationAiCriterionRecommendation[];
-}> {
+): Promise<BranchingAiGradingResult> {
   const fallback = buildEvaluationRecommendations(input);
   let settingsBundle: Awaited<ReturnType<typeof getBranchingAiFullSettings>>;
 
   try {
     settingsBundle = await getBranchingAiFullSettings();
   } catch {
-    return fallback;
+    return {
+      ...fallback,
+      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+    };
   }
 
   const settings = settingsBundle.settings;
@@ -292,49 +362,90 @@ export async function generateBranchingAiGradingRecommendations(
     !settings.apiBaseUrl?.trim() ||
     !settings.model?.trim()
   ) {
-    return fallback;
+    return {
+      ...fallback,
+      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+    };
   }
 
   const promptTemplate = getPromptTemplate(settingsBundle.prompts);
   if (!promptTemplate?.trim()) {
-    return fallback;
+    return {
+      ...fallback,
+      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+    };
   }
 
   try {
     const client = buildBranchingAiClient(settings, settingsBundle.apiKey!);
     const renderedPrompt = renderPromptTemplate(promptTemplate, buildPromptVariables(input));
     const systemPrompt = [
+      'You grade Pairagogie presentations.',
       'Return valid JSON only.',
-      'Do not wrap the response in markdown or prose.',
-      'Follow the template instructions exactly.',
-      'The JSON object must include strengths, points_for_development, general_feedback, and criterion_grading.',
-      'criterion_grading must contain one entry per rubric criterion and each criterion_name must match the rubric label exactly.'
+      'Do not wrap the response in markdown, code fences, or prose.',
+      'Follow the output schema exactly.',
+      'Use the rubric criterion ids exactly as provided in the user message.',
+      'One result per criterion only.',
+      'Score conservatively when evidence is incomplete or weak.',
+      'A perfect 20/20 should be exceptional and rare.',
+      'Do not invent additional criteria or collapse multiple criteria into one.'
     ].join(' ');
 
     const content = await client.generateChatCompletion({
-      maxTokens: 1200,
+      maxTokens: 1800,
       messages: [
         { content: systemPrompt, role: 'system' },
-        { content: renderedPrompt, role: 'user' }
+        {
+          content: [
+            buildRuntimeScaffold(renderedPrompt, input),
+            '',
+            'Teacher presentation comments:',
+            normalizeText(input.presentationComments) || 'No teacher presentation comments were recorded.',
+            '',
+            'Teacher Q&A comments:',
+            normalizeText(input.qaComments) || 'No teacher Q&A comments were recorded.',
+            '',
+            'Peer questions observed:',
+            normalizeText(input.peerQuestionsObserved) || 'No peer questions were recorded.',
+            '',
+            'Submission title:',
+            normalizeText(input.submissionTitle) || 'No submission title was provided.',
+            '',
+            'Submission text:',
+            normalizeText(input.submissionContent) || 'No submission text was provided.'
+          ]
+            .filter((part) => part !== '')
+            .join('\n'),
+          role: 'user'
+        }
       ],
       responseFormat: { type: 'json_object' },
       temperature: 0
     });
 
     const parsed = parseModelPayload(content);
-    if (!parsed) {
-      return fallback;
+    if (!parsed || !validateCriterionSet(parsed, input.criteria)) {
+      return {
+        ...fallback,
+        recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+      };
     }
+
+    const recommendedCriteria = buildCriterionRecommendationsFromModel(
+      parsed,
+      input,
+      fallback.recommendedCriteria
+    );
 
     return {
       feedback: buildFeedbackSectionsFromModel(parsed, fallback.feedback),
-      recommendedCriteria: buildCriterionRecommendationsFromModel(
-        parsed,
-        input,
-        fallback.recommendedCriteria
-      )
+      recommendedCriteria,
+      recommendedTotalScore: computeTotalScore(recommendedCriteria)
     };
   } catch {
-    return fallback;
+    return {
+      ...fallback,
+      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+    };
   }
 }

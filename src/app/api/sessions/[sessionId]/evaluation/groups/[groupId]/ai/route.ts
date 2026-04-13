@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
@@ -6,6 +7,7 @@ import {
   getEvaluationLanguage
 } from '@/lib/evaluation/engine';
 import { generateBranchingAiGradingRecommendations } from '@/lib/ai';
+import { db, sessions } from '@/db';
 import {
   getEvaluationContext,
   getEvaluationWorkspace,
@@ -24,6 +26,33 @@ type RouteParams = {
   params: Promise<{ groupId: string; sessionId: string }>;
 };
 
+function buildSessionContextSummary(params: {
+  className: string;
+  instructions: string | null;
+  metadata: {
+    className: string;
+    professorName: string;
+    programme: string;
+    season: string;
+    sessionDate: string;
+    subject: string;
+  };
+  sessionLanguage: string;
+  sessionTitle: string;
+}) {
+  return [
+    `Session title: ${params.sessionTitle}`,
+    `Session language: ${params.sessionLanguage}`,
+    `Class name: ${params.metadata.className || params.className || params.sessionTitle}`,
+    `Subject: ${params.metadata.subject || params.sessionTitle}`,
+    `Programme: ${params.metadata.programme || 'Not provided'}`,
+    `Season: ${params.metadata.season || 'Not provided'}`,
+    `Professor: ${params.metadata.professorName || 'Not provided'}`,
+    `Session date: ${params.metadata.sessionDate || 'Not provided'}`,
+    `Project brief: ${params.instructions?.trim() || 'Not provided'}`
+  ].join('\n');
+}
+
 export async function POST(request: Request, { params }: RouteParams) {
   const { groupId, sessionId } = await params;
   const body = await request.json().catch(() => ({}));
@@ -39,9 +68,20 @@ export async function POST(request: Request, { params }: RouteParams) {
   try {
     const context = await getEvaluationContext(sessionId, groupId);
     const metadata = await getSessionExportMetadataRecord(sessionId, context.session.title);
+    const sessionRows = await db
+      .select({
+        instructions: sessions.instructions,
+        title: sessions.title
+      })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+    const sessionRecord = sessionRows[0] ?? null;
     const mode = parsed.data.mode;
     const hasTeacherComments = Boolean(context.evaluation?.presentationComments?.trim());
     const hasSubmissionContent = Boolean(context.submission?.content?.trim());
+    let gradingResult: Awaited<ReturnType<typeof generateBranchingAiGradingRecommendations>> | null =
+      null;
 
     if (mode === 'grading' && !hasTeacherComments && !hasSubmissionContent) {
       throw new Error('Enter comments or upload work before generating AI feedback and grades.');
@@ -70,7 +110,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         sessionId
       });
     } else {
-      const result = await generateBranchingAiGradingRecommendations({
+      gradingResult = await generateBranchingAiGradingRecommendations({
         className: metadata.className || context.session.title,
         criteria: context.rubric.criteria,
         groupName: context.group.name,
@@ -78,6 +118,13 @@ export async function POST(request: Request, { params }: RouteParams) {
         peerQuestionsObserved: context.evaluation?.comments ?? '',
         qaComments: context.evaluation?.comments ?? '',
         rubric: context.rubric,
+        sessionContext: buildSessionContextSummary({
+          className: metadata.className || context.session.title,
+          instructions: sessionRecord?.instructions ?? null,
+          metadata,
+          sessionLanguage: context.session.language,
+          sessionTitle: sessionRecord?.title ?? context.session.title
+        }),
         submissionContent: context.submission?.content ?? null,
         submissionTitle: context.submission?.title ?? null,
         sessionLanguage: context.session.language,
@@ -86,14 +133,14 @@ export async function POST(request: Request, { params }: RouteParams) {
 
       await saveEvaluationAiResult({
         aiGeneratedAt: new Date(),
-        aiRecommendedCriteria: result.recommendedCriteria,
-        aiRecommendedFeedback: result.feedback,
+        aiRecommendedCriteria: gradingResult.recommendedCriteria,
+        aiRecommendedFeedback: gradingResult.feedback,
         groupId,
         sessionId
       });
 
       await saveEvaluationDraft(sessionId, groupId, {
-        finalFeedback: formatFeedbackSections(result.feedback, context.session.language)
+        finalFeedback: formatFeedbackSections(gradingResult.feedback, context.session.language)
       });
     }
 
@@ -105,7 +152,8 @@ export async function POST(request: Request, { params }: RouteParams) {
           ? { challengeQuestions: refreshedGroup?.aiRecommendedQuestions ?? [] }
           : {
               feedback: refreshedGroup?.aiRecommendedFeedback ?? null,
-              recommendedCriteria: refreshedGroup?.aiRecommendedCriteria ?? []
+              recommendedCriteria: refreshedGroup?.aiRecommendedCriteria ?? [],
+              recommendedTotalScore: gradingResult?.recommendedTotalScore ?? null
             },
       group: refreshedGroup
     });
