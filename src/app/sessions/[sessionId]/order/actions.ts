@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { db, groups, sessions, submissions } from '@/db';
+import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES } from '@/lib/group-submission';
 
 const orderPath = (sessionId: string) => `/sessions/${sessionId}/order`;
 const sessionHubPath = (sessionId: string) => `/sessions/${sessionId}`;
@@ -264,6 +265,14 @@ export async function uploadGroupSubmissionAction(formData: FormData): Promise<n
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
     redirectWithMessage(parsed.data.sessionId, 'error', 'Please choose a file to upload.');
+  }
+
+  if (file.size > GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES) {
+    redirectWithMessage(
+      parsed.data.sessionId,
+      'error',
+      `File is too large. Max file size is ${GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`
+    );
   }
 
   const existingSubmission = await db

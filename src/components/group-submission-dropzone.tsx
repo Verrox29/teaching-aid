@@ -1,8 +1,9 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { uploadGroupSubmissionAction } from '@/app/sessions/[sessionId]/order/actions';
+import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES, GROUP_SUBMISSION_MAX_FILE_SIZE_MB } from '@/lib/group-submission';
 
 type GroupSubmissionDropzoneProps = {
   fileName?: string | null;
@@ -24,9 +25,24 @@ export function GroupSubmissionDropzone({
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  function rejectFile(fileName: string) {
+    setSelectedFileName(null);
+    setErrorMessage(`File "${fileName}" is too large. Max file size ${GROUP_SUBMISSION_MAX_FILE_SIZE_MB} MB.`);
+
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+  }
 
   function syncFile(file: File | null, submitImmediately: boolean) {
     if (!file) {
+      return;
+    }
+
+    if (file.size > GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES) {
+      rejectFile(file.name);
       return;
     }
 
@@ -38,9 +54,23 @@ export function GroupSubmissionDropzone({
     }
 
     setSelectedFileName(file.name);
+    setErrorMessage(null);
 
     if (submitImmediately) {
       formRef.current?.requestSubmit();
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const file = inputRef.current?.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    if (file.size > GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES) {
+      event.preventDefault();
+      rejectFile(file.name);
     }
   }
 
@@ -49,6 +79,7 @@ export function GroupSubmissionDropzone({
       action={uploadGroupSubmissionAction}
       className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
       ref={formRef}
+      onSubmit={handleSubmit}
     >
       <input name="sessionId" type="hidden" value={sessionId} />
       <input name="groupId" type="hidden" value={groupId} />
@@ -57,6 +88,21 @@ export function GroupSubmissionDropzone({
         <div className="text-sm text-[color:var(--app-fg-muted)]">
           <p className="font-medium text-[color:var(--app-fg)]">Upload group work</p>
           <p>Drop a file here or click to choose one for {groupName}.</p>
+          <p className="mt-1">
+            Max file size {GROUP_SUBMISSION_MAX_FILE_SIZE_MB} MB.
+          </p>
+          <p>
+            If your file is larger, you can compress it first using a free tool like{' '}
+            <a
+              className="font-medium text-[color:var(--app-accent-strong)] underline decoration-[color:var(--app-accent)] decoration-2 underline-offset-2 hover:text-[color:var(--app-accent)]"
+              href="https://www.ilovepdf.com/fr/compresser_pdf"
+              rel="noreferrer"
+              target="_blank"
+            >
+              iLovePDF
+            </a>
+            .
+          </p>
           {submittedAt ? (
             <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
               Uploaded on {submittedAt}
@@ -104,6 +150,12 @@ export function GroupSubmissionDropzone({
 
         {selectedFileName ? (
           <p className="text-xs text-[color:var(--app-fg-muted)]">Selected file: {selectedFileName}</p>
+        ) : null}
+
+        {errorMessage ? (
+          <p className="text-xs font-medium text-[color:var(--app-danger)]" aria-live="polite">
+            {errorMessage}
+          </p>
         ) : null}
       </div>
 
