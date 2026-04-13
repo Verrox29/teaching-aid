@@ -3,10 +3,10 @@ import { z } from 'zod';
 
 import {
   buildChallengeQuestions,
-  buildEvaluationRecommendations,
   formatFeedbackSections,
   getEvaluationLanguage
 } from '@/lib/evaluation/engine';
+import { generateBranchingAiGradingRecommendations } from '@/lib/ai';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import {
   getEvaluationWorkspace,
@@ -82,12 +82,14 @@ export async function POST(request: Request, { params }: RouteParams) {
         continue;
       }
 
-      const result = buildEvaluationRecommendations({
+      const result = await generateBranchingAiGradingRecommendations({
         className: metadata.className || workspace.session.title,
         criteria: group.criteria,
         groupName: group.groupName,
         presentationComments: group.presentationComments,
+        peerQuestionsObserved: group.qaComments,
         qaComments: group.qaComments,
+        rubric: workspace.rubric,
         submissionContent: group.submissionContent,
         submissionTitle: group.submissionTitle,
         sessionLanguage: workspace.session.language,

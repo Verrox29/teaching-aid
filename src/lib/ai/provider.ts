@@ -1,6 +1,21 @@
 import type { BranchingAiConnectionTestResult, BranchingAiSettingsRecord } from './types';
 
+export type BranchingAiChatMessage = {
+  content: string;
+  role: 'assistant' | 'system' | 'user';
+};
+
+export type BranchingAiChatCompletionOptions = {
+  maxTokens?: number;
+  messages: BranchingAiChatMessage[];
+  responseFormat?: { type: 'json_object' };
+  temperature?: number;
+};
+
 export type BranchingAiClient = {
+  generateChatCompletion: (
+    options: BranchingAiChatCompletionOptions
+  ) => Promise<string>;
   testConnection: () => Promise<BranchingAiConnectionTestResult>;
 };
 
@@ -13,6 +28,60 @@ type OpenAiCompatibleRequest = {
 
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, '');
+}
+
+async function executeChatCompletion(
+  requestConfig: OpenAiCompatibleRequest,
+  options: BranchingAiChatCompletionOptions
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestConfig.timeoutMs);
+
+  try {
+    const response = await fetch(`${requestConfig.apiBaseUrl}/v1/chat/completions`, {
+      body: JSON.stringify({
+        ...(options.responseFormat ? { response_format: options.responseFormat } : {}),
+        max_tokens: options.maxTokens ?? 1024,
+        messages: options.messages,
+        model: requestConfig.model,
+        temperature: options.temperature ?? 0
+      }),
+      headers: {
+        Authorization: `Bearer ${requestConfig.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      method: 'POST',
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`Provider returned ${response.status}${body ? `: ${body.slice(0, 240)}` : ''}`);
+    }
+
+    const payload = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string | null;
+        } | null;
+      }>;
+    };
+    const content = payload.choices?.[0]?.message?.content?.trim() ?? '';
+
+    if (!content) {
+      throw new Error('Provider response did not include message content.');
+    }
+
+    return content;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('AI request timed out.');
+    }
+
+    throw error instanceof Error ? error : new Error('AI request failed.');
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function buildBranchingAiClient(
@@ -39,47 +108,22 @@ export function buildBranchingAiClient(
   };
 
   return {
+    async generateChatCompletion(options: BranchingAiChatCompletionOptions) {
+      return executeChatCompletion(requestConfig, options);
+    },
+
     async testConnection() {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), requestConfig.timeoutMs);
+      await executeChatCompletion(requestConfig, {
+        maxTokens: 1,
+        messages: [{ content: 'ping', role: 'user' }],
+        temperature: 0
+      });
 
-      try {
-        const response = await fetch(`${requestConfig.apiBaseUrl}/v1/chat/completions`, {
-          body: JSON.stringify({
-            messages: [{ content: 'ping', role: 'user' }],
-            max_tokens: 1,
-            model: requestConfig.model,
-            temperature: 0
-          }),
-          headers: {
-            Authorization: `Bearer ${requestConfig.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          method: 'POST',
-          signal: controller.signal
-        });
-
-        if (!response.ok) {
-          const body = await response.text().catch(() => '');
-          throw new Error(
-            `Provider returned ${response.status}${body ? `: ${body.slice(0, 240)}` : ''}`
-          );
-        }
-
-        return {
-          model: requestConfig.model,
-          provider: 'openai-compatible',
-          status: 'ok'
-        };
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw new Error('Connection test timed out.');
-        }
-
-        throw error instanceof Error ? error : new Error('Connection test failed.');
-      } finally {
-        clearTimeout(timeout);
-      }
+      return {
+        model: requestConfig.model,
+        provider: 'openai-compatible',
+        status: 'ok'
+      };
     }
   };
 }

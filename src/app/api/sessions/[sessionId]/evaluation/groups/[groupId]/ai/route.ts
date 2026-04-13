@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 import {
   buildChallengeQuestions,
-  buildEvaluationRecommendations,
   getEvaluationLanguage
 } from '@/lib/evaluation/engine';
+import { generateBranchingAiGradingRecommendations } from '@/lib/ai';
 import {
   getEvaluationContext,
   getEvaluationWorkspace,
@@ -70,12 +70,14 @@ export async function POST(request: Request, { params }: RouteParams) {
         sessionId
       });
     } else {
-      const result = buildEvaluationRecommendations({
+      const result = await generateBranchingAiGradingRecommendations({
         className: metadata.className || context.session.title,
         criteria: context.rubric.criteria,
         groupName: context.group.name,
         presentationComments: context.evaluation?.presentationComments ?? '',
+        peerQuestionsObserved: context.evaluation?.comments ?? '',
         qaComments: context.evaluation?.comments ?? '',
+        rubric: context.rubric,
         submissionContent: context.submission?.content ?? null,
         submissionTitle: context.submission?.title ?? null,
         sessionLanguage: context.session.language,
