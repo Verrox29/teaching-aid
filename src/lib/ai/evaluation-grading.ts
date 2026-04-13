@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 import { buildEvaluationRecommendations } from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
@@ -45,36 +43,66 @@ type ParsedEvaluationGradingResponse = {
   }>;
 };
 
+type ParseOutcome =
+  | {
+      parsed: ParsedEvaluationGradingResponse;
+      repairApplied: boolean;
+    }
+  | {
+      parsed: null;
+      reason: string;
+    };
+
 export type BranchingAiGradingResult = {
+  diagnostics: {
+    fallbackReason: string | null;
+    repairApplied: boolean;
+    responseFormat: 'json_schema' | 'json_object' | 'heuristic_fallback';
+  };
   feedback: EvaluationAiFeedbackSections;
   recommendedCriteria: EvaluationAiCriterionRecommendation[];
   recommendedTotalScore: number;
 };
 
-const gradingResponseSchema = z
-  .object({
-    commentSections: z
-      .object({
-        areasForDevelopment: z.string().trim().min(1),
-        gradeBreakdown: z.string().trim().min(1),
-        overallFeedback: z.string().trim().min(1),
-        questionsAndComments: z.string().trim().min(1),
-        strengths: z.string().trim().min(1)
-      })
-      .strict(),
-    criteria: z
-      .array(
-        z
-          .object({
-            id: z.string().trim().min(1),
-            justification: z.string().trim().min(1),
-            score: z.number().finite()
-          })
-          .strict()
-      )
-      .min(1)
-  })
-  .strict();
+const gradingResponseJsonSchema = {
+  additionalProperties: false,
+  properties: {
+    commentSections: {
+      additionalProperties: false,
+      properties: {
+        areasForDevelopment: { type: 'string' },
+        gradeBreakdown: { type: 'string' },
+        overallFeedback: { type: 'string' },
+        questionsAndComments: { type: 'string' },
+        strengths: { type: 'string' }
+      },
+      required: [
+        'areasForDevelopment',
+        'gradeBreakdown',
+        'overallFeedback',
+        'questionsAndComments',
+        'strengths'
+      ],
+      type: 'object'
+    },
+    criteria: {
+      items: {
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' },
+          justification: { type: 'string' },
+          score: { type: 'number' }
+        },
+        required: ['id', 'justification', 'score'],
+        type: 'object'
+      },
+      minItems: 1,
+      type: 'array'
+    }
+  },
+  required: ['commentSections', 'criteria'],
+  type: 'object'
+} as const;
 
 function normalizeLanguage(language: string) {
   return language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
@@ -150,7 +178,7 @@ function stringifyRubric(rubric: EvaluationGradingPromptInput['rubric']) {
     .join('\n');
 }
 
-function summarizePeerQuestionsObserved(qaComments: string) {
+function buildPeerQuestionsObservedSummary(qaComments: string) {
   const trimmed = qaComments.trim();
   if (!trimmed) {
     return 'No peer questions were recorded.';
@@ -168,14 +196,213 @@ function summarizePeerQuestionsObserved(qaComments: string) {
     : 'No peer questions were explicitly noted.';
 }
 
+export function derivePeerQuestionsObserved(qaComments: string) {
+  return buildPeerQuestionsObservedSummary(qaComments);
+}
+
 function stripJsonFences(value: string) {
   const trimmed = value.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   return fenced ? fenced[1].trim() : trimmed;
 }
 
-function getPromptTemplate(prompts: Array<{ promptKey: string; template: string }>) {
-  return prompts.find((prompt) => prompt.promptKey === 'generate_feedback_and_grading')?.template ?? null;
+function extractJsonCandidate(value: string) {
+  const stripped = stripJsonFences(value);
+  const firstBrace = stripped.indexOf('{');
+  const lastBrace = stripped.lastIndexOf('}');
+
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return stripped.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return stripped;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function coerceText(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return '';
+}
+
+function coerceNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(',', '.');
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  return values.map((value) => value?.trim() ?? '').find(Boolean) ?? '';
+}
+
+function getTextByAliases(source: Record<string, unknown>, aliases: string[]) {
+  for (const alias of aliases) {
+    const value = coerceText(source[alias]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+function normalizeCommentSections(payload: Record<string, unknown>) {
+  const candidate = isRecord(payload.commentSections) ? payload.commentSections : payload;
+
+  return {
+    areasForDevelopment: getTextByAliases(candidate, [
+      'areasForDevelopment',
+      'areas_for_development',
+      'development',
+      'pointsForDevelopment',
+      'points_for_development'
+    ]),
+    gradeBreakdown: getTextByAliases(candidate, [
+      'gradeBreakdown',
+      'grade_breakdown',
+      'scoreBreakdown',
+      'score_breakdown'
+    ]),
+    overallFeedback: getTextByAliases(candidate, [
+      'overallFeedback',
+      'overall_feedback',
+      'feedback',
+      'summary'
+    ]),
+    questionsAndComments: getTextByAliases(candidate, [
+      'questionsAndComments',
+      'questions_and_comments',
+      'peerQuestions',
+      'peer_questions'
+    ]),
+    strengths: getTextByAliases(candidate, ['strengths', 'strength'])
+  };
+}
+
+function normalizeCriterionEntry(entry: unknown, fallbackId: string | null = null) {
+  if (!isRecord(entry)) {
+    return null;
+  }
+
+  const id = firstNonEmpty(
+    coerceText(entry.id),
+    coerceText(entry.criterionId),
+    coerceText(entry.criterion_id),
+    fallbackId
+  );
+  const score = coerceNumber(entry.score ?? entry.recommendedScore ?? entry.recommended_score);
+
+  if (!id || score === null) {
+    return null;
+  }
+
+  const justification = firstNonEmpty(
+    coerceText(entry.justification),
+    coerceText(entry.rationale),
+    coerceText(entry.explanation),
+    coerceText(entry.feedback),
+    coerceText(entry.reason)
+  );
+
+  return {
+    id,
+    justification: justification || `AI score provided for criterion ${id}.`,
+    score
+  };
+}
+
+function normalizeCriteriaEntries(payload: Record<string, unknown>) {
+  const candidate = payload.criteria ?? payload.recommendations ?? payload.rubricCriteria;
+  const normalized: Array<{ id: string; justification: string; score: number }> = [];
+
+  if (Array.isArray(candidate)) {
+    for (const entry of candidate) {
+      const normalizedEntry = normalizeCriterionEntry(entry);
+      if (normalizedEntry) {
+        normalized.push(normalizedEntry);
+      }
+    }
+  } else if (isRecord(candidate)) {
+    for (const [id, entry] of Object.entries(candidate)) {
+      const normalizedEntry = normalizeCriterionEntry(entry, id);
+      if (normalizedEntry) {
+        normalized.push(normalizedEntry);
+      }
+    }
+  }
+
+  return normalized;
+}
+
+function normalizeModelPayload(payload: unknown): ParsedEvaluationGradingResponse | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const commentSections = normalizeCommentSections(payload);
+  const criteria = normalizeCriteriaEntries(payload);
+
+  if (criteria.length === 0) {
+    return null;
+  }
+
+  return {
+    commentSections,
+    criteria
+  };
+}
+
+function parseModelPayload(rawContent: string): ParseOutcome {
+  const stripped = stripJsonFences(rawContent);
+  const candidates = Array.from(
+    new Set([stripped, extractJsonCandidate(rawContent)].filter(Boolean))
+  );
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      const normalized = normalizeModelPayload(parsed);
+      if (!normalized) {
+        errors.push('JSON parsed but the grading payload was missing usable criteria.');
+        continue;
+      }
+
+      const repairApplied = candidate !== stripped || candidate !== rawContent.trim();
+      return {
+        parsed: normalized,
+        repairApplied
+      };
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : 'Could not parse model output.');
+    }
+  }
+
+  return {
+    parsed: null,
+    reason: errors[0] ?? 'The model did not return valid JSON.'
+  };
 }
 
 function buildPromptVariables(input: EvaluationGradingPromptInput) {
@@ -185,7 +412,7 @@ function buildPromptVariables(input: EvaluationGradingPromptInput) {
     class_name: input.className,
     evaluation_criteria: stringifyCriteria(input.criteria),
     group_name: input.groupName,
-    peer_questions_observed: summarizePeerQuestionsObserved(input.peerQuestionsObserved),
+    peer_questions_observed: normalizeText(input.peerQuestionsObserved) || 'No peer questions were recorded.',
     project_brief: normalizeText(input.sessionContext) || 'No project brief was provided.',
     rubric: stringifyRubric(input.rubric),
     rubric_criteria_json: stringifyCriteriaJson(input.criteria),
@@ -208,16 +435,14 @@ function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPr
 
   return [
     'Runtime grading contract:',
-    '- Return valid JSON only, with no markdown and no prose outside the JSON object.',
-    '- Use the exact rubric criterion ids provided below.',
-    '- Return exactly one criterion result per rubric criterion id, with no omissions and no extras.',
-    '- Never rename, merge, duplicate, or invent criteria.',
-    '- If evidence is missing, say so explicitly and score conservatively.',
-    '- Keep justifications criterion-specific; do not reuse one generic explanation across all criteria.',
+    '- Return valid JSON only, with no markdown, code fences, or prose outside the JSON object.',
+    '- Use the exact rubric criterion ids provided below and return one result per criterion.',
+    '- Do not omit any rubric criterion, invent extras, or merge several criteria into one.',
+    '- Keep the criterion order aligned with the rubric order.',
+    '- If evidence is weak, score conservatively and explain the weakness clearly.',
+    '- Use criterion-specific justifications and avoid copy-pasted generic text.',
     '- Clamp every score to the criterion maxScore.',
-    '- Use conservative scoring and reserve the top score for truly exceptional evidence.',
-    '- A perfect 20/20 total should be extremely rare.',
-    '- Write the feedback sections in the session language.',
+    '- Keep the output in the session language.',
     '',
     'Editable prompt template:',
     renderedPrompt.trim() || 'No editable prompt template was provided.',
@@ -234,9 +459,9 @@ function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPr
     '{',
     '  "criteria": [',
     '    {',
-    '      "id": "criterion-id",',
+    '      "id": "exact-rubric-criterion-id",',
     '      "score": 0,',
-    '      "justification": "..."',
+    '      "justification": "criterion-specific explanation"',
     '    }',
     '  ],',
     '  "commentSections": {',
@@ -248,25 +473,6 @@ function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPr
     '  }',
     '}'
   ].join('\n');
-}
-
-function parseModelPayload(rawContent: string): ParsedEvaluationGradingResponse | null {
-  try {
-    const parsedContent = stripJsonFences(rawContent);
-    if (!parsedContent.startsWith('{') || !parsedContent.endsWith('}')) {
-      return null;
-    }
-
-    const jsonValue = JSON.parse(parsedContent) as unknown;
-    const parsed = gradingResponseSchema.safeParse(jsonValue);
-    if (!parsed.success) {
-      return null;
-    }
-
-    return parsed.data;
-  } catch {
-    return null;
-  }
 }
 
 function buildFeedbackSectionsFromModel(
@@ -293,32 +499,26 @@ function validateCriterionSet(
   parsed: ParsedEvaluationGradingResponse,
   criteria: EvaluationCriterionRow[]
 ) {
-  const expectedIds = new Set(criteria.map((criterion) => criterion.id));
-  if (parsed.criteria.length !== expectedIds.size) {
-    return false;
-  }
+  const expectedIds = sortCriteria(criteria).map((criterion) => criterion.id);
+  const parsedByCriterionId = new Map<string, (typeof parsed.criteria)[number]>();
 
-  const seenIds = new Set<string>();
   for (const entry of parsed.criteria) {
-    if (!expectedIds.has(entry.id) || seenIds.has(entry.id)) {
-      return false;
+    const normalizedId = entry.id.trim();
+    if (!parsedByCriterionId.has(normalizedId)) {
+      parsedByCriterionId.set(normalizedId, entry);
     }
-    seenIds.add(entry.id);
   }
 
-  return seenIds.size === expectedIds.size;
+  return expectedIds.every((criterionId) => parsedByCriterionId.has(criterionId));
 }
 
 function buildCriterionRecommendationsFromModel(
-  parsed: ParsedEvaluationGradingResponse | null,
-  input: EvaluationGradingPromptInput,
-  fallbackCriteria: EvaluationAiCriterionRecommendation[]
+  parsed: ParsedEvaluationGradingResponse,
+  input: EvaluationGradingPromptInput
 ) {
-  if (!parsed || !validateCriterionSet(parsed, input.criteria)) {
-    return fallbackCriteria;
-  }
-
-  const parsedByCriterionId = new Map(parsed.criteria.map((entry) => [entry.id, entry]));
+  const parsedByCriterionId = new Map(
+    parsed.criteria.map((entry) => [entry.id.trim(), entry] as const)
+  );
 
   return sortCriteria(input.criteria).map((criterion) => {
     const matchedEntry = parsedByCriterionId.get(criterion.id);
@@ -330,24 +530,42 @@ function buildCriterionRecommendationsFromModel(
       criterionId: criterion.id,
       criterionLabel: criterion.label,
       maxScore: criterion.maxScore,
-      rationale: matchedEntry?.justification.trim() ?? 'No AI recommendation was available for this criterion.',
+      rationale:
+        matchedEntry?.justification.trim() ??
+        'No AI recommendation was available for this criterion.',
       recommendedScore: normalizedScore
     };
   });
+}
+
+function buildFallbackReason(reason: string) {
+  return `Branching AI grading fell back to the heuristic engine: ${reason}`;
+}
+
+function looksLikeStructuredOutputSupportError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /response_format|json_schema|structured output|schema/i.test(message);
 }
 
 export async function generateBranchingAiGradingRecommendations(
   input: EvaluationGradingPromptInput
 ): Promise<BranchingAiGradingResult> {
   const fallback = buildEvaluationRecommendations(input);
+  const fallbackTotal = computeTotalScore(fallback.recommendedCriteria);
   let settingsBundle: Awaited<ReturnType<typeof getBranchingAiFullSettings>>;
 
   try {
     settingsBundle = await getBranchingAiFullSettings();
-  } catch {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'Could not load Branching AI settings.';
     return {
       ...fallback,
-      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+      diagnostics: {
+        fallbackReason: buildFallbackReason(reason),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      recommendedTotalScore: fallbackTotal
     };
   }
 
@@ -364,7 +582,12 @@ export async function generateBranchingAiGradingRecommendations(
   ) {
     return {
       ...fallback,
-      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+      diagnostics: {
+        fallbackReason: buildFallbackReason('Branching AI is not fully configured or verified.'),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      recommendedTotalScore: fallbackTotal
     };
   }
 
@@ -372,7 +595,12 @@ export async function generateBranchingAiGradingRecommendations(
   if (!promptTemplate?.trim()) {
     return {
       ...fallback,
-      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+      diagnostics: {
+        fallbackReason: buildFallbackReason('The grading prompt template is missing.'),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      recommendedTotalScore: fallbackTotal
     };
   }
 
@@ -391,61 +619,112 @@ export async function generateBranchingAiGradingRecommendations(
       'Do not invent additional criteria or collapse multiple criteria into one.'
     ].join(' ');
 
-    const content = await client.generateChatCompletion({
-      maxTokens: 1800,
-      messages: [
-        { content: systemPrompt, role: 'system' },
-        {
-          content: [
-            buildRuntimeScaffold(renderedPrompt, input),
-            '',
-            'Teacher presentation comments:',
-            normalizeText(input.presentationComments) || 'No teacher presentation comments were recorded.',
-            '',
-            'Teacher Q&A comments:',
-            normalizeText(input.qaComments) || 'No teacher Q&A comments were recorded.',
-            '',
-            'Peer questions observed:',
-            normalizeText(input.peerQuestionsObserved) || 'No peer questions were recorded.',
-            '',
-            'Submission title:',
-            normalizeText(input.submissionTitle) || 'No submission title was provided.',
-            '',
-            'Submission text:',
-            normalizeText(input.submissionContent) || 'No submission text was provided.'
-          ]
-            .filter((part) => part !== '')
-            .join('\n'),
-          role: 'user'
-        }
-      ],
-      responseFormat: { type: 'json_object' },
-      temperature: 0
-    });
+    const requestMessages = [
+      { content: systemPrompt, role: 'system' as const },
+      {
+        content: [
+          buildRuntimeScaffold(renderedPrompt, input),
+          '',
+          'Teacher presentation comments:',
+          normalizeText(input.presentationComments) || 'No teacher presentation comments were recorded.',
+          '',
+          'Teacher Q&A comments:',
+          normalizeText(input.qaComments) || 'No teacher Q&A comments were recorded.',
+          '',
+          'Peer questions observed:',
+          normalizeText(input.peerQuestionsObserved) || 'No peer questions were recorded.',
+          '',
+          'Submission title:',
+          normalizeText(input.submissionTitle) || 'No submission title was provided.',
+          '',
+          'Submission text:',
+          normalizeText(input.submissionContent) || 'No submission text was provided.'
+        ]
+          .filter((part) => part !== '')
+          .join('\n'),
+        role: 'user' as const
+      }
+    ];
 
-    const parsed = parseModelPayload(content);
-    if (!parsed || !validateCriterionSet(parsed, input.criteria)) {
+    let content: string;
+    let responseFormatUsed: 'json_schema' | 'json_object' = 'json_schema';
+
+    try {
+      content = await client.generateChatCompletion({
+        maxTokens: 1800,
+        messages: requestMessages,
+        responseFormat: {
+          json_schema: {
+            name: 'pairagogie_feedback_and_grading',
+            schema: gradingResponseJsonSchema,
+            strict: true
+          },
+          type: 'json_schema'
+        },
+        temperature: 0
+      });
+    } catch (error) {
+      if (!looksLikeStructuredOutputSupportError(error)) {
+        throw error;
+      }
+
+      responseFormatUsed = 'json_object';
+      content = await client.generateChatCompletion({
+        maxTokens: 1800,
+        messages: requestMessages,
+        responseFormat: { type: 'json_object' },
+        temperature: 0
+      });
+    }
+
+    const parsedOutcome = parseModelPayload(content);
+    if (!parsedOutcome.parsed || !validateCriterionSet(parsedOutcome.parsed, input.criteria)) {
+      const reason = !parsedOutcome.parsed
+        ? `The model returned unusable JSON: ${parsedOutcome.reason}`
+        : 'The model returned criteria that did not match the rubric ids exactly.';
+
       return {
         ...fallback,
-        recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+        diagnostics: {
+          fallbackReason: buildFallbackReason(reason),
+          repairApplied: parsedOutcome.parsed ? parsedOutcome.repairApplied : false,
+          responseFormat: 'heuristic_fallback'
+        },
+        recommendedTotalScore: fallbackTotal
       };
     }
 
     const recommendedCriteria = buildCriterionRecommendationsFromModel(
-      parsed,
-      input,
-      fallback.recommendedCriteria
+      parsedOutcome.parsed,
+      input
     );
 
+    const repairedModelOutput = parsedOutcome.repairApplied;
+
     return {
-      feedback: buildFeedbackSectionsFromModel(parsed, fallback.feedback),
+      diagnostics: {
+        fallbackReason: null,
+        repairApplied: repairedModelOutput,
+        responseFormat: responseFormatUsed
+      },
+      feedback: buildFeedbackSectionsFromModel(parsedOutcome.parsed, fallback.feedback),
       recommendedCriteria,
       recommendedTotalScore: computeTotalScore(recommendedCriteria)
     };
-  } catch {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'The Branching AI request failed.';
     return {
       ...fallback,
-      recommendedTotalScore: computeTotalScore(fallback.recommendedCriteria)
+      diagnostics: {
+        fallbackReason: buildFallbackReason(reason),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      recommendedTotalScore: fallbackTotal
     };
   }
+}
+
+function getPromptTemplate(prompts: Array<{ promptKey: string; template: string }>) {
+  return prompts.find((prompt) => prompt.promptKey === 'generate_feedback_and_grading')?.template ?? null;
 }

@@ -8,7 +8,16 @@ export type BranchingAiChatMessage = {
 export type BranchingAiChatCompletionOptions = {
   maxTokens?: number;
   messages: BranchingAiChatMessage[];
-  responseFormat?: { type: 'json_object' };
+  responseFormat?:
+    | { type: 'json_object' }
+    | {
+        json_schema: {
+          name: string;
+          schema: unknown;
+          strict?: boolean;
+        };
+        type: 'json_schema';
+      };
   temperature?: number;
 };
 

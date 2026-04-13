@@ -585,6 +585,7 @@ export async function setEvaluationAiStatus(
 
 export async function saveEvaluationAiResult(params: {
   aiGeneratedAt: Date;
+  aiLastError?: string | null;
   aiRecommendedCriteria?: EvaluationAiCriterionRecommendation[] | null;
   aiRecommendedFeedback?: EvaluationAiFeedbackSections | null;
   aiRecommendedQuestions?: string[] | null;
@@ -599,12 +600,14 @@ export async function saveEvaluationAiResult(params: {
     params.aiRecommendedFeedback ?? context.evaluation?.aiRecommendedFeedback ?? null;
   const nextAiRecommendedQuestions =
     params.aiRecommendedQuestions ?? context.evaluation?.aiRecommendedQuestions ?? null;
+  const nextAiLastError =
+    params.aiLastError !== undefined ? params.aiLastError : context.evaluation?.aiLastError ?? null;
 
   await db
     .update(evaluations)
     .set({
       aiGeneratedAt: params.aiGeneratedAt,
-      aiLastError: null,
+      aiLastError: nextAiLastError,
       aiRecommendedCriteria: nextAiRecommendedCriteria,
       aiRecommendedFeedback: nextAiRecommendedFeedback,
       aiRecommendedQuestions: nextAiRecommendedQuestions,

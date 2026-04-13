@@ -486,9 +486,6 @@ export function EvaluationWorkspaceClient({
               : 'Generated questions for all eligible groups.'
         });
       } else {
-        const nextSkipped = Object.fromEntries(
-          skipped.map((entry: { groupId: string; reason: string }) => [entry.groupId, entry.reason])
-        );
         setGradingBatchState({
           kind: 'done',
           message:
@@ -606,6 +603,30 @@ export function EvaluationWorkspaceClient({
         }
       }));
     }
+  }
+
+  async function resetGroupScores(groupId: string) {
+    const confirmed = window.confirm(
+      'Reset all criterion scores for this group? Teacher notes, Q&A notes, AI challenge questions, and final feedback will be kept.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const snapshot = setGroupState(groupId, (current) => ({
+      ...current,
+      criteria: current.criteria.map((criterion) => ({
+        ...criterion,
+        score: null
+      }))
+    }));
+
+    if (!snapshot) {
+      return;
+    }
+
+    await saveGroupNow(groupId, snapshot);
   }
 
   return (
@@ -776,14 +797,23 @@ export function EvaluationWorkspaceClient({
                 <CollapsiblePanel
                   contentClassName="gap-4"
                   actions={
-                    <button
-                      className="ui-button ui-button-secondary"
-                      disabled={!selectedGroup.readyForFinalization}
-                      onClick={() => void finalizeGroup(selectedGroup.groupId)}
-                      type="button"
-                    >
-                      Mark ready for export
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        className="ui-button ui-button-danger"
+                        onClick={() => void resetGroupScores(selectedGroup.groupId)}
+                        type="button"
+                      >
+                        Reset scores
+                      </button>
+                      <button
+                        className="ui-button ui-button-secondary"
+                        disabled={!selectedGroup.readyForFinalization}
+                        onClick={() => void finalizeGroup(selectedGroup.groupId)}
+                        type="button"
+                      >
+                        Mark ready for export
+                      </button>
+                    </div>
                   }
                   open={gradingOpen}
                   onOpenChange={(open) =>

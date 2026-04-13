@@ -6,7 +6,7 @@ import {
   buildChallengeQuestions,
   getEvaluationLanguage
 } from '@/lib/evaluation/engine';
-import { generateBranchingAiGradingRecommendations } from '@/lib/ai';
+import { derivePeerQuestionsObserved, generateBranchingAiGradingRecommendations } from '@/lib/ai';
 import { db, sessions } from '@/db';
 import {
   getEvaluationContext,
@@ -115,7 +115,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         criteria: context.rubric.criteria,
         groupName: context.group.name,
         presentationComments: context.evaluation?.presentationComments ?? '',
-        peerQuestionsObserved: context.evaluation?.comments ?? '',
+        peerQuestionsObserved: derivePeerQuestionsObserved(context.evaluation?.comments ?? ''),
         qaComments: context.evaluation?.comments ?? '',
         rubric: context.rubric,
         sessionContext: buildSessionContextSummary({
@@ -133,6 +133,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
       await saveEvaluationAiResult({
         aiGeneratedAt: new Date(),
+        aiLastError: gradingResult.diagnostics.fallbackReason,
         aiRecommendedCriteria: gradingResult.recommendedCriteria,
         aiRecommendedFeedback: gradingResult.feedback,
         groupId,
