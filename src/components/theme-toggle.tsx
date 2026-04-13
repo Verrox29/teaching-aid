@@ -3,7 +3,24 @@
 import { useTheme } from '@/components/theme-provider';
 
 export function ThemeToggle() {
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { mounted, resolvedTheme, toggleTheme } = useTheme();
+
+  if (!mounted) {
+    return (
+      <button
+        aria-hidden="true"
+        className="ui-switch invisible pointer-events-none"
+        disabled
+        type="button"
+      >
+        <span className="ui-switch-track" aria-hidden>
+          <span className="ui-switch-thumb" />
+        </span>
+        <span className="text-sm font-medium">Theme</span>
+      </button>
+    );
+  }
+
   const isDark = resolvedTheme === 'dark';
 
   return (

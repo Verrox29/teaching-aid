@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 type Theme = 'light' | 'dark';
 
 type ThemeContextValue = {
+  mounted: boolean;
   resolvedTheme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
@@ -33,22 +34,30 @@ function getStoredTheme(): Theme | null {
 }
 
 export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const [resolvedTheme, setResolvedTheme] = useState<Theme>(() => {
-    return getStoredTheme() ?? getSystemTheme();
-  });
+  const [mounted, setMounted] = useState(false);
+  const [resolvedTheme, setResolvedTheme] = useState<Theme>('light');
 
   useEffect(() => {
     const nextTheme = getStoredTheme() ?? getSystemTheme();
     setResolvedTheme(nextTheme);
+    setMounted(true);
   }, []);
 
   useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
     const root = document.documentElement;
     root.dataset.theme = resolvedTheme;
     window.localStorage.setItem(THEME_STORAGE_KEY, resolvedTheme);
-  }, [resolvedTheme]);
+  }, [mounted, resolvedTheme]);
 
   useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
     const media = window.matchMedia('(prefers-color-scheme: dark)');
 
     function handleChange(event: MediaQueryListEvent) {
@@ -61,15 +70,16 @@ export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
 
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
-  }, []);
+  }, [mounted]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
+      mounted,
       resolvedTheme,
       setTheme: setResolvedTheme,
       toggleTheme: () => setResolvedTheme((current) => (current === 'dark' ? 'light' : 'dark'))
     }),
-    [resolvedTheme]
+    [mounted, resolvedTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
