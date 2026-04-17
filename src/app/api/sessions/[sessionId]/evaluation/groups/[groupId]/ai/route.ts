@@ -11,6 +11,7 @@ import { db, sessions } from '@/db';
 import {
   getEvaluationContext,
   getEvaluationWorkspace,
+  resetEvaluationAiQuestions,
   saveEvaluationAiResult,
   saveEvaluationDraft,
   setEvaluationAiStatus
@@ -87,14 +88,14 @@ export async function POST(request: Request, { params }: RouteParams) {
       throw new Error('Enter comments or upload work before generating AI feedback and grades.');
     }
 
-    await setEvaluationAiStatus(sessionId, groupId, 'generating');
-
     if (mode === 'questions') {
       const language = getEvaluationLanguage(context.session.language);
+      await resetEvaluationAiQuestions(sessionId, groupId);
       const challengeQuestions = buildChallengeQuestions(
         {
           className: metadata.className || context.session.title,
           groupName: context.group.name,
+          teacherComments: context.evaluation?.presentationComments ?? null,
           sessionLanguage: context.session.language,
           submissionText: context.submissionText,
           subject: metadata.subject || context.session.title
@@ -109,6 +110,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         sessionId
       });
     } else {
+      await setEvaluationAiStatus(sessionId, groupId, 'generating');
       gradingResult = await generateBranchingAiGradingRecommendations({
         className: metadata.className || context.session.title,
         criteria: context.rubric.criteria,

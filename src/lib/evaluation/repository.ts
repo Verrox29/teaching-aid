@@ -588,6 +588,24 @@ export async function setEvaluationAiStatus(
     .where(eq(evaluations.id, context.evaluation.id));
 }
 
+export async function resetEvaluationAiQuestions(sessionId: string, groupId: string) {
+  const context = await getEvaluationContext(sessionId, groupId);
+  const evaluationId = context.evaluation?.id ?? (await saveEvaluationDraft(sessionId, groupId, {}));
+  const now = new Date();
+
+  await db
+    .update(evaluations)
+    .set({
+      aiGeneratedAt: null,
+      aiLastError: null,
+      aiRecommendedQuestions: [],
+      aiStatus: 'generating',
+      aiStatusUpdatedAt: now,
+      updatedAt: now
+    })
+    .where(eq(evaluations.id, evaluationId));
+}
+
 export async function saveEvaluationAiResult(params: {
   aiGeneratedAt: Date;
   aiLastError?: string | null;

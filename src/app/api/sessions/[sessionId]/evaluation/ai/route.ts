@@ -12,6 +12,7 @@ import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import {
   getEvaluationWorkspace,
+  resetEvaluationAiQuestions,
   saveEvaluationAiResult,
   saveEvaluationDraft
 } from '@/lib/evaluation/repository';
@@ -90,10 +91,12 @@ export async function POST(request: Request, { params }: RouteParams) {
           continue;
         }
 
+        await resetEvaluationAiQuestions(sessionId, group.groupId);
         const challengeQuestions = buildChallengeQuestions(
           {
             className: metadata.className || workspace.session.title,
             groupName: group.groupName,
+            teacherComments: group.presentationComments ?? null,
             sessionLanguage: workspace.session.language,
             submissionText: group.submissionText,
             subject: metadata.subject || workspace.session.title

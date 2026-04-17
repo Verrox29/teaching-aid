@@ -184,6 +184,14 @@ export function EvaluationWorkspaceClient({
       ? challengeQuestionsSkipped[selectedGroup.groupId]
       : null;
   const selectedGroupHasChallengeQuestions = Boolean(selectedGroup?.aiRecommendedQuestions.length);
+  const selectedGroupHasChallengeQuestionPanel = Boolean(
+    selectedGroup &&
+      (selectedGroupHasChallengeQuestions ||
+        selectedGroupChallengeQuestionSkip ||
+        selectedGroupHasUploadedWork ||
+        selectedGroup.aiStatus === 'generating' ||
+        selectedGroup.aiStatus === 'failed')
+  );
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
@@ -358,6 +366,72 @@ export function EvaluationWorkspaceClient({
       window.removeEventListener('evaluation-ai-workflow', onAiWorkflow as EventListener);
     };
   }, [runBatchAi]);
+
+  async function regenerateChallengeQuestions(groupId: string) {
+    setChallengeQuestionsSkipped((current) => {
+      if (!current[groupId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[groupId];
+      return next;
+    });
+
+    setGroups((current) =>
+      current.map((group) =>
+        group.groupId === groupId
+          ? {
+              ...group,
+              aiGeneratedAt: null,
+              aiLastError: null,
+              aiRecommendedQuestions: [],
+              aiStatus: 'generating'
+            }
+          : group
+      )
+    );
+
+    try {
+      const response = await fetch(
+        `/api/sessions/${sessionId}/evaluation/groups/${groupId}/ai`,
+        {
+          body: JSON.stringify({ mode: 'questions' }),
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          method: 'POST'
+        }
+      );
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Could not regenerate challenge questions.');
+      }
+
+      if (payload.group) {
+        setGroups((current) =>
+          current.map((group) => (group.groupId === groupId ? payload.group : group))
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not regenerate challenge questions.';
+      setGroups((current) =>
+        current.map((group) =>
+          group.groupId === groupId
+            ? {
+                ...group,
+                aiGeneratedAt: null,
+                aiLastError: message,
+                aiRecommendedQuestions: [],
+                aiStatus: 'failed'
+              }
+            : group
+        )
+      );
+    }
+  }
 
   async function generateGroupFeedback(groupId: string) {
     openGradingForGroup(groupId);
@@ -743,33 +817,61 @@ export function EvaluationWorkspaceClient({
                     />
                   </label>
 
-                  {selectedGroupHasChallengeQuestions ? (
+                  {selectedGroupHasChallengeQuestionPanel ? (
                     <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                      <p className="ui-section-title">AI challenge questions</p>
-                      <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
-                        {selectedGroup.aiRecommendedQuestions.map((question, index) => (
-                          <li
-                            key={`${question}-${index}`}
-                            className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="ui-section-title">AI challenge questions</p>
+                        {selectedGroup.aiStatus === 'failed' ||
+                        selectedGroupHasUploadedWork ||
+                        selectedGroupHasChallengeQuestions ? (
+                          <button
+                            className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                            disabled={selectedGroup.aiStatus === 'generating'}
+                            onClick={() => void regenerateChallengeQuestions(selectedGroup.groupId)}
+                            type="button"
                           >
-                            {question}
-                          </li>
-                        ))}
-                      </ul>
+                            {selectedGroup.aiStatus === 'generating'
+                              ? 'Regenerating...'
+                              : 'Regenerate questions'}
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {selectedGroupHasChallengeQuestions ? (
+                        <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
+                          {selectedGroup.aiRecommendedQuestions.map((question, index) => (
+                            <li
+                              key={`${question}-${index}`}
+                              className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                            >
+                              {question}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : selectedGroup.aiStatus === 'generating' ? (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          Generating new challenge questions...
+                        </div>
+                      ) : selectedGroup.aiStatus === 'failed' ? (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
+                          Could not generate challenge questions.
+                          {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
+                        </div>
+                      ) : selectedGroupChallengeQuestionSkip ? (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          Challenge questions unavailable: {selectedGroupChallengeQuestionSkip}
+                        </div>
+                      ) : selectedGroupHasUploadedWork ? (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          Generate questions from the uploaded work to prepare the oral defense.
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          No uploaded work is available for challenge questions.
+                        </div>
+                      )}
                     </div>
-                  ) : selectedGroupChallengeQuestionSkip ? (
-                    <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                      Challenge questions unavailable: {selectedGroupChallengeQuestionSkip}
-                    </div>
-                  ) : selectedGroupHasUploadedWork ? (
-                    <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                      Run the top-level challenge-question action to generate prompts for this group.
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                      No uploaded work is available for challenge questions.
-                    </div>
-                  )}
+                  ) : null}
 
                   <div className="flex justify-end">
                     <span

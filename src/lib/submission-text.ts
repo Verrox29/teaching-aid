@@ -8,6 +8,10 @@ function isLikelyBase64(value: string) {
   return compact.length >= 64 && compact.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact);
 }
 
+function stripDiacritics(value: string) {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function countLetters(value: string) {
   return (value.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
 }
@@ -17,6 +21,74 @@ function countWords(value: string) {
     .split(/[^A-Za-z0-9À-ÿ]+/g)
     .map((entry) => entry.trim())
     .filter(Boolean).length;
+}
+
+function looksLikeNaturalWord(word: string) {
+  const normalized = stripDiacritics(word).toLowerCase();
+
+  if (normalized.length < 3) {
+    return false;
+  }
+
+  if (/[0-9]/.test(normalized)) {
+    return false;
+  }
+
+  if (!/[aeiouy]/.test(normalized)) {
+    return false;
+  }
+
+  if (/[bcdfghjklmnpqrstvwxz]{5,}/.test(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function isHumanReadablePhrase(value: string) {
+  const line = value.replace(/\s+/g, ' ').trim();
+  if (!line) {
+    return false;
+  }
+
+  if (/[0-9]/.test(line)) {
+    return false;
+  }
+
+  if (/[\\^_`~<>[\]{}|]/.test(line)) {
+    return false;
+  }
+
+  const letters = countLetters(line);
+  if (letters < 6) {
+    return false;
+  }
+
+  const words = stripDiacritics(line)
+    .toLowerCase()
+    .split(/[^a-z]+/g)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  if (words.length < 2) {
+    return false;
+  }
+
+  if (words.some((word) => word.length > 18)) {
+    return false;
+  }
+
+  const meaningfulWords = words.filter((word) => word.length >= 3);
+  if (meaningfulWords.length < 2) {
+    return false;
+  }
+
+  if (!meaningfulWords.every(looksLikeNaturalWord)) {
+    return false;
+  }
+
+  const weirdCharacters = (line.match(/[^A-Za-z0-9À-ÿ\s.,;:!?'"()\-–—/&%+]/g) ?? []).length;
+  return weirdCharacters / Math.max(1, line.length) <= 0.2;
 }
 
 function isReadableLine(value: string) {
@@ -33,13 +105,11 @@ function isReadableLine(value: string) {
     return false;
   }
 
-  const letters = countLetters(line);
-  if (letters < 3) {
+  if (!isHumanReadablePhrase(line)) {
     return false;
   }
 
-  const weirdCharacters = (line.match(/[^A-Za-z0-9À-ÿ\s.,;:!?'"()\-–—/&%+]/g) ?? []).length;
-  return weirdCharacters / Math.max(1, line.length) <= 0.25;
+  return countLetters(line) >= 3;
 }
 
 function sanitizeReadableText(value: string) {

@@ -21,6 +21,7 @@ type EvaluationRecommendationInput = {
 type EvaluationChallengeQuestionInput = {
   className: string;
   groupName: string;
+  teacherComments?: string | null;
   sessionLanguage: string;
   submissionText: string | null;
   subject: string;
@@ -275,11 +276,89 @@ function trimQuestionFocus(value: string, language: EvaluationLanguage) {
   return focus || value.trim();
 }
 
-function getFallbackTopic(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
-  const subjectFocus = trimQuestionFocus(input.subject, language);
-  const classFocus = trimQuestionFocus(input.className, language);
+function stripDiacritics(value: string) {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+}
 
-  return subjectFocus || classFocus || (language === 'fr' ? 'le travail présenté' : 'the uploaded work');
+function looksLikeNaturalWord(word: string) {
+  const normalized = stripDiacritics(word).toLowerCase();
+
+  if (normalized.length < 3) {
+    return false;
+  }
+
+  if (/[0-9]/.test(normalized)) {
+    return false;
+  }
+
+  if (!/[aeiouy]/.test(normalized)) {
+    return false;
+  }
+
+  if (/[bcdfghjklmnpqrstvwxz]{5,}/.test(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isHumanReadablePhrase(value: string) {
+  const line = value.replace(/\s+/g, ' ').trim();
+  if (!line) {
+    return false;
+  }
+
+  if (/[0-9]/.test(line)) {
+    return false;
+  }
+
+  if (/[\\^_`~<>[\]{}|]/.test(line)) {
+    return false;
+  }
+
+  const words = stripDiacritics(line)
+    .toLowerCase()
+    .split(/[^a-z]+/g)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  if (words.length < 2) {
+    return false;
+  }
+
+  if (words.some((word) => word.length > 18)) {
+    return false;
+  }
+
+  const meaningfulWords = words.filter((word) => word.length >= 3);
+  if (meaningfulWords.length < 2) {
+    return false;
+  }
+
+  if (!meaningfulWords.every(looksLikeNaturalWord)) {
+    return false;
+  }
+
+  const weirdCharacters = (line.match(/[^A-Za-z0-9À-ÿ\s.,;:!?'"()\-–—/&%+]/g) ?? []).length;
+  return weirdCharacters / Math.max(1, line.length) <= 0.2;
+}
+
+function safeTopicPhrase(value: string | null | undefined, language: EvaluationLanguage) {
+  const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
+  if (!normalized || !isHumanReadablePhrase(normalized)) {
+    return null;
+  }
+
+  return trimQuestionFocus(normalized, language);
+}
+
+function safeDisplayLabel(value: string | null | undefined, language: EvaluationLanguage) {
+  const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
+  if (!normalized || !isHumanReadablePhrase(normalized)) {
+    return language === 'fr' ? 'ce groupe' : 'this group';
+  }
+
+  return normalized;
 }
 
 function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
@@ -288,28 +367,31 @@ function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, langu
   const meaningfulSentences = sentences
     .filter((sentence) => tokenizeWords(sentence).length >= 6)
     .map((sentence) => trimQuestionFocus(sentence, language))
+    .filter(isHumanReadablePhrase)
     .filter(Boolean);
-  const keyTerms = tokenizeWords(content)
-    .filter((word) => word.length >= 4 && !QUESTION_STOP_WORDS[language].includes(word))
-    .reduce<string[]>((accumulator, word) => {
-      if (!accumulator.includes(word)) {
-        accumulator.push(word);
-      }
-      return accumulator;
-    }, []);
-  const fallbackTopic = getFallbackTopic(input, language);
+  const teacherSentences = splitSentences(input.teacherComments?.trim() ?? '')
+    .filter((sentence) => tokenizeWords(sentence).length >= 4)
+    .map((sentence) => trimQuestionFocus(sentence, language))
+    .filter(isHumanReadablePhrase)
+    .filter(Boolean);
+  const fallbackTopic =
+    safeTopicPhrase(input.subject, language) ||
+    safeTopicPhrase(input.className, language) ||
+    safeTopicPhrase(input.teacherComments, language) ||
+    (language === 'fr' ? 'la présentation' : 'the presentation');
 
   const primaryAnchor = meaningfulSentences[0] ?? fallbackTopic;
   const secondaryAnchor =
     meaningfulSentences.find((sentence) => sentence !== primaryAnchor) ??
-    keyTerms.slice(1, 4).join(' ') ??
+    teacherSentences[0] ??
     fallbackTopic;
-  const evidenceAnchor = keyTerms[0] ?? meaningfulSentences[0] ?? fallbackTopic;
+  const critiqueAnchor = teacherSentences[0] ?? fallbackTopic;
 
   return {
-    evidenceAnchor,
     primaryAnchor,
-    secondaryAnchor
+    critiqueAnchor,
+    secondaryAnchor,
+    fallbackTopic
   };
 }
 
@@ -466,23 +548,27 @@ function buildQaInteractionSummary(qaComments: string, language: EvaluationLangu
 
 export function buildChallengeQuestions(
   input: EvaluationChallengeQuestionInput,
-  language: EvaluationLanguage,
+  language: EvaluationLanguage
 ) {
   const anchors = extractSubmissionAnchors(input, language);
-  const topicFocus = getFallbackTopic(input, language);
+  const topicFocus = safeTopicPhrase(anchors.fallbackTopic, language) ?? (language === 'fr' ? 'la présentation' : 'the presentation');
+  const primaryAnchor = safeTopicPhrase(anchors.primaryAnchor, language) ?? topicFocus;
+  const secondaryAnchor = safeTopicPhrase(anchors.secondaryAnchor, language) ?? topicFocus;
+  const critiqueAnchor = safeTopicPhrase(anchors.critiqueAnchor, language) ?? topicFocus;
+  const groupLabel = safeDisplayLabel(input.groupName, language);
 
   if (language === 'fr') {
     return [
-      `Dans la partie qui porte sur ${anchors.primaryAnchor}, quelle preuve concrète dans votre travail justifie ce choix ?`,
-      `Pourquoi avez-vous retenu ${anchors.secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
-      `Comment le groupe ${input.groupName} défend-il l’idée principale de ${topicFocus} face à une question critique ?`
+      `Dans la partie qui porte sur ${primaryAnchor}, quelle preuve concrète dans votre travail justifie ce constat ou ce choix ?`,
+      `Pourquoi avez-vous retenu ${secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
+      `Comment ${groupLabel} défend-il l’idée principale de ${topicFocus} face à une question critique sur ${critiqueAnchor === topicFocus ? 'les preuves et les effets attendus' : critiqueAnchor} ?`
     ];
   }
 
   return [
-    `In the part about ${anchors.primaryAnchor}, what concrete evidence in the uploaded work justifies that choice?`,
-    `Why did you choose ${anchors.secondaryAnchor} instead of another option, and what trade-off did that require?`,
-    `How does group ${input.groupName} defend the main idea of ${topicFocus} when challenged on the details?`
+    `In the part about ${primaryAnchor}, what concrete evidence in the work justifies that diagnosis or choice?`,
+    `Why did you choose ${secondaryAnchor} instead of another option, and what trade-off did that require?`,
+    `How does ${groupLabel} defend the main idea of ${topicFocus} when challenged on ${critiqueAnchor === topicFocus ? 'the evidence and expected impact' : critiqueAnchor}?`
   ];
 }
 
