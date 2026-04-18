@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { saveExportMetadataAction } from '@/app/sessions/[sessionId]/exports/actions';
 import { SessionBoostcampGroupedImport } from '@/components/session-boostcamp-grouped-import';
@@ -55,14 +55,23 @@ export function SessionStudentsWorkspace({
     setMetadataDraft(metadata);
   }, [metadata]);
 
-  function handleMetadataSuggestionsChange(nextSuggestions: MetadataSuggestionState) {
-    setMetadataSuggestions(nextSuggestions);
-    setMetadataDraft((current) => ({
-      ...current,
-      className: nextSuggestions.className || current.className,
-      programme: nextSuggestions.programme || current.programme
-    }));
-  }
+  const handleMetadataSuggestionsChange = useCallback(
+    (nextSuggestions: MetadataSuggestionState) => {
+      setMetadataSuggestions((current) =>
+        current.className === nextSuggestions.className &&
+        current.programme === nextSuggestions.programme
+          ? current
+          : nextSuggestions
+      );
+
+      setMetadataDraft((current) => ({
+        ...current,
+        className: nextSuggestions.className || current.className,
+        programme: nextSuggestions.programme || current.programme
+      }));
+    },
+    []
+  );
 
   function updateMetadataField(field: keyof SessionExportMetadata, value: string) {
     setMetadataDraft((current) => ({

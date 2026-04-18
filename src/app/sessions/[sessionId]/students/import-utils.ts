@@ -266,39 +266,51 @@ function parseDelimitedTextWithAutoDelimiter(text: string) {
     };
   }
 
-  function countOutsideQuotes(line: string, delimiter: string) {
-    let count = 0;
-    let inQuotes = false;
+  const candidates = [',', ';']
+    .map((delimiter) => {
+      try {
+        const rows = lines.map((line) => parseDelimitedLine(line, delimiter));
+        const headerRow = rows[0] ?? [];
 
-    for (let index = 0; index < line.length; index += 1) {
-      const character = line[index];
-      const nextCharacter = line[index + 1];
-
-      if (character === '"') {
-        if (inQuotes && nextCharacter === '"') {
-          index += 1;
-        } else {
-          inQuotes = !inQuotes;
-        }
-        continue;
+        return {
+          delimiter,
+          headerColumnCount: headerRow.length,
+          lineCount: rows.length,
+          rows,
+          totalCellCount: rows.reduce((sum, row) => sum + row.length, 0)
+        };
+      } catch {
+        return null;
       }
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
 
-      if (character === delimiter && !inQuotes) {
-        count += 1;
-      }
-    }
-
-    return count;
+  if (candidates.length === 0) {
+    return {
+      delimiter: ',',
+      rows: lines.map((line) => parseDelimitedLine(line, ','))
+    };
   }
 
-  const firstLine = lines[0];
-  const commaCount = countOutsideQuotes(firstLine, ',');
-  const semicolonCount = countOutsideQuotes(firstLine, ';');
-  const delimiter = semicolonCount > commaCount ? ';' : ',';
+  const bestCandidate = candidates.sort((left, right) => {
+    if (right.headerColumnCount !== left.headerColumnCount) {
+      return right.headerColumnCount - left.headerColumnCount;
+    }
+
+    if (right.totalCellCount !== left.totalCellCount) {
+      return right.totalCellCount - left.totalCellCount;
+    }
+
+    if (right.lineCount !== left.lineCount) {
+      return right.lineCount - left.lineCount;
+    }
+
+    return left.delimiter.localeCompare(right.delimiter);
+  })[0];
 
   return {
-    delimiter,
-    rows: lines.map((line) => parseDelimitedLine(line, delimiter))
+    delimiter: bestCandidate.delimiter,
+    rows: bestCandidate.rows
   };
 }
 
@@ -858,8 +870,8 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
       ok: false,
       message: [
         'Missing required headers. Expected first name, last name, school email, and groups columns.',
-        `Raw headers: ${headerRow.join(' | ') || '(none)'}.`,
-        `Normalized headers: ${normalizedHeaders.join(' | ') || '(none)'}.`
+        `Raw headers: ${JSON.stringify(headerRow)}`,
+        `Normalized headers: ${JSON.stringify(normalizedHeaders)}`
       ].join(' '),
       rows: [],
       normalizationPreview: [],
