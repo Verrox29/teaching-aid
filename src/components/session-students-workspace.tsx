@@ -64,11 +64,18 @@ export function SessionStudentsWorkspace({
           : nextSuggestions
       );
 
-      setMetadataDraft((current) => ({
-        ...current,
-        className: nextSuggestions.className || current.className,
-        programme: nextSuggestions.programme || current.programme
-      }));
+      setMetadataDraft((current) => {
+        const nextDraft = {
+          ...current,
+          className: nextSuggestions.className || current.className,
+          programme: nextSuggestions.programme || current.programme
+        };
+
+        return nextDraft.className === current.className &&
+          nextDraft.programme === current.programme
+          ? current
+          : nextDraft;
+      });
     },
     []
   );

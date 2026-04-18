@@ -5,7 +5,7 @@ import type { ChangeEvent, DragEvent } from 'react';
 
 import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
 import {
-  parseBoostcampGroupedCsv,
+  parseBoostcampGroupedFile,
   type BoostcampGroupedMetadataSuggestions,
   type BoostcampGroupedNormalizationPreviewRow,
   type BoostcampGroupedImportPreviewRow
@@ -58,12 +58,6 @@ export function SessionBoostcampGroupedImport({
   const [normalizationPreview, setNormalizationPreview] = useState<
     BoostcampGroupedNormalizationPreviewRow[]
   >([]);
-  const [metadataSuggestions, setMetadataSuggestions] = useState<BoostcampGroupedMetadataSuggestions>(
-    {
-      className: '',
-      programme: ''
-    }
-  );
   const [fileName, setFileName] = useState<string>('');
   const [parseMessage, setParseMessage] = useState<string>();
   const [parseError, setParseError] = useState<string>();
@@ -238,27 +232,27 @@ export function SessionBoostcampGroupedImport({
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setRows([]);
       setNormalizationPreview([]);
-      setMetadataSuggestions({ className: '', programme: '' });
       setFileName('');
       setSelectedClassNames([]);
       setDecisions({});
       setParseMessage(undefined);
       setParseError('Please upload a CSV file exported from Boostcamp.');
+      onMetadataSuggestionsChange?.({ className: '', programme: '' });
       return;
     }
 
     try {
-      const result = parseBoostcampGroupedCsv(await file.text());
+      const result = await parseBoostcampGroupedFile(file);
       setRows(result.rows);
       setFileName(file.name);
       setParseError(result.ok ? undefined : result.message);
       setParseMessage(result.ok ? result.message : undefined);
       if (result.ok) {
         setNormalizationPreview(result.normalizationPreview);
-        setMetadataSuggestions(result.metadataSuggestions);
+        onMetadataSuggestionsChange?.(result.metadataSuggestions);
       } else {
         setNormalizationPreview([]);
-        setMetadataSuggestions({ className: '', programme: '' });
+        onMetadataSuggestionsChange?.({ className: '', programme: '' });
       }
       setSelectedClassNames(
         result.ok
@@ -271,12 +265,12 @@ export function SessionBoostcampGroupedImport({
     } catch {
       setRows([]);
       setNormalizationPreview([]);
-      setMetadataSuggestions({ className: '', programme: '' });
       setFileName('');
       setParseMessage(undefined);
       setParseError('Unable to read the selected CSV file.');
       setSelectedClassNames([]);
       setDecisions({});
+      onMetadataSuggestionsChange?.({ className: '', programme: '' });
     }
   }
 
@@ -286,12 +280,12 @@ export function SessionBoostcampGroupedImport({
     if (!file) {
       setRows([]);
       setNormalizationPreview([]);
-      setMetadataSuggestions({ className: '', programme: '' });
       setFileName('');
       setParseMessage(undefined);
       setParseError(undefined);
       setSelectedClassNames([]);
       setDecisions({});
+      onMetadataSuggestionsChange?.({ className: '', programme: '' });
       return;
     }
 
@@ -354,10 +348,6 @@ export function SessionBoostcampGroupedImport({
   const hasInvalidData = invalidRows.length > 0;
 
   useEffect(() => {
-    onMetadataSuggestionsChange?.(metadataSuggestions);
-  }, [metadataSuggestions, onMetadataSuggestionsChange]);
-
-  useEffect(() => {
     if (actionState.success) {
       onImportApplied?.();
     }
@@ -416,8 +406,14 @@ export function SessionBoostcampGroupedImport({
         ) : null}
       </div>
 
-      {parseError ? <p className="text-sm text-[color:var(--app-danger)]">{parseError}</p> : null}
-      {parseMessage ? <p className="text-sm text-[color:var(--app-fg-muted)]">{parseMessage}</p> : null}
+      {parseError ? (
+        <p className="whitespace-pre-wrap text-sm text-[color:var(--app-danger)]">{parseError}</p>
+      ) : null}
+      {parseMessage ? (
+        <p className="whitespace-pre-wrap text-sm text-[color:var(--app-fg-muted)]">
+          {parseMessage}
+        </p>
+      ) : null}
       {actionMessage ? (
         <p
           className={

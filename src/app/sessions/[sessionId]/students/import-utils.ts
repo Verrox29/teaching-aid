@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 const headerAliases: Record<keyof StudentImportRowInput, string[]> = {
@@ -203,6 +204,47 @@ function detectDelimiter(line: string) {
 
 function stripBom(text: string) {
   return text.replace(/^\uFEFF/, '');
+}
+
+function formatHeaderCells(headers: string[]) {
+  return JSON.stringify(headers, null, 2);
+}
+
+function rowsFromXlsxSheet(sheet: XLSX.WorkSheet) {
+  const table = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    blankrows: false,
+    defval: ''
+  }) as unknown[][];
+
+  return table.map((row) => (Array.isArray(row) ? row.map((cell) => String(cell ?? '')) : []));
+}
+
+function parseBoostcampGroupedTextRows(text: string) {
+  const normalizedText = stripBom(text).trim();
+  if (!normalizedText) {
+    return [];
+  }
+
+  const workbook = XLSX.read(normalizedText, { type: 'string' });
+  const firstSheetName = workbook.SheetNames[0];
+
+  if (!firstSheetName) {
+    return [];
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  if (!worksheet) {
+    return [];
+  }
+
+  return rowsFromXlsxSheet(worksheet);
+}
+
+async function parseBoostcampGroupedFileRows(file: File) {
+  const buffer = await file.arrayBuffer();
+  const text = new TextDecoder('utf-8').decode(buffer);
+  return parseBoostcampGroupedTextRows(text);
 }
 
 function parseDelimitedText(text: string) {
@@ -870,8 +912,8 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
       ok: false,
       message: [
         'Missing required headers. Expected first name, last name, school email, and groups columns.',
-        `Raw headers: ${JSON.stringify(headerRow)}`,
-        `Normalized headers: ${JSON.stringify(normalizedHeaders)}`
+        `Detected header cells: ${formatHeaderCells(headerRow)}`,
+        `Normalized header cells: ${formatHeaderCells(normalizedHeaders)}`
       ].join(' '),
       rows: [],
       normalizationPreview: [],
@@ -1262,7 +1304,7 @@ export function parseStudentCsv(csvText: string, existingEmails: string[]) {
 }
 
 export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImportParseResult {
-  const { rows: parsedRows } = parseDelimitedTextWithAutoDelimiter(csvText);
+  const parsedRows = parseBoostcampGroupedTextRows(csvText);
 
   if (parsedRows.length === 0) {
     return {
@@ -1278,4 +1320,38 @@ export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImpor
   }
 
   return parseBoostcampGroupedTableRows(parsedRows);
+}
+
+export async function parseBoostcampGroupedFile(
+  file: File
+): Promise<BoostcampGroupedImportParseResult> {
+  try {
+    const parsedRows = await parseBoostcampGroupedFileRows(file);
+
+    if (parsedRows.length === 0) {
+      return {
+        ok: false,
+        message: 'The uploaded CSV is empty.',
+        metadataSuggestions: {
+          className: '',
+          programme: ''
+        },
+        normalizationPreview: [],
+        rows: []
+      };
+    }
+
+    return parseBoostcampGroupedTableRows(parsedRows);
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Unable to read the uploaded CSV file.',
+      metadataSuggestions: {
+        className: '',
+        programme: ''
+      },
+      normalizationPreview: [],
+      rows: []
+    };
+  }
 }
