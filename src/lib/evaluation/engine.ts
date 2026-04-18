@@ -361,6 +361,54 @@ function safeDisplayLabel(value: string | null | undefined, language: Evaluation
   return normalized;
 }
 
+const FALLBACK_TOPICS: Record<EvaluationLanguage, string[]> = {
+  en: ['the proposed strategy', 'the diagnosis presented', 'the proposed action plan'],
+  fr: ['la stratégie proposée', 'le diagnostic présenté', 'le plan d’action proposé']
+};
+
+function isSafeQuestionAnchor(value: string | null | undefined) {
+  const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.length > 80) {
+    return false;
+  }
+
+  if (/[0-9]/.test(normalized)) {
+    return false;
+  }
+
+  if (/(.)\1{4,}/.test(normalized)) {
+    return false;
+  }
+
+  if (!isHumanReadablePhrase(normalized)) {
+    return false;
+  }
+
+  const stripped = stripDiacritics(normalized).toLowerCase();
+  if (!/[aeiouy]/.test(stripped)) {
+    return false;
+  }
+
+  return true;
+}
+
+function pickSafeAnchor(
+  candidates: Array<string | null | undefined>,
+  language: EvaluationLanguage
+) {
+  for (const candidate of candidates) {
+    if (isSafeQuestionAnchor(candidate)) {
+      return candidate!.replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  return FALLBACK_TOPICS[language][0];
+}
+
 function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
   const content = input.submissionText?.trim() ?? '';
   const sentences = splitSentences(content);
@@ -551,10 +599,13 @@ export function buildChallengeQuestions(
   language: EvaluationLanguage
 ) {
   const anchors = extractSubmissionAnchors(input, language);
-  const topicFocus = safeTopicPhrase(anchors.fallbackTopic, language) ?? (language === 'fr' ? 'la présentation' : 'the presentation');
-  const primaryAnchor = safeTopicPhrase(anchors.primaryAnchor, language) ?? topicFocus;
-  const secondaryAnchor = safeTopicPhrase(anchors.secondaryAnchor, language) ?? topicFocus;
-  const critiqueAnchor = safeTopicPhrase(anchors.critiqueAnchor, language) ?? topicFocus;
+  const topicFocus = pickSafeAnchor(
+    [anchors.fallbackTopic, input.subject, input.className, ...FALLBACK_TOPICS[language]],
+    language
+  );
+  const primaryAnchor = pickSafeAnchor([anchors.primaryAnchor, topicFocus], language);
+  const secondaryAnchor = pickSafeAnchor([anchors.secondaryAnchor, topicFocus], language);
+  const critiqueAnchor = pickSafeAnchor([anchors.critiqueAnchor, topicFocus], language);
   const groupLabel = safeDisplayLabel(input.groupName, language);
 
   if (language === 'fr') {
