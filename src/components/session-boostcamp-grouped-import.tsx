@@ -1,15 +1,19 @@
 "use client";
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 
 import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
 import {
   parseBoostcampGroupedCsv,
+  type BoostcampGroupedMetadataSuggestions,
+  type BoostcampGroupedNormalizationPreviewRow,
   type BoostcampGroupedImportPreviewRow
 } from '@/app/sessions/[sessionId]/students/import-utils';
 
 type SessionBoostcampGroupedImportProps = {
+  onImportApplied?: () => void;
+  onMetadataSuggestionsChange?: (suggestions: BoostcampGroupedMetadataSuggestions) => void;
   sessionId: string;
 };
 
@@ -45,8 +49,21 @@ function sortStrings(values: string[]) {
   );
 }
 
-export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGroupedImportProps) {
+export function SessionBoostcampGroupedImport({
+  onImportApplied,
+  onMetadataSuggestionsChange,
+  sessionId
+}: SessionBoostcampGroupedImportProps) {
   const [rows, setRows] = useState<BoostcampGroupedImportPreviewRow[]>([]);
+  const [normalizationPreview, setNormalizationPreview] = useState<
+    BoostcampGroupedNormalizationPreviewRow[]
+  >([]);
+  const [metadataSuggestions, setMetadataSuggestions] = useState<BoostcampGroupedMetadataSuggestions>(
+    {
+      className: '',
+      programme: ''
+    }
+  );
   const [fileName, setFileName] = useState<string>('');
   const [parseMessage, setParseMessage] = useState<string>();
   const [parseError, setParseError] = useState<string>();
@@ -220,6 +237,11 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
   async function handleFile(file: File) {
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setRows([]);
+      setNormalizationPreview([]);
+      setMetadataSuggestions({ className: '', programme: '' });
+      setFileName('');
+      setSelectedClassNames([]);
+      setDecisions({});
       setParseMessage(undefined);
       setParseError('Please upload a CSV file exported from Boostcamp.');
       return;
@@ -231,6 +253,13 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
       setFileName(file.name);
       setParseError(result.ok ? undefined : result.message);
       setParseMessage(result.ok ? result.message : undefined);
+      if (result.ok) {
+        setNormalizationPreview(result.normalizationPreview);
+        setMetadataSuggestions(result.metadataSuggestions);
+      } else {
+        setNormalizationPreview([]);
+        setMetadataSuggestions({ className: '', programme: '' });
+      }
       setSelectedClassNames(
         result.ok
           ? sortStrings(
@@ -241,6 +270,8 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
       setDecisions({});
     } catch {
       setRows([]);
+      setNormalizationPreview([]);
+      setMetadataSuggestions({ className: '', programme: '' });
       setFileName('');
       setParseMessage(undefined);
       setParseError('Unable to read the selected CSV file.');
@@ -254,6 +285,8 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
 
     if (!file) {
       setRows([]);
+      setNormalizationPreview([]);
+      setMetadataSuggestions({ className: '', programme: '' });
       setFileName('');
       setParseMessage(undefined);
       setParseError(undefined);
@@ -319,6 +352,16 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
 
   const actionMessage = actionState.message;
   const hasInvalidData = invalidRows.length > 0;
+
+  useEffect(() => {
+    onMetadataSuggestionsChange?.(metadataSuggestions);
+  }, [metadataSuggestions, onMetadataSuggestionsChange]);
+
+  useEffect(() => {
+    if (actionState.success) {
+      onImportApplied?.();
+    }
+  }, [actionState.success, onImportApplied]);
 
   return (
     <section className="ui-panel grid gap-5 p-6">
@@ -387,6 +430,66 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
         </p>
       ) : null}
 
+      {normalizationPreview.length > 0 ? (
+        <section className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold">Normalization preview</h3>
+              <p className="text-sm text-[color:var(--app-fg-muted)]">
+                Review how each unique raw `Groupes` value was interpreted before applying the
+                import.
+              </p>
+            </div>
+            <span className="ui-chip">{normalizationPreview.length} unique values</span>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
+            <table className="min-w-full divide-y divide-[color:var(--app-border)] text-sm">
+              <thead className="text-left text-[color:var(--app-fg-muted)]">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Raw value</th>
+                  <th className="px-4 py-3 font-medium">Parsed class</th>
+                  <th className="px-4 py-3 font-medium">Parsed group</th>
+                  <th className="px-4 py-3 font-medium">Users</th>
+                  <th className="px-4 py-3 font-medium">Confidence</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--app-border)]">
+                {normalizationPreview.map((entry) => (
+                  <tr key={entry.rawValue}>
+                    <td className="px-4 py-3 align-top">
+                      <div className="max-w-[26rem] break-words">{entry.rawValue}</div>
+                    </td>
+                    <td className="px-4 py-3 align-top text-[color:var(--app-fg-muted)]">
+                      {entry.parsedClassName ?? 'Not detected'}
+                    </td>
+                    <td className="px-4 py-3 align-top text-[color:var(--app-fg-muted)]">
+                      {entry.parsedGroupName ?? 'Not detected'}
+                    </td>
+                    <td className="px-4 py-3 align-top text-[color:var(--app-fg-muted)]">
+                      {entry.userCount}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <span
+                        className={`ui-chip ${
+                          entry.confidenceLabel === 'high'
+                            ? 'ui-chip-success'
+                            : entry.confidenceLabel === 'low'
+                              ? 'ui-chip-warning'
+                              : ''
+                        }`}
+                      >
+                        {entry.confidenceLabel} · {Math.round(entry.confidence * 100)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       {rows.length > 0 ? (
         <>
           {hasInvalidData ? (
@@ -435,6 +538,17 @@ export function SessionBoostcampGroupedImport({ sessionId }: SessionBoostcampGro
                               {issue}
                             </span>
                           ))}
+                          <span
+                            className={`ui-chip ${
+                              row.values.confidenceLabel === 'high'
+                                ? 'ui-chip-success'
+                                : row.values.confidenceLabel === 'low'
+                                  ? 'ui-chip-warning'
+                                  : ''
+                            }`}
+                          >
+                            {row.values.confidenceLabel} confidence
+                          </span>
                         </div>
                       </div>
 

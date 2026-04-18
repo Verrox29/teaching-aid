@@ -71,11 +71,11 @@ export default async function SessionStudentsPage({
         </>
       }
       currentStep={1}
-      description="Set the Pairagogie session metadata, then import students from the dedicated import tab."
+      description="Import students first, then confirm Pairagogie session metadata."
       sessionId={sessionId}
       slug={session[0].slug}
-      subtitle="Pairagogie setup"
-      title={`${session[0].title} · Pairagogie setup`}
+      subtitle="Student import"
+      title={`${session[0].title} · Student import`}
     >
       <SessionStudentsWorkspace
         existingEmails={studentRows.map((student) => student.schoolEmail)}

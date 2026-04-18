@@ -61,6 +61,8 @@ export type BoostcampGroupedImportRowInput = {
   groupValue: string;
   detectedClassName: string | null;
   detectedGroupName: string | null;
+  confidence: number;
+  confidenceLabel: 'high' | 'medium' | 'low';
 };
 
 export type BoostcampGroupedImportRowError = Partial<
@@ -77,16 +79,34 @@ export type BoostcampGroupedImportPreviewRow = {
   isValid: boolean;
 };
 
+export type BoostcampGroupedNormalizationPreviewRow = {
+  confidence: number;
+  confidenceLabel: 'high' | 'medium' | 'low';
+  parsedClassName: string | null;
+  parsedGroupName: string | null;
+  rawValue: string;
+  userCount: number;
+};
+
+export type BoostcampGroupedMetadataSuggestions = {
+  className: string;
+  programme: string;
+};
+
 export type BoostcampGroupedImportParseResult =
   | {
       ok: true;
       rows: BoostcampGroupedImportPreviewRow[];
+      normalizationPreview: BoostcampGroupedNormalizationPreviewRow[];
+      metadataSuggestions: BoostcampGroupedMetadataSuggestions;
       message?: string;
     }
   | {
       ok: false;
       message: string;
       rows: BoostcampGroupedImportPreviewRow[];
+      normalizationPreview: BoostcampGroupedNormalizationPreviewRow[];
+      metadataSuggestions: BoostcampGroupedMetadataSuggestions;
     };
 
 export type StudentImportParseResult =
@@ -247,77 +267,333 @@ function splitBoostcampName(fullName: string) {
   };
 }
 
-function splitBoostcampGroupValue(groupValue: string) {
-  const normalizedValue = groupValue.replace(/\s+/g, ' ').trim();
+type GroupTokenAnalysis = {
+  classLabel: string | null;
+  classScore: number;
+  groupLabel: string | null;
+  groupScore: number;
+  normalized: string;
+  raw: string;
+  role: 'class' | 'group' | 'ambiguous' | 'unknown';
+};
 
-  if (!normalizedValue) {
-    return {
-      detectedClassName: null,
-      detectedGroupName: null
-    };
+type LabelStats = {
+  classPartners: Set<string>;
+  classVotes: number;
+  count: number;
+  groupPartners: Set<string>;
+  groupVotes: number;
+  display: string;
+  patternClassScore: number;
+  patternGroupScore: number;
+};
+
+function buildConfidenceLabel(confidence: number): 'high' | 'medium' | 'low' {
+  if (confidence >= 0.75) {
+    return 'high';
   }
 
-  const classKeywordMatch = normalizedValue.match(
-    /^(.*?)\b(?:class(?:e)?|classe)\b\s*[:\-]?\s*(.*?)\b(?:group(?:e)?|groupe)\b\s*[:\-]?\s*(.*?)$/iu
-  );
-  if (classKeywordMatch) {
-    return {
-      detectedClassName: classKeywordMatch[1].trim() || classKeywordMatch[2].trim() || null,
-      detectedGroupName: classKeywordMatch[3].trim() || null
-    };
+  if (confidence >= 0.5) {
+    return 'medium';
   }
 
-  const groupKeywordMatch = normalizedValue.match(
-    /^(.*?)\b(?:group(?:e)?|groupe)\b\s*[:\-]?\s*(.*?)$/iu
-  );
-  if (groupKeywordMatch) {
-    const prefix = groupKeywordMatch[1].trim();
-    const suffix = groupKeywordMatch[2].trim();
-    if (prefix && suffix) {
-      return {
-        detectedClassName: prefix,
-        detectedGroupName: suffix
-      };
+  return 'low';
+}
+
+function normalizeGroupedToken(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function splitGroupedSegments(groupValue: string) {
+  return normalizeGroupedToken(groupValue)
+    .split(/[;,]+/g)
+    .map((segment) => normalizeGroupedToken(segment))
+    .filter((segment) => segment.length > 0);
+}
+
+function analyzeGroupedToken(token: string): GroupTokenAnalysis {
+  const normalized = normalizeGroupedToken(token);
+  const wordCount = normalized.length === 0 ? 0 : normalized.split(/\s+/).length;
+
+  let classScore = 0;
+  let groupScore = 0;
+  let classLabel: string | null = null;
+  let groupLabel: string | null = null;
+
+  if (/^m[12]\b/i.test(normalized)) {
+    classScore += 5;
+    classLabel = normalized;
+  }
+
+  if (/\bclasse?\s+\d+/i.test(normalized)) {
+    classScore += 4;
+    if (!classLabel) {
+      classLabel = normalized.replace(/\s*-\s*g\d+\b/iu, '').trim() || normalized;
     }
   }
 
-  const separators = [' / ', ' - ', ' – ', ' — ', ' | ', ' > ', ' : ', ' · ', ' • '];
-  for (const separator of separators) {
-    if (!normalizedValue.includes(separator)) {
-      continue;
-    }
-
-    const [className, ...groupParts] = normalizedValue.split(separator);
-    const detectedClassName = className?.trim() || null;
-    const detectedGroupName = groupParts.join(separator).trim() || null;
-
-    if (detectedClassName || detectedGroupName) {
-      return {
-        detectedClassName,
-        detectedGroupName
-      };
+  if (/\b(?:management|commercial|marketing|communication|digital|business|finance|vente|strat|mngt)\b/i.test(normalized)) {
+    classScore += 2;
+    if (!classLabel) {
+      classLabel = normalized;
     }
   }
 
-  const classOnlyMatch = normalizedValue.match(/\b(?:class(?:e)?|classe)\b\s*[:\-]?\s*(.+)$/iu);
-  if (classOnlyMatch) {
-    return {
-      detectedClassName: classOnlyMatch[1].trim() || null,
-      detectedGroupName: null
-    };
+  if (wordCount >= 3) {
+    classScore += 1;
+    if (!classLabel && !/-g\d+\b/i.test(normalized) && !/\bgroupe?\b/i.test(normalized)) {
+      classLabel = normalized;
+    }
   }
 
-  const groupOnlyMatch = normalizedValue.match(/\b(?:group(?:e)?|groupe)\b\s*[:\-]?\s*(.+)$/iu);
-  if (groupOnlyMatch) {
-    return {
-      detectedClassName: null,
-      detectedGroupName: groupOnlyMatch[1].trim() || null
-    };
+  if (/\bclasse\s+\d+\s*-\s*g\d+\b/i.test(normalized)) {
+    groupScore += 6;
+    classScore += 1;
+    groupLabel = normalized;
+    if (!classLabel) {
+      classLabel = normalized.replace(/\s*-\s*g\d+\b/iu, '').trim();
+    }
   }
+
+  if (/-g\d+\b/i.test(normalized)) {
+    groupScore += 5;
+    groupLabel = normalized;
+  }
+
+  if (/\bgroupe?\s*\d+\b/i.test(normalized)) {
+    groupScore += 4;
+    if (!groupLabel) {
+      groupLabel = normalized;
+    }
+  }
+
+  if (/^g\d+\b/i.test(normalized) || /\bg\d+\b/i.test(normalized)) {
+    groupScore += 3;
+    if (!groupLabel) {
+      groupLabel = normalized;
+    }
+  }
+
+  if (/\bclasse\s*\d+\b/i.test(normalized) && !/-g\d+\b/i.test(normalized)) {
+    classScore += 3;
+    if (!classLabel) {
+      classLabel = normalized;
+    }
+  }
+
+  const role =
+    classScore > groupScore
+      ? 'class'
+      : groupScore > classScore
+        ? 'group'
+        : classScore > 0 || groupScore > 0
+          ? 'ambiguous'
+          : 'unknown';
 
   return {
-    detectedClassName: normalizedValue,
-    detectedGroupName: null
+    classLabel,
+    classScore,
+    groupLabel,
+    groupScore,
+    normalized,
+    raw: token,
+    role
+  };
+}
+
+function buildGroupedTokenStats(rows: Array<{ tokens: GroupTokenAnalysis[] }>) {
+  const stats = new Map<string, LabelStats>();
+
+  function getStat(label: string) {
+    const existing = stats.get(label);
+    if (existing) {
+      return existing;
+    }
+
+    const created: LabelStats = {
+      classPartners: new Set<string>(),
+      classVotes: 0,
+      count: 0,
+      groupPartners: new Set<string>(),
+      groupVotes: 0,
+      display: label,
+      patternClassScore: 0,
+      patternGroupScore: 0
+    };
+    stats.set(label, created);
+    return created;
+  }
+
+  for (const row of rows) {
+    const classLabels = row.tokens
+      .map((token) => token.classLabel)
+      .filter((label): label is string => Boolean(label));
+    const groupLabels = row.tokens
+      .map((token) => token.groupLabel)
+      .filter((label): label is string => Boolean(label));
+
+    for (const token of row.tokens) {
+      if (token.classLabel) {
+        const stat = getStat(token.classLabel);
+        stat.count += 1;
+        stat.classVotes += token.classScore;
+        stat.patternClassScore = Math.max(stat.patternClassScore, token.classScore);
+        for (const groupLabel of groupLabels) {
+          stat.groupPartners.add(groupLabel);
+        }
+      }
+
+      if (token.groupLabel) {
+        const stat = getStat(token.groupLabel);
+        stat.count += 1;
+        stat.groupVotes += token.groupScore;
+        stat.patternGroupScore = Math.max(stat.patternGroupScore, token.groupScore);
+        for (const classLabel of classLabels) {
+          stat.classPartners.add(classLabel);
+        }
+      }
+    }
+  }
+
+  return stats;
+}
+
+function scoreLabelForRole(label: string, stats: Map<string, LabelStats>, role: 'class' | 'group') {
+  const stat = stats.get(label);
+  if (!stat) {
+    return 0;
+  }
+
+  if (role === 'class') {
+    return (
+      stat.patternClassScore * 3 +
+      Math.log(stat.count + 1) * 2 +
+      Math.log(stat.groupPartners.size + 1) * 2 +
+      stat.classVotes * 0.25
+    );
+  }
+
+  return (
+    stat.patternGroupScore * 3 +
+      (1 / (stat.count + 1)) * 6 +
+      (1 / (stat.classPartners.size + 1)) * 4 +
+      stat.groupVotes * 0.25
+  );
+}
+
+function parseGroupedAssignments(groupValue: string, tokenStats?: Map<string, LabelStats>) {
+  const tokens = splitGroupedSegments(groupValue).map(analyzeGroupedToken);
+  const stats = tokenStats ?? new Map<string, LabelStats>();
+
+  const classCandidates = tokens
+    .map((token) => {
+      const classLabel = token.classLabel;
+      if (!classLabel) {
+        if (token.role === 'unknown' && token.normalized) {
+          const classSupport = scoreLabelForRole(token.normalized, stats, 'class');
+          const groupSupport = scoreLabelForRole(token.normalized, stats, 'group');
+
+          if (classSupport <= groupSupport + 1.25) {
+            return null;
+          }
+
+          return {
+            label: token.normalized,
+            score: classSupport,
+            token
+          };
+        }
+
+        return null;
+      }
+
+      const support = scoreLabelForRole(classLabel, stats, 'class') + token.classScore;
+      return {
+        label: classLabel,
+        score: support,
+        token
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  const groupCandidates = tokens
+    .map((token) => {
+      const groupLabel = token.groupLabel;
+      if (!groupLabel) {
+        if (token.role === 'unknown' && token.normalized) {
+          const groupSupport = scoreLabelForRole(token.normalized, stats, 'group');
+          const classSupport = scoreLabelForRole(token.normalized, stats, 'class');
+
+          if (groupSupport <= classSupport + 1.25) {
+            return null;
+          }
+
+          return {
+            label: token.normalized,
+            score: groupSupport,
+            token
+          };
+        }
+
+        return null;
+      }
+
+      const support = scoreLabelForRole(groupLabel, stats, 'group') + token.groupScore;
+      return {
+        label: groupLabel,
+        score: support,
+        token
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  const bestClass = classCandidates.sort((left, right) => right.score - left.score)[0] ?? null;
+  const bestGroup = groupCandidates.sort((left, right) => right.score - left.score)[0] ?? null;
+
+  let className = bestClass?.label ?? null;
+  let groupName = bestGroup?.label ?? null;
+  let confidence = 0;
+
+  if (bestClass && bestGroup) {
+    const bestGroupHasExplicitClass = Boolean(bestGroup.token.classLabel);
+    const bestClassHasExplicitGroup = Boolean(bestClass.token.groupLabel);
+
+    if (bestGroup.score > bestClass.score + 1.25 && bestGroupHasExplicitClass) {
+      className = bestGroup.token.classLabel ?? bestClass.label;
+      groupName = bestGroup.token.groupLabel ?? bestGroup.label;
+    } else if (bestClass.score > bestGroup.score + 1.25 && bestClassHasExplicitGroup) {
+      className = bestClass.token.classLabel ?? bestClass.label;
+      groupName = bestClass.token.groupLabel ?? bestGroup.label;
+    }
+
+    const combinedScore = bestClass.score + bestGroup.score;
+    confidence = Math.min(0.95, 0.58 + combinedScore / 40);
+  } else if (bestClass) {
+    confidence = Math.min(0.92, 0.66 + bestClass.score / 24);
+  } else if (bestGroup) {
+    confidence = Math.min(0.72, 0.46 + bestGroup.score / 24);
+  }
+
+  if (!className && bestGroup?.token.classLabel) {
+    className = bestGroup.token.classLabel;
+  }
+
+  if (!groupName && bestClass?.token.groupLabel) {
+    groupName = bestClass.token.groupLabel;
+  }
+
+  const confidenceLabel = buildConfidenceLabel(confidence);
+
+  const needsResolution = !className;
+
+  return {
+    className,
+    confidence,
+    confidenceLabel,
+    groupName,
+    needsResolution,
+    rawValue: groupValue,
+    tokens
   };
 }
 
@@ -482,13 +758,20 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
     groupValue: ['groupes', 'groupe', 'groups', 'class', 'classe']
   };
 
+  const emptyResult = {
+    className: '',
+    programme: ''
+  };
+
   const requiredHeaders = ['firstName', 'lastName', 'schoolEmail', 'groupValue'] as const;
 
   if (rows.length === 0) {
     return {
       ok: false,
       message: 'The uploaded CSV is empty.',
-      rows: []
+      rows: [],
+      normalizationPreview: [],
+      metadataSuggestions: emptyResult
     };
   }
 
@@ -512,60 +795,55 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
       ok: false,
       message:
         'Missing required headers. Expected first name, last name, school email, and groups columns.',
-      rows: []
+      rows: [],
+      normalizationPreview: [],
+      metadataSuggestions: emptyResult
     };
   }
 
-  const normalizedRows = dataRows
+  const candidateRows = dataRows
     .map((columns, rowIndex) => {
+      const firstNameColumn = headerMap.indexOf('firstName');
+      const lastNameColumn = headerMap.indexOf('lastName');
+      const schoolEmailColumn = headerMap.indexOf('schoolEmail');
+      const groupValueColumn = headerMap.indexOf('groupValue');
+
       const values: BoostcampGroupedImportRowInput = {
-        firstName: '',
-        lastName: '',
-        schoolEmail: '',
-        groupValue: '',
+        firstName: firstNameColumn >= 0 ? columns[firstNameColumn] ?? '' : '',
+        lastName: lastNameColumn >= 0 ? columns[lastNameColumn] ?? '' : '',
+        schoolEmail: schoolEmailColumn >= 0 ? columns[schoolEmailColumn] ?? '' : '',
+        groupValue: groupValueColumn >= 0 ? columns[groupValueColumn] ?? '' : '',
         detectedClassName: null,
-        detectedGroupName: null
+        detectedGroupName: null,
+        confidence: 0,
+        confidenceLabel: 'low'
       };
-
-      headerMap.forEach((header, columnIndex) => {
-        if (!header) {
-          return;
-        }
-
-        if (header === 'groupValue') {
-          values.groupValue = columns[columnIndex] ?? '';
-          return;
-        }
-
-        values[header] = columns[columnIndex] ?? '';
-      });
-
-      const { detectedClassName, detectedGroupName } = splitBoostcampGroupValue(values.groupValue);
-      values.detectedClassName = detectedClassName;
-      values.detectedGroupName = detectedGroupName;
 
       return {
         id: `row-${rowIndex + 1}`,
+        rawValue: values.groupValue,
         rowNumber: rowIndex + 2,
+        tokens: splitGroupedSegments(values.groupValue).map(analyzeGroupedToken),
         values
       };
     })
     .filter((row) =>
-      Object.values(row.values).some((value) =>
-        typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
-      )
+      Object.values(row.values).some((value) => String(value ?? '').trim().length > 0)
     );
 
-  if (normalizedRows.length === 0) {
+  if (candidateRows.length === 0) {
     return {
       ok: false,
       message: 'The uploaded CSV has headers but no student rows.',
-      rows: []
+      rows: [],
+      normalizationPreview: [],
+      metadataSuggestions: emptyResult
     };
   }
 
+  const tokenStats = buildGroupedTokenStats(candidateRows);
   const emailCounts = new Map<string, number>();
-  for (const row of normalizedRows) {
+  for (const row of candidateRows) {
     const normalizedEmail = row.values.schoolEmail.trim().toLowerCase();
     if (!normalizedEmail) {
       continue;
@@ -574,26 +852,29 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
     emailCounts.set(normalizedEmail, (emailCounts.get(normalizedEmail) ?? 0) + 1);
   }
 
-  const previewRows = normalizedRows.map((row) => {
+  const previewRows = candidateRows.map((row) => {
+    const parsed = parseGroupedAssignments(row.rawValue, tokenStats);
     const normalizedValues: BoostcampGroupedImportRowInput = {
       firstName: normalizeRowValue(row.values.firstName),
       lastName: normalizeRowValue(row.values.lastName),
       schoolEmail: normalizeRowValue(row.values.schoolEmail).toLowerCase(),
       groupValue: normalizeRowValue(row.values.groupValue),
-      detectedClassName: row.values.detectedClassName?.trim() || null,
-      detectedGroupName: row.values.detectedGroupName?.trim() || null
+      detectedClassName: parsed.className?.trim() || null,
+      detectedGroupName: parsed.groupName?.trim() || null,
+      confidence: parsed.confidence,
+      confidenceLabel: parsed.confidenceLabel
     };
 
     const errors: BoostcampGroupedImportRowError = {};
-    const parsed = studentImportRowSchema.safeParse({
+    const studentParsed = studentImportRowSchema.safeParse({
       firstName: normalizedValues.firstName,
       lastName: normalizedValues.lastName,
       schoolEmail: normalizedValues.schoolEmail,
       userId: ''
     });
 
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors;
+    if (!studentParsed.success) {
+      const fieldErrors = studentParsed.error.flatten().fieldErrors;
 
       if (fieldErrors.firstName?.[0]) {
         errors.firstName = fieldErrors.firstName[0];
@@ -615,9 +896,9 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
     const issues: string[] = [];
     if (!normalizedValues.detectedClassName) {
       issues.push('no class detected');
-    }
-    if (!normalizedValues.detectedGroupName) {
-      issues.push('no group detected');
+      if (!normalizedValues.detectedGroupName) {
+        issues.push('no group detected');
+      }
     }
 
     return {
@@ -631,9 +912,130 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
     };
   });
 
+  const normalizationPreviewMap = new Map<
+    string,
+    {
+      classCounts: Map<string, number>;
+      confidenceTotal: number;
+      count: number;
+      groupCounts: Map<string, number>;
+    }
+  >();
+
+  for (const row of previewRows) {
+    const rawValue = row.values.groupValue.trim();
+    const entry = normalizationPreviewMap.get(rawValue) ?? {
+      classCounts: new Map<string, number>(),
+      confidenceTotal: 0,
+      count: 0,
+      groupCounts: new Map<string, number>()
+    };
+
+    entry.count += 1;
+    entry.confidenceTotal += row.values.confidence;
+
+    if (row.values.detectedClassName) {
+      entry.classCounts.set(
+        row.values.detectedClassName,
+        (entry.classCounts.get(row.values.detectedClassName) ?? 0) + 1
+      );
+    }
+
+    if (row.values.detectedGroupName) {
+      entry.groupCounts.set(
+        row.values.detectedGroupName,
+        (entry.groupCounts.get(row.values.detectedGroupName) ?? 0) + 1
+      );
+    }
+
+    normalizationPreviewMap.set(rawValue, entry);
+  }
+
+  function pickMostCommon(values: Map<string, number>) {
+    const entries = [...values.entries()].sort((left, right) => {
+      if (right[1] !== left[1]) {
+        return right[1] - left[1];
+      }
+
+      return left[0].localeCompare(right[0], 'en', { sensitivity: 'base' });
+    });
+
+    return entries[0]?.[0] ?? null;
+  }
+
+  const normalizationPreview = [...normalizationPreviewMap.entries()]
+    .map(([rawValue, entry]) => {
+      const confidence = entry.count > 0 ? entry.confidenceTotal / entry.count : 0;
+      return {
+        confidence,
+        confidenceLabel: buildConfidenceLabel(confidence),
+        parsedClassName: pickMostCommon(entry.classCounts),
+        parsedGroupName: pickMostCommon(entry.groupCounts),
+        rawValue,
+        userCount: entry.count
+      };
+    })
+    .sort((left, right) => left.rawValue.localeCompare(right.rawValue, 'en', { sensitivity: 'base' }));
+
+  const classCandidates = new Map<string, number>();
+  const programmeCandidates = new Map<string, number>();
+
+  for (const row of previewRows) {
+    const className = row.values.detectedClassName?.trim() ?? '';
+    if (!className) {
+      continue;
+    }
+
+    if (
+      /^m[12]\b/i.test(className) ||
+      /\b(?:management|commercial|marketing|communication|digital|business|finance|vente|strat|mngt)\b/i.test(className)
+    ) {
+      programmeCandidates.set(className, (programmeCandidates.get(className) ?? 0) + 1);
+    }
+
+    if (/^classe\s+\d+/i.test(className) || /^class\s+\d+/i.test(className)) {
+      classCandidates.set(className, (classCandidates.get(className) ?? 0) + 1);
+    }
+  }
+
+  function pickSuggestion(candidates: Map<string, number>) {
+    const entries = [...candidates.entries()].sort((left, right) => {
+      if (right[1] !== left[1]) {
+        return right[1] - left[1];
+      }
+
+      return left[0].localeCompare(right[0], 'en', { sensitivity: 'base' });
+    });
+
+    if (entries.length === 0) {
+      return '';
+    }
+
+    const [topLabel, topCount] = entries[0];
+    const secondCount = entries[1]?.[1] ?? 0;
+    const totalCount = entries.reduce((sum, entry) => sum + entry[1], 0);
+
+    if (topCount / Math.max(totalCount, 1) < 0.6) {
+      return '';
+    }
+
+    if (secondCount > 0 && topCount < secondCount * 1.2) {
+      return '';
+    }
+
+    return topLabel;
+  }
+
+  const metadataSuggestions = {
+    className: pickSuggestion(classCandidates),
+    programme: pickSuggestion(programmeCandidates)
+  };
+
   return {
     ok: true,
     rows: previewRows,
+    normalizationPreview,
+    metadataSuggestions,
     message: previewRows.every((row) => row.isValid)
       ? 'Grouped CSV parsed successfully. Ready to review.'
       : 'Review the highlighted rows before continuing.'
@@ -781,13 +1183,18 @@ export function parseStudentCsv(csvText: string, existingEmails: string[]) {
   return parseStudentImportText(csvText, existingEmails);
 }
 
-export function parseBoostcampGroupedCsv(csvText: string) {
+export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImportParseResult {
   const normalizedText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
   if (!normalizedText) {
     return {
       ok: false,
       message: 'The uploaded CSV is empty.',
+      metadataSuggestions: {
+        className: '',
+        programme: ''
+      },
+      normalizationPreview: [],
       rows: []
     };
   }
@@ -800,6 +1207,11 @@ export function parseBoostcampGroupedCsv(csvText: string) {
     return {
       ok: false,
       message: error instanceof Error ? error.message : 'Unable to parse the uploaded CSV.',
+      metadataSuggestions: {
+        className: '',
+        programme: ''
+      },
+      normalizationPreview: [],
       rows: []
     };
   }

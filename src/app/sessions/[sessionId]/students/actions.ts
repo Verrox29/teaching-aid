@@ -418,5 +418,8 @@ export async function importBoostcampGroupedStudentsAction(
   revalidatePath(`/sessions/${sessionId}/exports`);
   revalidatePath('/sessions');
 
-  redirectWithNotice(sessionId, 'Grouped import applied. Continue with presentation order & upload.');
+  return {
+    success: true,
+    message: 'Grouped import applied. Continue with presentation order & upload.'
+  };
 }
