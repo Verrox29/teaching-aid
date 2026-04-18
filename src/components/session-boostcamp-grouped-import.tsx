@@ -7,6 +7,7 @@ import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]
 import {
   parseBoostcampGroupedFile,
   type BoostcampGroupedMetadataSuggestions,
+  type BoostcampGroupedParseDebug,
   type BoostcampGroupedNormalizationPreviewRow,
   type BoostcampGroupedImportPreviewRow
 } from '@/app/sessions/[sessionId]/students/import-utils';
@@ -59,6 +60,7 @@ export function SessionBoostcampGroupedImport({
     BoostcampGroupedNormalizationPreviewRow[]
   >([]);
   const [fileName, setFileName] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<BoostcampGroupedParseDebug | null>(null);
   const [parseMessage, setParseMessage] = useState<string>();
   const [parseError, setParseError] = useState<string>();
   const [isDragging, setIsDragging] = useState(false);
@@ -229,14 +231,35 @@ export function SessionBoostcampGroupedImport({
       : selectedClassNames.length > 0 && selectedStudents.length > 0;
 
   async function handleFile(file: File) {
+    setFileName(file.name);
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setRows([]);
       setNormalizationPreview([]);
-      setFileName('');
       setSelectedClassNames([]);
       setDecisions({});
       setParseMessage(undefined);
       setParseError('Please upload a CSV file exported from Boostcamp.');
+      setDebugInfo({
+        detectedDelimiter: 'unknown',
+        headerAliasMatches: {
+          firstName: false,
+          groupValue: false,
+          lastName: false,
+          schoolEmail: false,
+          userId: false
+        },
+        headerMatches: {
+          firstName: null,
+          groupValue: null,
+          lastName: null,
+          schoolEmail: null,
+          userId: null
+        },
+        normalizedHeaderCells: [],
+        parserPath: 'not-run',
+        rawHeaderCells: [],
+        sampleRows: []
+      });
       onMetadataSuggestionsChange?.({ className: '', programme: '' });
       return;
     }
@@ -244,9 +267,9 @@ export function SessionBoostcampGroupedImport({
     try {
       const result = await parseBoostcampGroupedFile(file);
       setRows(result.rows);
-      setFileName(file.name);
       setParseError(result.ok ? undefined : result.message);
       setParseMessage(result.ok ? result.message : undefined);
+      setDebugInfo(result.debug);
       if (result.ok) {
         setNormalizationPreview(result.normalizationPreview);
         onMetadataSuggestionsChange?.(result.metadataSuggestions);
@@ -265,11 +288,31 @@ export function SessionBoostcampGroupedImport({
     } catch {
       setRows([]);
       setNormalizationPreview([]);
-      setFileName('');
       setParseMessage(undefined);
       setParseError('Unable to read the selected CSV file.');
       setSelectedClassNames([]);
       setDecisions({});
+      setDebugInfo({
+        detectedDelimiter: 'unknown',
+        headerAliasMatches: {
+          firstName: false,
+          groupValue: false,
+          lastName: false,
+          schoolEmail: false,
+          userId: false
+        },
+        headerMatches: {
+          firstName: null,
+          groupValue: null,
+          lastName: null,
+          schoolEmail: null,
+          userId: null
+        },
+        normalizedHeaderCells: [],
+        parserPath: 'not-run',
+        rawHeaderCells: [],
+        sampleRows: []
+      });
       onMetadataSuggestionsChange?.({ className: '', programme: '' });
     }
   }
@@ -281,6 +324,7 @@ export function SessionBoostcampGroupedImport({
       setRows([]);
       setNormalizationPreview([]);
       setFileName('');
+      setDebugInfo(null);
       setParseMessage(undefined);
       setParseError(undefined);
       setSelectedClassNames([]);
@@ -414,6 +458,92 @@ export function SessionBoostcampGroupedImport({
           {parseMessage}
         </p>
       ) : null}
+
+      {debugInfo ? (
+        <section className="grid gap-3 rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Temporary parser debug</h3>
+            <p className="text-xs text-[color:var(--app-fg-muted)]">
+              Development-only snapshot of what the grouped parser saw.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                File name
+              </span>
+              <span className="break-words">{fileName || 'Not loaded'}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Parser path
+              </span>
+              <span>{debugInfo.parserPath}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Detected delimiter
+              </span>
+              <span>{debugInfo.detectedDelimiter}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Parsed message
+              </span>
+              <span className="break-words">{parseError ?? parseMessage ?? 'No message'}</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Raw header cells
+              </span>
+              <pre className="overflow-x-auto rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-xs leading-5">
+                {JSON.stringify(debugInfo.rawHeaderCells, null, 2)}
+              </pre>
+            </div>
+            <div className="grid gap-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Normalized header cells
+              </span>
+              <pre className="overflow-x-auto rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-xs leading-5">
+                {JSON.stringify(debugInfo.normalizedHeaderCells, null, 2)}
+              </pre>
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                French alias matches
+              </span>
+              <pre className="overflow-x-auto rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-xs leading-5">
+                {JSON.stringify(debugInfo.headerAliasMatches, null, 2)}
+              </pre>
+            </div>
+            <div className="grid gap-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Header matches
+              </span>
+              <pre className="overflow-x-auto rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-xs leading-5">
+                {JSON.stringify(debugInfo.headerMatches, null, 2)}
+              </pre>
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+              First parsed data rows
+            </span>
+            <pre className="overflow-x-auto rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-xs leading-5">
+              {JSON.stringify(debugInfo.sampleRows, null, 2)}
+            </pre>
+          </div>
+        </section>
+      ) : null}
+
       {actionMessage ? (
         <p
           className={

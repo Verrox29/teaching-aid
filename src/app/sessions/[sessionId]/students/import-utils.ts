@@ -94,9 +94,34 @@ export type BoostcampGroupedMetadataSuggestions = {
   programme: string;
 };
 
+type BoostcampGroupedParserPath = 'xlsx-array-buffer' | 'xlsx-text' | 'not-run';
+
+export type BoostcampGroupedParseDebug = {
+  detectedDelimiter: ',' | ';' | 'unknown';
+  headerAliasMatches: {
+    firstName: boolean;
+    groupValue: boolean;
+    lastName: boolean;
+    schoolEmail: boolean;
+    userId: boolean;
+  };
+  headerMatches: {
+    firstName: string | null;
+    groupValue: string | null;
+    lastName: string | null;
+    schoolEmail: string | null;
+    userId: string | null;
+  };
+  normalizedHeaderCells: string[];
+  parserPath: BoostcampGroupedParserPath;
+  rawHeaderCells: string[];
+  sampleRows: string[][];
+};
+
 export type BoostcampGroupedImportParseResult =
   | {
       ok: true;
+      debug: BoostcampGroupedParseDebug;
       rows: BoostcampGroupedImportPreviewRow[];
       normalizationPreview: BoostcampGroupedNormalizationPreviewRow[];
       metadataSuggestions: BoostcampGroupedMetadataSuggestions;
@@ -104,6 +129,7 @@ export type BoostcampGroupedImportParseResult =
     }
   | {
       ok: false;
+      debug: BoostcampGroupedParseDebug;
       message: string;
       rows: BoostcampGroupedImportPreviewRow[];
       normalizationPreview: BoostcampGroupedNormalizationPreviewRow[];
@@ -210,6 +236,38 @@ function formatHeaderCells(headers: string[]) {
   return JSON.stringify(headers, null, 2);
 }
 
+const groupedHeaderAliases: Record<
+  'firstName' | 'groupValue' | 'lastName' | 'schoolEmail' | 'userId',
+  string[]
+> = {
+  firstName: ['first name', 'first_name', 'firstname', 'prenom', 'prénom'],
+  groupValue: ['groupes', 'groupe', 'groups', 'class', 'classe'],
+  lastName: ['last name', 'last_name', 'lastname', 'nom', 'nom de famille'],
+  schoolEmail: [
+    'school email',
+    'school_email',
+    'email',
+    'e mail',
+    'e-mail',
+    'mail',
+    'adresse de courriel',
+    'courriel'
+  ],
+  userId: [
+    'user id',
+    'userid',
+    'user_id',
+    'id',
+    'numero didentification',
+    'numero identification',
+    'numéro didentification',
+    'numéro d identification',
+    'identification'
+  ]
+};
+
+type BoostcampGroupedHeaderMatchState = BoostcampGroupedParseDebug['headerMatches'];
+
 function rowsFromXlsxSheet(sheet: XLSX.WorkSheet) {
   const table = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
@@ -226,7 +284,7 @@ function parseBoostcampGroupedTextRows(text: string) {
     return [];
   }
 
-  const workbook = XLSX.read(normalizedText, { type: 'string' });
+  const workbook = XLSX.read(normalizedText, { type: 'string', codepage: 65001 });
   const firstSheetName = workbook.SheetNames[0];
 
   if (!firstSheetName) {
@@ -241,10 +299,132 @@ function parseBoostcampGroupedTextRows(text: string) {
   return rowsFromXlsxSheet(worksheet);
 }
 
+function countDelimiterOccurrences(line: string, delimiter: ',' | ';') {
+  let count = 0;
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    const nextCharacter = line[index + 1];
+
+    if (character === '"') {
+      if (inQuotes && nextCharacter === '"') {
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && character === delimiter) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function detectGroupedDelimiter(text: string) {
+  const normalizedText = stripBom(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const firstLine = normalizedText
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+
+  if (!firstLine) {
+    return 'unknown' as const;
+  }
+
+  const commaCount = countDelimiterOccurrences(firstLine, ',');
+  const semicolonCount = countDelimiterOccurrences(firstLine, ';');
+
+  if (semicolonCount > commaCount) {
+    return ';' as const;
+  }
+
+  if (commaCount > 0) {
+    return ',' as const;
+  }
+
+  return 'unknown' as const;
+}
+
+function buildGroupedHeaderDebug(
+  headerRow: string[],
+  parserPath: BoostcampGroupedParserPath,
+  detectedDelimiter: ',' | ';' | 'unknown',
+  sampleRows: string[][]
+) {
+  const headerMatches: BoostcampGroupedHeaderMatchState = {
+    firstName: null,
+    groupValue: null,
+    lastName: null,
+    schoolEmail: null,
+    userId: null
+  };
+
+  for (const cell of headerRow) {
+    const normalized = normalizeHeader(cell);
+
+    for (const [canonical, aliases] of Object.entries(groupedHeaderAliases)) {
+      if (aliases.includes(normalized) && !headerMatches[canonical as keyof BoostcampGroupedHeaderMatchState]) {
+        headerMatches[canonical as keyof BoostcampGroupedHeaderMatchState] = cell;
+      }
+    }
+  }
+
+  const normalizedHeaderCells = headerRow.map((header) => normalizeHeader(header));
+
+  return {
+    detectedDelimiter,
+    headerAliasMatches: {
+      firstName: Boolean(headerMatches.firstName),
+      groupValue: Boolean(headerMatches.groupValue),
+      lastName: Boolean(headerMatches.lastName),
+      schoolEmail: Boolean(headerMatches.schoolEmail),
+      userId: Boolean(headerMatches.userId)
+    },
+    headerMatches,
+    normalizedHeaderCells,
+    parserPath,
+    rawHeaderCells: headerRow,
+    sampleRows: sampleRows.slice(0, 5)
+  };
+}
+
 async function parseBoostcampGroupedFileRows(file: File) {
   const buffer = await file.arrayBuffer();
-  const text = new TextDecoder('utf-8').decode(buffer);
-  return parseBoostcampGroupedTextRows(text);
+  const decodedText = new TextDecoder('utf-8').decode(buffer);
+  const workbook = XLSX.read(buffer, { type: 'array', codepage: 65001 });
+  const firstSheetName = workbook.SheetNames[0];
+
+  if (!firstSheetName) {
+    return {
+      debug: buildGroupedHeaderDebug([], 'xlsx-array-buffer', detectGroupedDelimiter(decodedText), []),
+      rows: []
+    };
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  if (!worksheet) {
+    return {
+      debug: buildGroupedHeaderDebug([], 'xlsx-array-buffer', detectGroupedDelimiter(decodedText), []),
+      rows: []
+    };
+  }
+
+  const rows = rowsFromXlsxSheet(worksheet);
+  const [headerRow = [], ...dataRows] = rows;
+
+  return {
+    debug: buildGroupedHeaderDebug(
+      headerRow,
+      'xlsx-array-buffer',
+      detectGroupedDelimiter(decodedText),
+      dataRows
+    ),
+    rows
+  };
 }
 
 function parseDelimitedText(text: string) {
@@ -857,33 +1037,22 @@ function parseStudentTableRows(
   return buildResult(normalizedRows, existingEmails, successMessage);
 }
 
-function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImportParseResult {
-  const headerAliases: Record<'firstName' | 'lastName' | 'schoolEmail' | 'groupValue', string[]> = {
-    firstName: ['first name', 'first_name', 'firstname', 'prenom', 'prénom'],
-    lastName: ['last name', 'last_name', 'lastname', 'nom', 'nom de famille'],
-    schoolEmail: [
-      'school email',
-      'school_email',
-      'email',
-      'e mail',
-      'e-mail',
-      'mail',
-      'adresse de courriel',
-      'courriel'
-    ],
-    groupValue: ['groupes', 'groupe', 'groups', 'class', 'classe']
-  };
-
+function parseBoostcampGroupedTableRows(
+  rows: string[][],
+  debug: BoostcampGroupedParseDebug
+): BoostcampGroupedImportParseResult {
   const emptyResult = {
     className: '',
     programme: ''
   };
 
   const requiredHeaders = ['firstName', 'lastName', 'schoolEmail', 'groupValue'] as const;
+  const [headerRow = [], ...dataRows] = rows;
 
   if (rows.length === 0) {
     return {
       ok: false,
+      debug,
       message: 'The uploaded CSV is empty.',
       rows: [],
       normalizationPreview: [],
@@ -891,14 +1060,16 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
     };
   }
 
-  const [headerRow, ...dataRows] = rows;
-  const normalizedHeaders = headerRow.map((header) => normalizeHeader(header));
   const headerMap = headerRow.map((header) => {
     const normalized = normalizeHeader(header);
 
-    for (const [canonical, aliases] of Object.entries(headerAliases)) {
+    for (const [canonical, aliases] of Object.entries(groupedHeaderAliases)) {
+      if (canonical === 'userId') {
+        continue;
+      }
+
       if (aliases.includes(normalized)) {
-        return canonical as keyof typeof headerAliases;
+        return canonical as 'firstName' | 'lastName' | 'schoolEmail' | 'groupValue';
       }
     }
 
@@ -910,11 +1081,8 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
   if (missingHeaders.length > 0) {
     return {
       ok: false,
-      message: [
-        'Missing required headers. Expected first name, last name, school email, and groups columns.',
-        `Detected header cells: ${formatHeaderCells(headerRow)}`,
-        `Normalized header cells: ${formatHeaderCells(normalizedHeaders)}`
-      ].join(' '),
+      debug,
+      message: 'Missing required headers. Expected first name, last name, school email, and groups columns.',
       rows: [],
       normalizationPreview: [],
       metadataSuggestions: emptyResult
@@ -954,6 +1122,7 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
   if (candidateRows.length === 0) {
     return {
       ok: false,
+      debug,
       message: 'The uploaded CSV has headers but no student rows.',
       rows: [],
       normalizationPreview: [],
@@ -1153,6 +1322,7 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
 
   return {
     ok: true,
+    debug,
     rows: previewRows,
     normalizationPreview,
     metadataSuggestions,
@@ -1305,46 +1475,27 @@ export function parseStudentCsv(csvText: string, existingEmails: string[]) {
 
 export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImportParseResult {
   const parsedRows = parseBoostcampGroupedTextRows(csvText);
+  const debug = buildGroupedHeaderDebug(
+    parsedRows[0] ?? [],
+    'xlsx-text',
+    detectGroupedDelimiter(csvText),
+    parsedRows.slice(1)
+  );
 
-  if (parsedRows.length === 0) {
-    return {
-      ok: false,
-      message: 'The uploaded CSV is empty.',
-      metadataSuggestions: {
-        className: '',
-        programme: ''
-      },
-      normalizationPreview: [],
-      rows: []
-    };
-  }
-
-  return parseBoostcampGroupedTableRows(parsedRows);
+  return parseBoostcampGroupedTableRows(parsedRows, debug);
 }
 
 export async function parseBoostcampGroupedFile(
   file: File
 ): Promise<BoostcampGroupedImportParseResult> {
   try {
-    const parsedRows = await parseBoostcampGroupedFileRows(file);
-
-    if (parsedRows.length === 0) {
-      return {
-        ok: false,
-        message: 'The uploaded CSV is empty.',
-        metadataSuggestions: {
-          className: '',
-          programme: ''
-        },
-        normalizationPreview: [],
-        rows: []
-      };
-    }
-
-    return parseBoostcampGroupedTableRows(parsedRows);
+    const parsed = await parseBoostcampGroupedFileRows(file);
+    return parseBoostcampGroupedTableRows(parsed.rows, parsed.debug);
   } catch (error) {
+    const fallbackDebug = buildGroupedHeaderDebug([], 'not-run', 'unknown', []);
     return {
       ok: false,
+      debug: fallbackDebug,
       message: error instanceof Error ? error.message : 'Unable to read the uploaded CSV file.',
       metadataSuggestions: {
         className: '',
