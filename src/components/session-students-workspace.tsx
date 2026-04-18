@@ -56,7 +56,7 @@ export function SessionStudentsWorkspace({
   }, [metadata]);
 
   const handleImportApplied = useCallback(() => {
-    setActiveTab('setup');
+    setActiveTab((currentTab) => (currentTab === 'setup' ? currentTab : 'setup'));
   }, []);
 
   const handleMetadataSuggestionsChange = useCallback(

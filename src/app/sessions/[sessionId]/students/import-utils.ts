@@ -93,10 +93,10 @@ export type BoostcampGroupedMetadataSuggestions = {
   programme: string;
 };
 
-type BoostcampGroupedParserPath = 'text-array-buffer' | 'text-string' | 'not-run';
+type BoostcampGroupedParserPath = 'text-csv-array-buffer' | 'text-csv-string' | 'not-run';
 
 export type BoostcampGroupedParseDebug = {
-  decodingUsed: 'utf-8' | 'windows-1252' | 'string' | 'unknown';
+  decodingUsed: 'utf-8' | 'string' | 'unknown';
   detectedDelimiter: ',' | ';' | 'unknown';
   headerAliasMatches: {
     firstName: boolean;
@@ -268,62 +268,12 @@ const groupedHeaderAliases: Record<
 
 type BoostcampGroupedHeaderMatchState = BoostcampGroupedParseDebug['headerMatches'];
 
-function decodeBoostcampGroupedText(buffer: ArrayBuffer, encoding: 'utf-8' | 'windows-1252') {
+function decodeBoostcampGroupedText(buffer: ArrayBuffer) {
   try {
-    return new TextDecoder(encoding).decode(buffer);
+    return new TextDecoder('utf-8').decode(buffer);
   } catch {
     return null;
   }
-}
-
-function countDelimiterOccurrences(line: string, delimiter: ',' | ';') {
-  let count = 0;
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    const nextCharacter = line[index + 1];
-
-    if (character === '"') {
-      if (inQuotes && nextCharacter === '"') {
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (!inQuotes && character === delimiter) {
-      count += 1;
-    }
-  }
-
-  return count;
-}
-
-function detectGroupedDelimiter(text: string) {
-  const normalizedText = stripBom(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const firstLine = normalizedText
-    .split('\n')
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
-
-  if (!firstLine) {
-    return 'unknown' as const;
-  }
-
-  const commaCount = countDelimiterOccurrences(firstLine, ',');
-  const semicolonCount = countDelimiterOccurrences(firstLine, ';');
-
-  if (semicolonCount > commaCount) {
-    return ';' as const;
-  }
-
-  if (commaCount > 0) {
-    return ',' as const;
-  }
-
-  return 'unknown' as const;
 }
 
 function parseGroupedCsvRows(text: string, delimiter: ',' | ';') {
@@ -346,9 +296,20 @@ function parseGroupedCsvRows(text: string, delimiter: ',' | ';') {
       if (inQuotes && nextCharacter === '"') {
         currentCell += '"';
         index += 1;
-      } else {
-        inQuotes = !inQuotes;
+        continue;
       }
+
+      if (inQuotes) {
+        inQuotes = false;
+        continue;
+      }
+
+      if (currentCell === '') {
+        inQuotes = true;
+        continue;
+      }
+
+      currentCell += character;
       continue;
     }
 
@@ -434,7 +395,8 @@ function scoreGroupedHeaderRow(headerRow: string[]) {
 function buildGroupedParseDebug(
   rows: string[][],
   decodingUsed: BoostcampGroupedParseDebug['decodingUsed'],
-  detectedDelimiter: ',' | ';' | 'unknown'
+  detectedDelimiter: ',' | ';' | 'unknown',
+  parserPath: BoostcampGroupedParserPath
 ): BoostcampGroupedParseDebug {
   const headerRow = rows[0] ?? [];
   const headerScore = scoreGroupedHeaderRow(headerRow);
@@ -445,7 +407,7 @@ function buildGroupedParseDebug(
     headerAliasMatches: headerScore.headerAliasMatches,
     headerMatches: headerScore.headerMatches,
     normalizedHeaderCells: headerScore.normalizedHeaderCells,
-    parserPath: decodingUsed === 'string' ? 'text-string' : 'text-array-buffer',
+    parserPath,
     rawHeaderCells: headerRow,
     sampleRows: rows.slice(1, 6)
   };
@@ -480,7 +442,8 @@ function chooseGroupedParseCandidate(candidates: Array<{ decodingUsed: Boostcamp
 
 function parseBoostcampGroupedTextInput(
   text: string,
-  decodingUsed: BoostcampGroupedParseDebug['decodingUsed']
+  decodingUsed: BoostcampGroupedParseDebug['decodingUsed'],
+  parserPath: BoostcampGroupedParserPath
 ) {
   const delimiters = [',', ';'] as const;
   const candidates = delimiters
@@ -488,72 +451,27 @@ function parseBoostcampGroupedTextInput(
       const rows = parseGroupedCsvRows(text, delimiter);
       return rows ? { decodingUsed, delimiter, rows } : null;
     })
-    .filter((candidate): candidate is { decodingUsed: BoostcampGroupedParseDebug['decodingUsed']; delimiter: ',' | ';'; rows: string[][] } => Boolean(candidate));
+    .filter(
+      (
+        candidate
+      ): candidate is {
+        decodingUsed: BoostcampGroupedParseDebug['decodingUsed'];
+        delimiter: ',' | ';';
+        rows: string[][];
+      } => Boolean(candidate)
+    );
 
   const bestCandidate = chooseGroupedParseCandidate(candidates);
 
   if (!bestCandidate) {
     return {
-      debug: buildGroupedParseDebug([], decodingUsed, 'unknown'),
+      debug: buildGroupedParseDebug([], decodingUsed, 'unknown', parserPath),
       rows: [] as string[][]
     };
   }
 
   return {
-    debug: buildGroupedParseDebug(bestCandidate.rows, decodingUsed, bestCandidate.delimiter),
-    rows: bestCandidate.rows
-  };
-}
-
-async function parseBoostcampGroupedFileRows(file: File) {
-  const buffer = await file.arrayBuffer();
-  const utf8Text = decodeBoostcampGroupedText(buffer, 'utf-8');
-  const windows1252Text = decodeBoostcampGroupedText(buffer, 'windows-1252');
-
-  const decodedCandidates = [
-    utf8Text ? { decodingUsed: 'utf-8' as const, text: utf8Text } : null,
-    windows1252Text ? { decodingUsed: 'windows-1252' as const, text: windows1252Text } : null
-  ].filter((candidate): candidate is { decodingUsed: 'utf-8' | 'windows-1252'; text: string } =>
-    Boolean(candidate)
-  );
-
-  const parsedCandidates = decodedCandidates.length > 0
-    ? decodedCandidates.map((candidate) => {
-        const parsed = parseBoostcampGroupedTextInput(candidate.text, candidate.decodingUsed);
-        return {
-          decodingUsed: candidate.decodingUsed,
-          debug: {
-            ...parsed.debug,
-            decodingUsed: candidate.decodingUsed
-          },
-          rows: parsed.rows
-        };
-      })
-    : [{ decodingUsed: 'unknown' as const, debug: buildGroupedParseDebug([], 'unknown', 'unknown'), rows: [] as string[][] }];
-
-  const bestCandidate = parsedCandidates
-    .map((candidate) => {
-      const headerScore = scoreGroupedHeaderRow(candidate.rows[0] ?? []);
-      const score =
-        headerScore.requiredMatchCount * 100 +
-        headerScore.optionalMatchCount * 10 +
-        (candidate.rows[0]?.length ?? 0);
-
-      return {
-        ...candidate,
-        score
-      };
-    })
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score;
-      }
-
-      return left.decodingUsed.localeCompare(right.decodingUsed);
-    })[0] ?? { decodingUsed: 'unknown' as const, debug: buildGroupedParseDebug([], 'unknown', 'unknown'), rows: [] as string[][] };
-
-  return {
-    debug: bestCandidate.debug,
+    debug: buildGroupedParseDebug(bestCandidate.rows, decodingUsed, bestCandidate.delimiter, parserPath),
     rows: bestCandidate.rows
   };
 }
@@ -1609,7 +1527,7 @@ export function parseStudentCsv(csvText: string, existingEmails: string[]) {
 }
 
 export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImportParseResult {
-  const parsed = parseBoostcampGroupedTextInput(csvText, 'string');
+  const parsed = parseBoostcampGroupedTextInput(csvText, 'string', 'text-csv-string');
   return parseBoostcampGroupedTableRows(parsed.rows, parsed.debug);
 }
 
@@ -1617,10 +1535,31 @@ export async function parseBoostcampGroupedFile(
   file: File
 ): Promise<BoostcampGroupedImportParseResult> {
   try {
-    const parsed = await parseBoostcampGroupedFileRows(file);
+    const buffer = await file.arrayBuffer();
+    const decodedText = decodeBoostcampGroupedText(buffer);
+
+    if (!decodedText) {
+      return {
+        ok: false,
+        debug: buildGroupedParseDebug([], 'unknown', 'unknown', 'text-csv-array-buffer'),
+        message: 'Unable to read the uploaded CSV file.',
+        metadataSuggestions: {
+          className: '',
+          programme: ''
+        },
+        normalizationPreview: [],
+        rows: []
+      };
+    }
+
+    const parsed = parseBoostcampGroupedTextInput(
+      decodedText,
+      'utf-8',
+      'text-csv-array-buffer'
+    );
     return parseBoostcampGroupedTableRows(parsed.rows, parsed.debug);
   } catch (error) {
-    const fallbackDebug = buildGroupedParseDebug([], 'unknown', 'unknown');
+    const fallbackDebug = buildGroupedParseDebug([], 'unknown', 'unknown', 'text-csv-array-buffer');
     return {
       ok: false,
       debug: fallbackDebug,

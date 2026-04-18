@@ -66,8 +66,7 @@ export function SessionBoostcampGroupedImport({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedClassNames, setSelectedClassNames] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, UnclassifiedDecision>>({});
-  const onImportAppliedRef = useRef(onImportApplied);
-  const previousSuccessRef = useRef(false);
+  const successHandledRef = useRef(false);
   const [actionState, formAction, isPending] = useActionState(
     importBoostcampGroupedStudentsAction,
     initialActionState
@@ -396,17 +395,16 @@ export function SessionBoostcampGroupedImport({
   const hasInvalidData = invalidRows.length > 0;
 
   useEffect(() => {
-    onImportAppliedRef.current = onImportApplied;
-  }, [onImportApplied]);
-
-  useEffect(() => {
-    const becameSuccessful = Boolean(actionState.success) && !previousSuccessRef.current;
-    previousSuccessRef.current = Boolean(actionState.success);
-
-    if (becameSuccessful) {
-      onImportAppliedRef.current?.();
+    if (actionState.success) {
+      if (!successHandledRef.current) {
+        successHandledRef.current = true;
+        onImportApplied?.();
+      }
+      return;
     }
-  }, [actionState.success]);
+
+    successHandledRef.current = false;
+  }, [actionState.success, onImportApplied]);
 
   return (
     <section className="ui-panel grid gap-5 p-6">
