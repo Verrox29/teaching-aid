@@ -361,6 +361,10 @@ function safeDisplayLabel(value: string | null | undefined, language: Evaluation
   return normalized;
 }
 
+function addressPronoun(language: EvaluationLanguage) {
+  return language === 'fr' ? 'vous' : 'you';
+}
+
 const FALLBACK_TOPICS: Record<EvaluationLanguage, string[]> = {
   en: ['the proposed strategy', 'the diagnosis presented', 'the proposed action plan'],
   fr: ['la stratégie proposée', 'le diagnostic présenté', 'le plan d’action proposé']
@@ -606,20 +610,24 @@ export function buildChallengeQuestions(
   const primaryAnchor = pickSafeAnchor([anchors.primaryAnchor, topicFocus], language);
   const secondaryAnchor = pickSafeAnchor([anchors.secondaryAnchor, topicFocus], language);
   const critiqueAnchor = pickSafeAnchor([anchors.critiqueAnchor, topicFocus], language);
-  const groupLabel = safeDisplayLabel(input.groupName, language);
+  const pronoun = addressPronoun(language);
 
   if (language === 'fr') {
     return [
-      `Dans la partie qui porte sur ${primaryAnchor}, quelle preuve concrète dans votre travail justifie ce constat ou ce choix ?`,
+      `Quand vous parlez de ${primaryAnchor}, quelle preuve concrète dans votre travail justifie ce constat ou ce choix ?`,
       `Pourquoi avez-vous retenu ${secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
-      `Comment ${groupLabel} défend-il l’idée principale de ${topicFocus} face à une question critique sur ${critiqueAnchor === topicFocus ? 'les preuves et les effets attendus' : critiqueAnchor} ?`
+      `Comment justifiez-vous l’idée principale de ${topicFocus} face à une question critique sur ${
+        critiqueAnchor === topicFocus ? 'les preuves et les effets attendus' : critiqueAnchor
+      } ?`
     ];
   }
 
   return [
-    `In the part about ${primaryAnchor}, what concrete evidence in the work justifies that diagnosis or choice?`,
+    `When you discuss ${primaryAnchor}, what concrete evidence in the work justifies that diagnosis or choice?`,
     `Why did you choose ${secondaryAnchor} instead of another option, and what trade-off did that require?`,
-    `How does ${groupLabel} defend the main idea of ${topicFocus} when challenged on ${critiqueAnchor === topicFocus ? 'the evidence and expected impact' : critiqueAnchor}?`
+    `How do ${pronoun} justify the main idea of ${topicFocus} when challenged on ${
+      critiqueAnchor === topicFocus ? 'the evidence and expected impact' : critiqueAnchor
+    }?`
   ];
 }
 

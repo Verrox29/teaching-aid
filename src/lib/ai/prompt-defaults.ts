@@ -27,7 +27,9 @@ export const BRANCHING_AI_PROMPT_DEFAULTS: Record<
       '{{submission_text}}',
       '{{session_context}}',
       '{{assignment_brief}}',
-      '{{evaluation_criteria}}'
+      '{{evaluation_criteria}}',
+      '{{question_variation_focus}}',
+      '{{session_language}}'
     ],
     promptKey: 'generate_challenge_questions',
     template: [
@@ -43,6 +45,9 @@ export const BRANCHING_AI_PROMPT_DEFAULTS: Record<
       '',
       'Use the uploaded work as the main source of truth.',
       'Avoid trivia, generic comprehension checks, or questions that can be answered from memory alone.',
+      'If the session language is French, write the questions in clear French and address the presenting group directly with "vous".',
+      'Do not use indirect wording such as "ce groupe" or long copied fragments from the submission.',
+      'Make each regeneration feel fresh by varying which angle is emphasized.',
       '',
       'Teacher context:',
       '- Group: {{group_name}}',
@@ -51,8 +56,18 @@ export const BRANCHING_AI_PROMPT_DEFAULTS: Record<
       '- Session context: {{session_context}}',
       '- Assignment brief: {{assignment_brief}}',
       '- Evaluation criteria: {{evaluation_criteria}}',
+      '- Regeneration focus: {{question_variation_focus}}',
+      '- Session language: {{session_language}}',
       '',
-      'Return teacher-friendly output only.'
+      'Return valid JSON only with this exact shape:',
+      '{',
+      '  "questions": [',
+      '    "Question 1",',
+      '    "Question 2"',
+      '  ]',
+      '}',
+      '',
+      'Return 2 or 3 questions only.'
     ].join('\n'),
     title: 'Challenge Questions'
   },

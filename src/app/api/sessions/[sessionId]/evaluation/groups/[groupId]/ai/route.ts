@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
-  buildChallengeQuestions,
-  getEvaluationLanguage
-} from '@/lib/evaluation/engine';
-import { derivePeerQuestionsObserved, generateBranchingAiGradingRecommendations } from '@/lib/ai';
+  derivePeerQuestionsObserved,
+  generateBranchingAiChallengeQuestions,
+  generateBranchingAiGradingRecommendations
+} from '@/lib/ai';
 import { db, sessions } from '@/db';
 import {
   getEvaluationContext,
@@ -89,23 +89,31 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     if (mode === 'questions') {
-      const language = getEvaluationLanguage(context.session.language);
       await resetEvaluationAiQuestions(sessionId, groupId);
-      const challengeQuestions = buildChallengeQuestions(
+      const challengeQuestionsResult = await generateBranchingAiChallengeQuestions(
         {
+          assignmentBrief: sessionRecord?.instructions?.trim() || '',
           className: metadata.className || context.session.title,
+          evaluationCriteria: context.rubric?.criteria ?? [],
           groupName: context.group.name,
-          teacherComments: context.evaluation?.presentationComments ?? null,
+          presentationContent: context.evaluation?.presentationComments ?? '',
+          sessionContext: buildSessionContextSummary({
+            className: metadata.className || context.session.title,
+            instructions: sessionRecord?.instructions ?? null,
+            metadata,
+            sessionLanguage: context.session.language,
+            sessionTitle: sessionRecord?.title ?? context.session.title
+          }),
           sessionLanguage: context.session.language,
           submissionText: context.submissionText,
           subject: metadata.subject || context.session.title
-        },
-        language
+        }
       );
 
       await saveEvaluationAiResult({
         aiGeneratedAt: new Date(),
-        aiRecommendedQuestions: challengeQuestions,
+        aiLastError: challengeQuestionsResult.diagnostics.fallbackReason,
+        aiRecommendedQuestions: challengeQuestionsResult.questions,
         groupId,
         sessionId
       });

@@ -1,4 +1,4 @@
-import { buildEvaluationRecommendations } from '@/lib/evaluation/engine';
+import { buildChallengeQuestions, buildEvaluationRecommendations } from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -26,6 +26,18 @@ type EvaluationGradingPromptInput = {
   subject: string;
   submissionContent?: string | null;
   submissionTitle?: string | null;
+};
+
+type EvaluationChallengeQuestionPromptInput = {
+  assignmentBrief: string;
+  className: string;
+  evaluationCriteria: EvaluationCriterionRow[];
+  groupName: string;
+  presentationContent: string;
+  sessionContext: string;
+  sessionLanguage: string;
+  submissionText: string | null;
+  subject: string;
 };
 
 type ParsedEvaluationGradingResponse = {
@@ -62,6 +74,15 @@ export type BranchingAiGradingResult = {
   feedback: EvaluationAiFeedbackSections;
   recommendedCriteria: EvaluationAiCriterionRecommendation[];
   recommendedTotalScore: number;
+};
+
+export type BranchingAiChallengeQuestionsResult = {
+  diagnostics: {
+    fallbackReason: string | null;
+    repairApplied: boolean;
+    responseFormat: 'json_schema' | 'json_object' | 'heuristic_fallback';
+  };
+  questions: string[];
 };
 
 const gradingResponseJsonSchema = {
@@ -103,6 +124,37 @@ const gradingResponseJsonSchema = {
   required: ['commentSections', 'criteria'],
   type: 'object'
 } as const;
+
+const challengeQuestionsResponseJsonSchema = {
+  additionalProperties: false,
+  properties: {
+    questions: {
+      items: { type: 'string' },
+      minItems: 2,
+      maxItems: 3,
+      type: 'array'
+    }
+  },
+  required: ['questions'],
+  type: 'object'
+} as const;
+
+const QUESTION_VARIATION_FOCI: Record<'en' | 'fr', string[]> = {
+  en: [
+    'diagnosis and problem statement',
+    'rationale behind the chosen solution',
+    'trade-offs and limitations',
+    'evidence, impact, and ROI',
+    'defense under critical questioning'
+  ],
+  fr: [
+    'le diagnostic et le problème posé',
+    'la raison du choix de solution',
+    'les compromis et les limites',
+    'les preuves, l’impact et le ROI',
+    'la défense face à une question critique'
+  ]
+};
 
 function normalizeLanguage(language: string) {
   return language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
@@ -428,6 +480,23 @@ function buildPromptVariables(input: EvaluationGradingPromptInput) {
   };
 }
 
+function buildChallengeQuestionPromptVariables(input: EvaluationChallengeQuestionPromptInput) {
+  const sessionLanguage = normalizeLanguage(input.sessionLanguage);
+
+  return {
+    assignment_brief: normalizeText(input.assignmentBrief) || 'No assignment brief was provided.',
+    class_name: input.className,
+    evaluation_criteria: stringifyCriteria(input.evaluationCriteria),
+    group_name: input.groupName,
+    presentation_content: normalizeText(input.presentationContent) || 'No presentation content was provided.',
+    question_variation_focus: pickQuestionVariationFocus(sessionLanguage),
+    session_context: normalizeText(input.sessionContext) || 'No session context was provided.',
+    session_language: sessionLanguage,
+    submission_text: normalizeText(input.submissionText) || 'No submission text was provided.',
+    subject: input.subject
+  };
+}
+
 function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPromptInput) {
   const criteria = sortCriteria(input.criteria);
   const criteriaJson = stringifyCriteriaJson(criteria);
@@ -542,9 +611,141 @@ function buildFallbackReason(reason: string) {
   return `Branching AI grading fell back to the heuristic engine: ${reason}`;
 }
 
+function buildQuestionFallbackReason(reason: string) {
+  return `Branching AI challenge questions fell back to the heuristic engine: ${reason}`;
+}
+
 function looksLikeStructuredOutputSupportError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return /response_format|json_schema|structured output|schema/i.test(message);
+}
+
+function pickQuestionVariationFocus(language: 'en' | 'fr') {
+  const variants = QUESTION_VARIATION_FOCI[language];
+  return variants[Math.floor(Math.random() * variants.length)] ?? variants[0];
+}
+
+function normalizeChallengeQuestionText(value: string, language: 'en' | 'fr') {
+  const normalized = value
+    .replace(/^[\s\-*•\d.)]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length > 180) {
+    return null;
+  }
+
+  if (/[0-9]/.test(normalized)) {
+    return null;
+  }
+
+  if (language === 'fr') {
+    if (/\bce groupe\b/i.test(normalized) || /\ble groupe\b/i.test(normalized)) {
+      return null;
+    }
+
+    if (!/\bvous\b/i.test(normalized)) {
+      return null;
+    }
+  }
+
+  if (!/[\?!.]$/.test(normalized)) {
+    return `${normalized}?`;
+  }
+
+  return normalized;
+}
+
+function normalizeChallengeQuestionsPayload(payload: unknown, language: 'en' | 'fr') {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const candidate = payload.questions ?? payload.challengeQuestions ?? payload.items;
+  const normalized: string[] = [];
+
+  if (Array.isArray(candidate)) {
+    for (const entry of candidate) {
+      const text = coerceText(entry);
+      const normalizedText = text ? normalizeChallengeQuestionText(text, language) : null;
+      if (normalizedText && !normalized.includes(normalizedText)) {
+        normalized.push(normalizedText);
+      }
+    }
+  }
+
+  return normalized.length >= 2 && normalized.length <= 3 ? normalized : null;
+}
+
+function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'fr') {
+  const stripped = stripJsonFences(rawContent);
+  const candidates = Array.from(
+    new Set([stripped, extractJsonCandidate(rawContent)].filter(Boolean))
+  );
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      const normalized = normalizeChallengeQuestionsPayload(parsed, language);
+      if (!normalized) {
+        errors.push('JSON parsed but the challenge question payload was missing usable questions.');
+        continue;
+      }
+
+      const repairApplied = candidate !== stripped || candidate !== rawContent.trim();
+      return {
+        parsed: normalized,
+        repairApplied
+      };
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : 'Could not parse model output.');
+    }
+  }
+
+  return {
+    parsed: null,
+    reason: errors[0] ?? 'The model did not return valid JSON.'
+  };
+}
+
+function buildChallengeQuestionRuntimeScaffold(renderedPrompt: string, input: EvaluationChallengeQuestionPromptInput) {
+  const sessionLanguage = normalizeLanguage(input.sessionLanguage);
+  const criteriaJson = stringifyCriteriaJson(input.evaluationCriteria);
+
+  return [
+    'Runtime question contract:',
+    '- Return valid JSON only, with no markdown, code fences, or prose outside the JSON object.',
+    '- Return exactly 2 or 3 short oral-defense questions.',
+    '- Address the presenting group directly with "vous" when the session language is French.',
+    '- Do not use indirect wording such as "ce groupe" or copy long fragments from the submission.',
+    '- Keep each question concise, natural, and easy to say aloud.',
+    '- Focus on diagnosis, rationale, trade-offs, and evidence/impact.',
+    '',
+    'Editable prompt template:',
+    renderedPrompt.trim() || 'No editable prompt template was provided.',
+    '',
+    'Session language:',
+    sessionLanguage,
+    '',
+    'Session context:',
+    normalizeText(input.sessionContext) || 'No session context was provided.',
+    '',
+    'Canonical criteria JSON:',
+    criteriaJson,
+    '',
+    'Required output schema:',
+    '{',
+    '  "questions": [',
+    '    "Question 1",',
+    '    "Question 2"',
+    '  ]',
+    '}'
+  ].join('\n');
 }
 
 export async function generateBranchingAiGradingRecommendations(
@@ -591,7 +792,7 @@ export async function generateBranchingAiGradingRecommendations(
     };
   }
 
-  const promptTemplate = getPromptTemplate(settingsBundle.prompts);
+  const promptTemplate = getPromptTemplate(settingsBundle.prompts, 'generate_feedback_and_grading');
   if (!promptTemplate?.trim()) {
     return {
       ...fallback,
@@ -725,6 +926,169 @@ export async function generateBranchingAiGradingRecommendations(
   }
 }
 
-function getPromptTemplate(prompts: Array<{ promptKey: string; template: string }>) {
-  return prompts.find((prompt) => prompt.promptKey === 'generate_feedback_and_grading')?.template ?? null;
+export async function generateBranchingAiChallengeQuestions(
+  input: EvaluationChallengeQuestionPromptInput
+): Promise<BranchingAiChallengeQuestionsResult> {
+  const language = normalizeLanguage(input.sessionLanguage);
+  const fallback = buildChallengeQuestions(
+    {
+      className: input.className,
+      groupName: input.groupName,
+      teacherComments: input.presentationContent,
+      sessionLanguage: input.sessionLanguage,
+      submissionText: input.submissionText,
+      subject: input.subject
+    },
+    language
+  );
+
+  let settingsBundle: Awaited<ReturnType<typeof getBranchingAiFullSettings>>;
+
+  try {
+    settingsBundle = await getBranchingAiFullSettings();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'Could not load Branching AI settings.';
+    return {
+      diagnostics: {
+        fallbackReason: buildQuestionFallbackReason(reason),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      questions: fallback
+    };
+  }
+
+  const settings = settingsBundle.settings;
+
+  if (
+    !settings.enabled ||
+    settings.verificationStatus !== 'verified' ||
+    !settingsBundle.hasApiKey ||
+    !settingsBundle.apiKey ||
+    settings.provider !== 'openai-compatible' ||
+    !settings.apiBaseUrl?.trim() ||
+    !settings.model?.trim()
+  ) {
+    return {
+      diagnostics: {
+        fallbackReason: buildQuestionFallbackReason('Branching AI is not fully configured or verified.'),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      questions: fallback
+    };
+  }
+
+  const promptTemplate = getPromptTemplate(
+    settingsBundle.prompts,
+    'generate_challenge_questions'
+  );
+  if (!promptTemplate?.trim()) {
+    return {
+      diagnostics: {
+        fallbackReason: buildQuestionFallbackReason('The challenge question prompt template is missing.'),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      questions: fallback
+    };
+  }
+
+  try {
+    const client = buildBranchingAiClient(settings, settingsBundle.apiKey!);
+    const renderedPrompt = renderPromptTemplate(
+      promptTemplate,
+      buildChallengeQuestionPromptVariables(input)
+    );
+    const systemPrompt = [
+      'You generate challenge questions for a teacher.',
+      'Return valid JSON only.',
+      'Do not wrap the response in markdown, code fences, or prose.',
+      'Follow the output schema exactly.',
+      'Return 2 or 3 concise oral-defense questions.',
+      'Address the presenting group directly with "vous" when the session language is French.',
+      'Do not use indirect wording such as "ce groupe".',
+      'Avoid long copied fragments from the submission.',
+      'Make the question set feel fresh by varying the emphasis.'
+    ].join(' ');
+
+    const requestMessages = [
+      { content: systemPrompt, role: 'system' as const },
+      {
+        content: buildChallengeQuestionRuntimeScaffold(renderedPrompt, input),
+        role: 'user' as const
+      }
+    ];
+
+    let content: string;
+    let responseFormatUsed: 'json_schema' | 'json_object' = 'json_schema';
+
+    try {
+      content = await client.generateChatCompletion({
+        maxTokens: 500,
+        messages: requestMessages,
+        responseFormat: {
+          json_schema: {
+            name: 'pairagogie_challenge_questions',
+            schema: challengeQuestionsResponseJsonSchema,
+            strict: true
+          },
+          type: 'json_schema'
+        },
+        temperature: 0.7
+      });
+    } catch (error) {
+      if (!looksLikeStructuredOutputSupportError(error)) {
+        throw error;
+      }
+
+      responseFormatUsed = 'json_object';
+      content = await client.generateChatCompletion({
+        maxTokens: 500,
+        messages: requestMessages,
+        responseFormat: { type: 'json_object' },
+        temperature: 0.7
+      });
+    }
+
+    const parsedOutcome = parseChallengeQuestionsResponse(content, language);
+    if (!parsedOutcome.parsed) {
+      return {
+        diagnostics: {
+          fallbackReason: buildQuestionFallbackReason(
+            `The model returned unusable JSON: ${parsedOutcome.reason}`
+          ),
+          repairApplied: false,
+          responseFormat: 'heuristic_fallback'
+        },
+        questions: fallback
+      };
+    }
+
+    return {
+      diagnostics: {
+        fallbackReason: null,
+        repairApplied: parsedOutcome.repairApplied,
+        responseFormat: responseFormatUsed
+      },
+      questions: parsedOutcome.parsed
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'The Branching AI request failed.';
+    return {
+      diagnostics: {
+        fallbackReason: buildQuestionFallbackReason(reason),
+        repairApplied: false,
+        responseFormat: 'heuristic_fallback'
+      },
+      questions: fallback
+    };
+  }
+}
+
+function getPromptTemplate(
+  prompts: Array<{ promptKey: string; template: string }>,
+  promptKey: 'generate_challenge_questions' | 'generate_feedback_and_grading'
+) {
+  return prompts.find((prompt) => prompt.promptKey === promptKey)?.template ?? null;
 }

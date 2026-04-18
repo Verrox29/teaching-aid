@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import {
-  buildChallengeQuestions,
-  formatFeedbackSections,
-  getEvaluationLanguage
-} from '@/lib/evaluation/engine';
-import { derivePeerQuestionsObserved, generateBranchingAiGradingRecommendations } from '@/lib/ai';
+  derivePeerQuestionsObserved,
+  generateBranchingAiChallengeQuestions,
+  generateBranchingAiGradingRecommendations
+} from '@/lib/ai';
 import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import {
@@ -76,7 +76,6 @@ export async function POST(request: Request, { params }: RouteParams) {
       .where(eq(sessions.id, sessionId))
       .limit(1);
     const sessionRecord = sessionRows[0] ?? null;
-    const language = getEvaluationLanguage(workspace.session.language);
     const mode = parsed.data.mode;
     const skipped: Array<{ groupId: string; groupName: string; reason: string }> = [];
 
@@ -92,21 +91,30 @@ export async function POST(request: Request, { params }: RouteParams) {
         }
 
         await resetEvaluationAiQuestions(sessionId, group.groupId);
-        const challengeQuestions = buildChallengeQuestions(
+        const challengeQuestionsResult = await generateBranchingAiChallengeQuestions(
           {
+            assignmentBrief: sessionRecord?.instructions?.trim() || '',
             className: metadata.className || workspace.session.title,
+            evaluationCriteria: workspace.rubric?.criteria ?? [],
             groupName: group.groupName,
-            teacherComments: group.presentationComments ?? null,
+            presentationContent: group.presentationComments ?? '',
+            sessionContext: buildSessionContextSummary({
+              className: metadata.className || workspace.session.title,
+              instructions: sessionRecord?.instructions ?? null,
+              metadata,
+              sessionLanguage: workspace.session.language,
+              sessionTitle: sessionRecord?.title ?? workspace.session.title
+            }),
             sessionLanguage: workspace.session.language,
             submissionText: group.submissionText,
             subject: metadata.subject || workspace.session.title
-          },
-          language
+          }
         );
 
         await saveEvaluationAiResult({
           aiGeneratedAt: new Date(),
-          aiRecommendedQuestions: challengeQuestions,
+          aiLastError: challengeQuestionsResult.diagnostics.fallbackReason,
+          aiRecommendedQuestions: challengeQuestionsResult.questions,
           groupId: group.groupId,
           sessionId
         });
