@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 const headerAliases: Record<keyof StudentImportRowInput, string[]> = {
@@ -94,9 +93,10 @@ export type BoostcampGroupedMetadataSuggestions = {
   programme: string;
 };
 
-type BoostcampGroupedParserPath = 'xlsx-array-buffer' | 'xlsx-text' | 'not-run';
+type BoostcampGroupedParserPath = 'text-array-buffer' | 'text-string' | 'not-run';
 
 export type BoostcampGroupedParseDebug = {
+  decodingUsed: 'utf-8' | 'windows-1252' | 'string' | 'unknown';
   detectedDelimiter: ',' | ';' | 'unknown';
   headerAliasMatches: {
     firstName: boolean;
@@ -268,35 +268,12 @@ const groupedHeaderAliases: Record<
 
 type BoostcampGroupedHeaderMatchState = BoostcampGroupedParseDebug['headerMatches'];
 
-function rowsFromXlsxSheet(sheet: XLSX.WorkSheet) {
-  const table = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    blankrows: false,
-    defval: ''
-  }) as unknown[][];
-
-  return table.map((row) => (Array.isArray(row) ? row.map((cell) => String(cell ?? '')) : []));
-}
-
-function parseBoostcampGroupedTextRows(text: string) {
-  const normalizedText = stripBom(text).trim();
-  if (!normalizedText) {
-    return [];
+function decodeBoostcampGroupedText(buffer: ArrayBuffer, encoding: 'utf-8' | 'windows-1252') {
+  try {
+    return new TextDecoder(encoding).decode(buffer);
+  } catch {
+    return null;
   }
-
-  const workbook = XLSX.read(normalizedText, { type: 'string', codepage: 65001 });
-  const firstSheetName = workbook.SheetNames[0];
-
-  if (!firstSheetName) {
-    return [];
-  }
-
-  const worksheet = workbook.Sheets[firstSheetName];
-  if (!worksheet) {
-    return [];
-  }
-
-  return rowsFromXlsxSheet(worksheet);
 }
 
 function countDelimiterOccurrences(line: string, delimiter: ',' | ';') {
@@ -349,12 +326,64 @@ function detectGroupedDelimiter(text: string) {
   return 'unknown' as const;
 }
 
-function buildGroupedHeaderDebug(
-  headerRow: string[],
-  parserPath: BoostcampGroupedParserPath,
-  detectedDelimiter: ',' | ';' | 'unknown',
-  sampleRows: string[][]
-) {
+function parseGroupedCsvRows(text: string, delimiter: ',' | ';') {
+  const normalizedText = stripBom(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  if (!normalizedText.trim()) {
+    return [] as string[][];
+  }
+
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < normalizedText.length; index += 1) {
+    const character = normalizedText[index];
+    const nextCharacter = normalizedText[index + 1];
+
+    if (character === '"') {
+      if (inQuotes && nextCharacter === '"') {
+        currentCell += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && character === delimiter) {
+      currentRow.push(currentCell);
+      currentCell = '';
+      continue;
+    }
+
+    if (!inQuotes && character === '\n') {
+      currentRow.push(currentCell);
+      if (currentRow.some((cell) => cell.trim().length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = '';
+      continue;
+    }
+
+    currentCell += character;
+  }
+
+  if (inQuotes) {
+    return null;
+  }
+
+  currentRow.push(currentCell);
+  if (currentRow.some((cell) => cell.trim().length > 0)) {
+    rows.push(currentRow);
+  }
+
+  return rows;
+}
+
+function scoreGroupedHeaderRow(headerRow: string[]) {
   const headerMatches: BoostcampGroupedHeaderMatchState = {
     firstName: null,
     groupValue: null,
@@ -363,67 +392,169 @@ function buildGroupedHeaderDebug(
     userId: null
   };
 
+  const headerAliasMatches = {
+    firstName: false,
+    groupValue: false,
+    lastName: false,
+    schoolEmail: false,
+    userId: false
+  };
+
   for (const cell of headerRow) {
     const normalized = normalizeHeader(cell);
 
     for (const [canonical, aliases] of Object.entries(groupedHeaderAliases)) {
-      if (aliases.includes(normalized) && !headerMatches[canonical as keyof BoostcampGroupedHeaderMatchState]) {
-        headerMatches[canonical as keyof BoostcampGroupedHeaderMatchState] = cell;
+      if (!aliases.includes(normalized)) {
+        continue;
+      }
+
+      const key = canonical as keyof BoostcampGroupedHeaderMatchState;
+      headerAliasMatches[key] = true;
+      if (!headerMatches[key]) {
+        headerMatches[key] = cell;
       }
     }
   }
 
   const normalizedHeaderCells = headerRow.map((header) => normalizeHeader(header));
+  const requiredMatchCount = ['firstName', 'lastName', 'schoolEmail', 'groupValue'].filter(
+    (header) => Boolean(headerMatches[header as keyof BoostcampGroupedHeaderMatchState])
+  ).length;
+  const optionalMatchCount = headerMatches.userId ? 1 : 0;
 
   return {
-    detectedDelimiter,
-    headerAliasMatches: {
-      firstName: Boolean(headerMatches.firstName),
-      groupValue: Boolean(headerMatches.groupValue),
-      lastName: Boolean(headerMatches.lastName),
-      schoolEmail: Boolean(headerMatches.schoolEmail),
-      userId: Boolean(headerMatches.userId)
-    },
+    headerAliasMatches,
     headerMatches,
     normalizedHeaderCells,
-    parserPath,
+    optionalMatchCount,
+    requiredMatchCount
+  };
+}
+
+function buildGroupedParseDebug(
+  rows: string[][],
+  decodingUsed: BoostcampGroupedParseDebug['decodingUsed'],
+  detectedDelimiter: ',' | ';' | 'unknown'
+): BoostcampGroupedParseDebug {
+  const headerRow = rows[0] ?? [];
+  const headerScore = scoreGroupedHeaderRow(headerRow);
+
+  return {
+    decodingUsed,
+    detectedDelimiter,
+    headerAliasMatches: headerScore.headerAliasMatches,
+    headerMatches: headerScore.headerMatches,
+    normalizedHeaderCells: headerScore.normalizedHeaderCells,
+    parserPath: decodingUsed === 'string' ? 'text-string' : 'text-array-buffer',
     rawHeaderCells: headerRow,
-    sampleRows: sampleRows.slice(0, 5)
+    sampleRows: rows.slice(1, 6)
+  };
+}
+
+function chooseGroupedParseCandidate(candidates: Array<{ decodingUsed: BoostcampGroupedParseDebug['decodingUsed']; delimiter: ',' | ';'; rows: string[][] }>) {
+  return candidates
+    .map((candidate) => {
+      const headerScore = scoreGroupedHeaderRow(candidate.rows[0] ?? []);
+      const score =
+        headerScore.requiredMatchCount * 100 +
+        headerScore.optionalMatchCount * 10 +
+        (candidate.rows[0]?.length ?? 0);
+
+      return {
+        ...candidate,
+        score
+      };
+    })
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      if (left.decodingUsed !== right.decodingUsed) {
+        return left.decodingUsed.localeCompare(right.decodingUsed);
+      }
+
+      return left.delimiter.localeCompare(right.delimiter);
+    })[0] ?? null;
+}
+
+function parseBoostcampGroupedTextInput(
+  text: string,
+  decodingUsed: BoostcampGroupedParseDebug['decodingUsed']
+) {
+  const delimiters = [',', ';'] as const;
+  const candidates = delimiters
+    .map((delimiter) => {
+      const rows = parseGroupedCsvRows(text, delimiter);
+      return rows ? { decodingUsed, delimiter, rows } : null;
+    })
+    .filter((candidate): candidate is { decodingUsed: BoostcampGroupedParseDebug['decodingUsed']; delimiter: ',' | ';'; rows: string[][] } => Boolean(candidate));
+
+  const bestCandidate = chooseGroupedParseCandidate(candidates);
+
+  if (!bestCandidate) {
+    return {
+      debug: buildGroupedParseDebug([], decodingUsed, 'unknown'),
+      rows: [] as string[][]
+    };
+  }
+
+  return {
+    debug: buildGroupedParseDebug(bestCandidate.rows, decodingUsed, bestCandidate.delimiter),
+    rows: bestCandidate.rows
   };
 }
 
 async function parseBoostcampGroupedFileRows(file: File) {
   const buffer = await file.arrayBuffer();
-  const decodedText = new TextDecoder('utf-8').decode(buffer);
-  const workbook = XLSX.read(buffer, { type: 'array', codepage: 65001 });
-  const firstSheetName = workbook.SheetNames[0];
+  const utf8Text = decodeBoostcampGroupedText(buffer, 'utf-8');
+  const windows1252Text = decodeBoostcampGroupedText(buffer, 'windows-1252');
 
-  if (!firstSheetName) {
-    return {
-      debug: buildGroupedHeaderDebug([], 'xlsx-array-buffer', detectGroupedDelimiter(decodedText), []),
-      rows: []
-    };
-  }
+  const decodedCandidates = [
+    utf8Text ? { decodingUsed: 'utf-8' as const, text: utf8Text } : null,
+    windows1252Text ? { decodingUsed: 'windows-1252' as const, text: windows1252Text } : null
+  ].filter((candidate): candidate is { decodingUsed: 'utf-8' | 'windows-1252'; text: string } =>
+    Boolean(candidate)
+  );
 
-  const worksheet = workbook.Sheets[firstSheetName];
-  if (!worksheet) {
-    return {
-      debug: buildGroupedHeaderDebug([], 'xlsx-array-buffer', detectGroupedDelimiter(decodedText), []),
-      rows: []
-    };
-  }
+  const parsedCandidates = decodedCandidates.length > 0
+    ? decodedCandidates.map((candidate) => {
+        const parsed = parseBoostcampGroupedTextInput(candidate.text, candidate.decodingUsed);
+        return {
+          decodingUsed: candidate.decodingUsed,
+          debug: {
+            ...parsed.debug,
+            decodingUsed: candidate.decodingUsed
+          },
+          rows: parsed.rows
+        };
+      })
+    : [{ decodingUsed: 'unknown' as const, debug: buildGroupedParseDebug([], 'unknown', 'unknown'), rows: [] as string[][] }];
 
-  const rows = rowsFromXlsxSheet(worksheet);
-  const [headerRow = [], ...dataRows] = rows;
+  const bestCandidate = parsedCandidates
+    .map((candidate) => {
+      const headerScore = scoreGroupedHeaderRow(candidate.rows[0] ?? []);
+      const score =
+        headerScore.requiredMatchCount * 100 +
+        headerScore.optionalMatchCount * 10 +
+        (candidate.rows[0]?.length ?? 0);
+
+      return {
+        ...candidate,
+        score
+      };
+    })
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return left.decodingUsed.localeCompare(right.decodingUsed);
+    })[0] ?? { decodingUsed: 'unknown' as const, debug: buildGroupedParseDebug([], 'unknown', 'unknown'), rows: [] as string[][] };
 
   return {
-    debug: buildGroupedHeaderDebug(
-      headerRow,
-      'xlsx-array-buffer',
-      detectGroupedDelimiter(decodedText),
-      dataRows
-    ),
-    rows
+    debug: bestCandidate.debug,
+    rows: bestCandidate.rows
   };
 }
 
@@ -1082,7 +1213,11 @@ function parseBoostcampGroupedTableRows(
     return {
       ok: false,
       debug,
-      message: 'Missing required headers. Expected first name, last name, school email, and groups columns.',
+      message: [
+        'Missing required headers. Expected first name, last name, school email, and groups columns.',
+        `Detected header cells: ${formatHeaderCells(headerRow)}`,
+        `Normalized header cells: ${formatHeaderCells(debug.normalizedHeaderCells)}`
+      ].join(' '),
       rows: [],
       normalizationPreview: [],
       metadataSuggestions: emptyResult
@@ -1474,15 +1609,8 @@ export function parseStudentCsv(csvText: string, existingEmails: string[]) {
 }
 
 export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImportParseResult {
-  const parsedRows = parseBoostcampGroupedTextRows(csvText);
-  const debug = buildGroupedHeaderDebug(
-    parsedRows[0] ?? [],
-    'xlsx-text',
-    detectGroupedDelimiter(csvText),
-    parsedRows.slice(1)
-  );
-
-  return parseBoostcampGroupedTableRows(parsedRows, debug);
+  const parsed = parseBoostcampGroupedTextInput(csvText, 'string');
+  return parseBoostcampGroupedTableRows(parsed.rows, parsed.debug);
 }
 
 export async function parseBoostcampGroupedFile(
@@ -1492,7 +1620,7 @@ export async function parseBoostcampGroupedFile(
     const parsed = await parseBoostcampGroupedFileRows(file);
     return parseBoostcampGroupedTableRows(parsed.rows, parsed.debug);
   } catch (error) {
-    const fallbackDebug = buildGroupedHeaderDebug([], 'not-run', 'unknown', []);
+    const fallbackDebug = buildGroupedParseDebug([], 'unknown', 'unknown');
     return {
       ok: false,
       debug: fallbackDebug,

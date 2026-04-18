@@ -55,6 +55,10 @@ export function SessionStudentsWorkspace({
     setMetadataDraft(metadata);
   }, [metadata]);
 
+  const handleImportApplied = useCallback(() => {
+    setActiveTab('setup');
+  }, []);
+
   const handleMetadataSuggestionsChange = useCallback(
     (nextSuggestions: MetadataSuggestionState) => {
       setMetadataSuggestions((current) =>
@@ -158,7 +162,7 @@ export function SessionStudentsWorkspace({
 
               {importMode === 'grouped' ? (
                 <SessionBoostcampGroupedImport
-                  onImportApplied={() => setActiveTab('setup')}
+                  onImportApplied={handleImportApplied}
                   onMetadataSuggestionsChange={handleMetadataSuggestionsChange}
                   sessionId={sessionId}
                 />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 
 import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
@@ -66,6 +66,8 @@ export function SessionBoostcampGroupedImport({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedClassNames, setSelectedClassNames] = useState<string[]>([]);
   const [decisions, setDecisions] = useState<Record<string, UnclassifiedDecision>>({});
+  const onImportAppliedRef = useRef(onImportApplied);
+  const previousSuccessRef = useRef(false);
   const [actionState, formAction, isPending] = useActionState(
     importBoostcampGroupedStudentsAction,
     initialActionState
@@ -240,6 +242,7 @@ export function SessionBoostcampGroupedImport({
       setParseMessage(undefined);
       setParseError('Please upload a CSV file exported from Boostcamp.');
       setDebugInfo({
+        decodingUsed: 'unknown',
         detectedDelimiter: 'unknown',
         headerAliasMatches: {
           firstName: false,
@@ -293,6 +296,7 @@ export function SessionBoostcampGroupedImport({
       setSelectedClassNames([]);
       setDecisions({});
       setDebugInfo({
+        decodingUsed: 'unknown',
         detectedDelimiter: 'unknown',
         headerAliasMatches: {
           firstName: false,
@@ -392,10 +396,17 @@ export function SessionBoostcampGroupedImport({
   const hasInvalidData = invalidRows.length > 0;
 
   useEffect(() => {
-    if (actionState.success) {
-      onImportApplied?.();
+    onImportAppliedRef.current = onImportApplied;
+  }, [onImportApplied]);
+
+  useEffect(() => {
+    const becameSuccessful = Boolean(actionState.success) && !previousSuccessRef.current;
+    previousSuccessRef.current = Boolean(actionState.success);
+
+    if (becameSuccessful) {
+      onImportAppliedRef.current?.();
     }
-  }, [actionState.success, onImportApplied]);
+  }, [actionState.success]);
 
   return (
     <section className="ui-panel grid gap-5 p-6">
@@ -480,6 +491,12 @@ export function SessionBoostcampGroupedImport({
                 Parser path
               </span>
               <span>{debugInfo.parserPath}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
+                Decoding used
+              </span>
+              <span>{debugInfo.decodingUsed}</span>
             </div>
             <div className="grid gap-1">
               <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--app-fg-muted)]">
