@@ -41,7 +41,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
 - Step 4 is the live evaluation workspace: presentation order is visible there, teacher notes autosave, and AI recommendations are per group and advisory only
-- Pairagogie setup is the first step: session metadata and student import live together there
+- Pairagogie setup is the first step: session metadata lives there, while student import is a separate tab on the same admin screen
 - Group creation and enrolment are unified on one page, with enrolment status shown at the top
 - Session resume from `/sessions` uses the last meaningful admin step/page when available, otherwise it opens Pairagogie setup
 - Session/business fields:

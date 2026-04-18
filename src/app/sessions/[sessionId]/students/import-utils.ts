@@ -54,6 +54,41 @@ export type StudentImportPreviewRow = {
   isValid: boolean;
 };
 
+export type BoostcampGroupedImportRowInput = {
+  firstName: string;
+  lastName: string;
+  schoolEmail: string;
+  groupValue: string;
+  detectedClassName: string | null;
+  detectedGroupName: string | null;
+};
+
+export type BoostcampGroupedImportRowError = Partial<
+  Record<'firstName' | 'lastName' | 'schoolEmail', string>
+>;
+
+export type BoostcampGroupedImportPreviewRow = {
+  id: string;
+  rowNumber: number;
+  values: BoostcampGroupedImportRowInput;
+  errors: BoostcampGroupedImportRowError;
+  issues: string[];
+  needsResolution: boolean;
+  isValid: boolean;
+};
+
+export type BoostcampGroupedImportParseResult =
+  | {
+      ok: true;
+      rows: BoostcampGroupedImportPreviewRow[];
+      message?: string;
+    }
+  | {
+      ok: false;
+      message: string;
+      rows: BoostcampGroupedImportPreviewRow[];
+    };
+
 export type StudentImportParseResult =
   | {
       ok: true;
@@ -166,6 +201,25 @@ function parseDelimitedText(text: string) {
   return lines.map((line) => parseDelimitedLine(line, delimiter));
 }
 
+function parseCommaDelimitedText(text: string) {
+  const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+  if (!normalizedText) {
+    return [];
+  }
+
+  const lines = normalizedText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  return lines.map((line) => parseDelimitedLine(line, ','));
+}
+
 function splitBoostcampName(fullName: string) {
   const normalizedName = fullName.replace(/\s+/g, ' ').trim();
   const exactMatch = normalizedName.match(
@@ -190,6 +244,80 @@ function splitBoostcampName(fullName: string) {
   return {
     firstName: parts.slice(0, -1).join(' '),
     lastName: parts.at(-1) ?? ''
+  };
+}
+
+function splitBoostcampGroupValue(groupValue: string) {
+  const normalizedValue = groupValue.replace(/\s+/g, ' ').trim();
+
+  if (!normalizedValue) {
+    return {
+      detectedClassName: null,
+      detectedGroupName: null
+    };
+  }
+
+  const classKeywordMatch = normalizedValue.match(
+    /^(.*?)\b(?:class(?:e)?|classe)\b\s*[:\-]?\s*(.*?)\b(?:group(?:e)?|groupe)\b\s*[:\-]?\s*(.*?)$/iu
+  );
+  if (classKeywordMatch) {
+    return {
+      detectedClassName: classKeywordMatch[1].trim() || classKeywordMatch[2].trim() || null,
+      detectedGroupName: classKeywordMatch[3].trim() || null
+    };
+  }
+
+  const groupKeywordMatch = normalizedValue.match(
+    /^(.*?)\b(?:group(?:e)?|groupe)\b\s*[:\-]?\s*(.*?)$/iu
+  );
+  if (groupKeywordMatch) {
+    const prefix = groupKeywordMatch[1].trim();
+    const suffix = groupKeywordMatch[2].trim();
+    if (prefix && suffix) {
+      return {
+        detectedClassName: prefix,
+        detectedGroupName: suffix
+      };
+    }
+  }
+
+  const separators = [' / ', ' - ', ' – ', ' — ', ' | ', ' > ', ' : ', ' · ', ' • '];
+  for (const separator of separators) {
+    if (!normalizedValue.includes(separator)) {
+      continue;
+    }
+
+    const [className, ...groupParts] = normalizedValue.split(separator);
+    const detectedClassName = className?.trim() || null;
+    const detectedGroupName = groupParts.join(separator).trim() || null;
+
+    if (detectedClassName || detectedGroupName) {
+      return {
+        detectedClassName,
+        detectedGroupName
+      };
+    }
+  }
+
+  const classOnlyMatch = normalizedValue.match(/\b(?:class(?:e)?|classe)\b\s*[:\-]?\s*(.+)$/iu);
+  if (classOnlyMatch) {
+    return {
+      detectedClassName: classOnlyMatch[1].trim() || null,
+      detectedGroupName: null
+    };
+  }
+
+  const groupOnlyMatch = normalizedValue.match(/\b(?:group(?:e)?|groupe)\b\s*[:\-]?\s*(.+)$/iu);
+  if (groupOnlyMatch) {
+    return {
+      detectedClassName: null,
+      detectedGroupName: groupOnlyMatch[1].trim() || null
+    };
+  }
+
+  return {
+    detectedClassName: normalizedValue,
+    detectedGroupName: null
   };
 }
 
@@ -337,6 +465,181 @@ function parseStudentTableRows(
   return buildResult(normalizedRows, existingEmails, successMessage);
 }
 
+function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImportParseResult {
+  const headerAliases: Record<'firstName' | 'lastName' | 'schoolEmail' | 'groupValue', string[]> = {
+    firstName: ['first name', 'first_name', 'firstname', 'prenom', 'prénom'],
+    lastName: ['last name', 'last_name', 'lastname', 'nom', 'nom de famille'],
+    schoolEmail: [
+      'school email',
+      'school_email',
+      'email',
+      'e mail',
+      'e-mail',
+      'mail',
+      'adresse de courriel',
+      'courriel'
+    ],
+    groupValue: ['groupes', 'groupe', 'groups', 'class', 'classe']
+  };
+
+  const requiredHeaders = ['firstName', 'lastName', 'schoolEmail', 'groupValue'] as const;
+
+  if (rows.length === 0) {
+    return {
+      ok: false,
+      message: 'The uploaded CSV is empty.',
+      rows: []
+    };
+  }
+
+  const [headerRow, ...dataRows] = rows;
+  const headerMap = headerRow.map((header) => {
+    const normalized = normalizeHeader(header);
+
+    for (const [canonical, aliases] of Object.entries(headerAliases)) {
+      if (aliases.includes(normalized)) {
+        return canonical as keyof typeof headerAliases;
+      }
+    }
+
+    return null;
+  });
+
+  const missingHeaders = requiredHeaders.filter((header) => !headerMap.includes(header));
+
+  if (missingHeaders.length > 0) {
+    return {
+      ok: false,
+      message:
+        'Missing required headers. Expected first name, last name, school email, and groups columns.',
+      rows: []
+    };
+  }
+
+  const normalizedRows = dataRows
+    .map((columns, rowIndex) => {
+      const values: BoostcampGroupedImportRowInput = {
+        firstName: '',
+        lastName: '',
+        schoolEmail: '',
+        groupValue: '',
+        detectedClassName: null,
+        detectedGroupName: null
+      };
+
+      headerMap.forEach((header, columnIndex) => {
+        if (!header) {
+          return;
+        }
+
+        if (header === 'groupValue') {
+          values.groupValue = columns[columnIndex] ?? '';
+          return;
+        }
+
+        values[header] = columns[columnIndex] ?? '';
+      });
+
+      const { detectedClassName, detectedGroupName } = splitBoostcampGroupValue(values.groupValue);
+      values.detectedClassName = detectedClassName;
+      values.detectedGroupName = detectedGroupName;
+
+      return {
+        id: `row-${rowIndex + 1}`,
+        rowNumber: rowIndex + 2,
+        values
+      };
+    })
+    .filter((row) =>
+      Object.values(row.values).some((value) =>
+        typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
+      )
+    );
+
+  if (normalizedRows.length === 0) {
+    return {
+      ok: false,
+      message: 'The uploaded CSV has headers but no student rows.',
+      rows: []
+    };
+  }
+
+  const emailCounts = new Map<string, number>();
+  for (const row of normalizedRows) {
+    const normalizedEmail = row.values.schoolEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      continue;
+    }
+
+    emailCounts.set(normalizedEmail, (emailCounts.get(normalizedEmail) ?? 0) + 1);
+  }
+
+  const previewRows = normalizedRows.map((row) => {
+    const normalizedValues: BoostcampGroupedImportRowInput = {
+      firstName: normalizeRowValue(row.values.firstName),
+      lastName: normalizeRowValue(row.values.lastName),
+      schoolEmail: normalizeRowValue(row.values.schoolEmail).toLowerCase(),
+      groupValue: normalizeRowValue(row.values.groupValue),
+      detectedClassName: row.values.detectedClassName?.trim() || null,
+      detectedGroupName: row.values.detectedGroupName?.trim() || null
+    };
+
+    const errors: BoostcampGroupedImportRowError = {};
+    const parsed = studentImportRowSchema.safeParse({
+      firstName: normalizedValues.firstName,
+      lastName: normalizedValues.lastName,
+      schoolEmail: normalizedValues.schoolEmail,
+      userId: ''
+    });
+
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+
+      if (fieldErrors.firstName?.[0]) {
+        errors.firstName = fieldErrors.firstName[0];
+      }
+
+      if (fieldErrors.lastName?.[0]) {
+        errors.lastName = fieldErrors.lastName[0];
+      }
+
+      if (fieldErrors.schoolEmail?.[0]) {
+        errors.schoolEmail = fieldErrors.schoolEmail[0];
+      }
+    }
+
+    if (normalizedValues.schoolEmail && (emailCounts.get(normalizedValues.schoolEmail) ?? 0) > 1) {
+      errors.schoolEmail = 'Duplicate email in this file';
+    }
+
+    const issues: string[] = [];
+    if (!normalizedValues.detectedClassName) {
+      issues.push('no class detected');
+    }
+    if (!normalizedValues.detectedGroupName) {
+      issues.push('no group detected');
+    }
+
+    return {
+      id: row.id,
+      rowNumber: row.rowNumber,
+      values: normalizedValues,
+      errors,
+      issues,
+      needsResolution: issues.length > 0,
+      isValid: Object.keys(errors).length === 0 && issues.length === 0
+    };
+  });
+
+  return {
+    ok: true,
+    rows: previewRows,
+    message: previewRows.every((row) => row.isValid)
+      ? 'Grouped CSV parsed successfully. Ready to review.'
+      : 'Review the highlighted rows before continuing.'
+  };
+}
+
 function parseBoostcampRosterText(
   text: string,
   existingEmails: string[],
@@ -476,4 +779,30 @@ export function parseStudentImportText(
 
 export function parseStudentCsv(csvText: string, existingEmails: string[]) {
   return parseStudentImportText(csvText, existingEmails);
+}
+
+export function parseBoostcampGroupedCsv(csvText: string) {
+  const normalizedText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+  if (!normalizedText) {
+    return {
+      ok: false,
+      message: 'The uploaded CSV is empty.',
+      rows: []
+    };
+  }
+
+  let parsedRows: string[][];
+
+  try {
+    parsedRows = parseCommaDelimitedText(normalizedText);
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Unable to parse the uploaded CSV.',
+      rows: []
+    };
+  }
+
+  return parseBoostcampGroupedTableRows(parsedRows);
 }
