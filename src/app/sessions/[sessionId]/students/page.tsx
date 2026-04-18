@@ -52,7 +52,11 @@ export default async function SessionStudentsPage({
     );
   const studentRows = students.map((student) => ({
     ...student,
-    createdAt: student.createdAt.toISOString()
+    createdAtLabel: new Intl.DateTimeFormat('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'UTC'
+    }).format(student.createdAt)
   }));
 
   return (

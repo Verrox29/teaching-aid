@@ -16,7 +16,7 @@ type SessionExportMetadata = {
 };
 
 type SessionStudentRecord = {
-  createdAt: string;
+  createdAtLabel: string;
   firstName: string;
   id: string;
   lastName: string;
@@ -280,10 +280,7 @@ export function SessionStudentsWorkspace({
                           {student.schoolEmail}
                         </td>
                         <td className="px-4 py-3 text-[color:var(--app-fg-muted)]">
-                          {new Date(student.createdAt).toLocaleString('en-GB', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short'
-                          })}
+                          {student.createdAtLabel}
                         </td>
                       </tr>
                     ))

@@ -201,8 +201,12 @@ function detectDelimiter(line: string) {
   return ',';
 }
 
+function stripBom(text: string) {
+  return text.replace(/^\uFEFF/, '');
+}
+
 function parseDelimitedText(text: string) {
-  const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const normalizedText = stripBom(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
   if (!normalizedText) {
     return [];
@@ -222,7 +226,7 @@ function parseDelimitedText(text: string) {
 }
 
 function parseCommaDelimitedText(text: string) {
-  const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const normalizedText = stripBom(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
   if (!normalizedText) {
     return [];
@@ -238,6 +242,64 @@ function parseCommaDelimitedText(text: string) {
   }
 
   return lines.map((line) => parseDelimitedLine(line, ','));
+}
+
+function parseDelimitedTextWithAutoDelimiter(text: string) {
+  const normalizedText = stripBom(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+  if (!normalizedText) {
+    return {
+      delimiter: ',',
+      rows: [] as string[][]
+    };
+  }
+
+  const lines = normalizedText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    return {
+      delimiter: ',',
+      rows: [] as string[][]
+    };
+  }
+
+  function countOutsideQuotes(line: string, delimiter: string) {
+    let count = 0;
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      const nextCharacter = line[index + 1];
+
+      if (character === '"') {
+        if (inQuotes && nextCharacter === '"') {
+          index += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (character === delimiter && !inQuotes) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  const firstLine = lines[0];
+  const commaCount = countOutsideQuotes(firstLine, ',');
+  const semicolonCount = countOutsideQuotes(firstLine, ';');
+  const delimiter = semicolonCount > commaCount ? ';' : ',';
+
+  return {
+    delimiter,
+    rows: lines.map((line) => parseDelimitedLine(line, delimiter))
+  };
 }
 
 function splitBoostcampName(fullName: string) {
@@ -776,6 +838,7 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
   }
 
   const [headerRow, ...dataRows] = rows;
+  const normalizedHeaders = headerRow.map((header) => normalizeHeader(header));
   const headerMap = headerRow.map((header) => {
     const normalized = normalizeHeader(header);
 
@@ -793,8 +856,11 @@ function parseBoostcampGroupedTableRows(rows: string[][]): BoostcampGroupedImpor
   if (missingHeaders.length > 0) {
     return {
       ok: false,
-      message:
+      message: [
         'Missing required headers. Expected first name, last name, school email, and groups columns.',
+        `Raw headers: ${headerRow.join(' | ') || '(none)'}.`,
+        `Normalized headers: ${normalizedHeaders.join(' | ') || '(none)'}.`
+      ].join(' '),
       rows: [],
       normalizationPreview: [],
       metadataSuggestions: emptyResult
@@ -1184,29 +1250,12 @@ export function parseStudentCsv(csvText: string, existingEmails: string[]) {
 }
 
 export function parseBoostcampGroupedCsv(csvText: string): BoostcampGroupedImportParseResult {
-  const normalizedText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const { rows: parsedRows } = parseDelimitedTextWithAutoDelimiter(csvText);
 
-  if (!normalizedText) {
+  if (parsedRows.length === 0) {
     return {
       ok: false,
       message: 'The uploaded CSV is empty.',
-      metadataSuggestions: {
-        className: '',
-        programme: ''
-      },
-      normalizationPreview: [],
-      rows: []
-    };
-  }
-
-  let parsedRows: string[][];
-
-  try {
-    parsedRows = parseCommaDelimitedText(normalizedText);
-  } catch (error) {
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : 'Unable to parse the uploaded CSV.',
       metadataSuggestions: {
         className: '',
         programme: ''
