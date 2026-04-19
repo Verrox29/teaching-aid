@@ -194,6 +194,43 @@ function cloneWorksheetModel(
     clone.mergeCellsWithoutStyle(range);
   }
 
+  const sourceCellStyles = new Map<string, ExcelJS.Style>();
+  for (const row of (sourceModel as { rows?: Array<{ cells?: Array<{ address: string; style?: ExcelJS.Style }> }> }).rows ?? []) {
+    for (const cell of row.cells ?? []) {
+      if (cell.style) {
+        sourceCellStyles.set(cell.address, structuredClone(cell.style));
+      }
+    }
+  }
+
+  for (const range of mergeRanges) {
+    const [startAddress, endAddress] = range.split(':');
+    if (!startAddress || !endAddress) {
+      continue;
+    }
+
+    const startMatch = startAddress.match(/^([A-Z]+)(\d+)$/);
+    const endMatch = endAddress.match(/^([A-Z]+)(\d+)$/);
+    if (!startMatch || !endMatch) {
+      continue;
+    }
+
+    const startColumn = columnToNumber(startMatch[1]);
+    const endColumn = columnToNumber(endMatch[1]);
+    const startRow = Number(startMatch[2]);
+    const endRow = Number(endMatch[2]);
+
+    for (let rowNumber = startRow; rowNumber <= endRow; rowNumber += 1) {
+      for (let columnNumber = startColumn; columnNumber <= endColumn; columnNumber += 1) {
+        const address = `${numberToColumn(columnNumber)}${rowNumber}`;
+        const style = sourceCellStyles.get(address);
+        if (style) {
+          clone.getCell(address).style = structuredClone(style);
+        }
+      }
+    }
+  }
+
   return clone;
 }
 
