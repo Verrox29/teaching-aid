@@ -11,6 +11,7 @@ export type SessionAdminHeaderState = {
   canUndoAssignmentBrief: boolean;
   canUndoSessionContext: boolean;
   sessionContext: Awaited<ReturnType<typeof getSessionExportMetadataRecord>>;
+  sessionTitle: string;
 };
 
 export async function getSessionAdminHeaderState(
@@ -36,6 +37,7 @@ export async function getSessionAdminHeaderState(
     assignmentBrief: sessionRow?.instructions ?? '',
     canUndoAssignmentBrief: Boolean(sessionRow?.instructionsPrevious),
     canUndoSessionContext,
-    sessionContext
+    sessionContext,
+    sessionTitle: sessionRow?.title ?? ''
   };
 }

@@ -38,7 +38,24 @@ export async function AdminShell({
           className={`ui-shell ${isSessionAdminPage ? 'px-4 py-4 sm:px-5 sm:py-4' : 'px-5 py-5 sm:px-6 sm:py-6'}`}
         >
           {isSessionAdminPage && sessionId && slug && sessionHeaderState ? (
-            <SessionAdminHeaderControls sessionId={sessionId} slug={slug} state={sessionHeaderState} />
+            <div className="grid gap-2.5">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0 space-y-1.5">
+                  <h1 className="text-[clamp(1.7rem,2.2vw,2.55rem)] font-semibold leading-[0.96] tracking-[-0.04em] text-[color:var(--app-fg)]">
+                    {sessionHeaderState.sessionTitle || title}
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="ui-chip ui-chip-accent px-2.5 py-1 text-[11px]">Class {sessionHeaderState.sessionContext.className || 'Not set'}</span>
+                    <span className="ui-chip px-2.5 py-1 text-[11px]">Programme {sessionHeaderState.sessionContext.programme || 'Not set'}</span>
+                    <span className="ui-chip px-2.5 py-1 text-[11px]">Date {sessionHeaderState.sessionContext.sessionDate || 'Not set'}</span>
+                  </div>
+                </div>
+
+                <SessionAdminHeaderControls sessionId={sessionId} slug={slug} state={sessionHeaderState} />
+              </div>
+
+              <AdminTimelineNav currentStep={currentStep ?? 1} sessionId={sessionId} slug={slug} />
+            </div>
           ) : (
             <>
               <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
