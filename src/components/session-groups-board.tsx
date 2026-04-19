@@ -904,36 +904,36 @@ export function SessionGroupsBoard({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 lg:w-[300px] lg:min-w-[300px]">
-            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+          <div className="grid grid-cols-3 gap-1.5 lg:w-[320px] lg:min-w-[320px]">
+            <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
                 Total students
               </p>
-              <p className="mt-1 text-lg font-semibold leading-none">{totalStudents}</p>
+              <p className="mt-1 text-base font-semibold leading-none">{totalStudents}</p>
             </div>
-            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+            <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
                 Assigned
               </p>
-              <p className="mt-1 text-lg font-semibold leading-none">{assignedStudents}</p>
+              <p className="mt-1 text-base font-semibold leading-none">{assignedStudents}</p>
             </div>
-            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+            <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
                 Unassigned
               </p>
-              <p className="mt-1 text-lg font-semibold leading-none">{unassignedStudents.length}</p>
+              <p className="mt-1 text-base font-semibold leading-none">{unassignedStudents.length}</p>
             </div>
-            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+            <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
                 Created groups
               </p>
-              <p className="mt-1 text-lg font-semibold leading-none">{groups.length}</p>
+              <p className="mt-1 text-base font-semibold leading-none">{groups.length}</p>
             </div>
-            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+            <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
                 Seats remaining
               </p>
-              <p className="mt-1 text-lg font-semibold leading-none">{totalSeatsRemaining}</p>
+              <p className="mt-1 text-base font-semibold leading-none">{totalSeatsRemaining}</p>
             </div>
           </div>
         </div>
