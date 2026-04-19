@@ -50,6 +50,44 @@ function sortStrings(values: string[]) {
   );
 }
 
+function uniqueStudents(values: FinalStudentRecord[]) {
+  const unique: FinalStudentRecord[] = [];
+  const seenEmails = new Set<string>();
+
+  for (const student of values) {
+    if (!student.schoolEmail || seenEmails.has(student.schoolEmail)) {
+      continue;
+    }
+
+    seenEmails.add(student.schoolEmail);
+    unique.push(student);
+  }
+
+  return unique;
+}
+
+function toStudentRecord(row: BoostcampGroupedImportPreviewRow): FinalStudentRecord {
+  return {
+    firstName: row.values.firstName.trim(),
+    lastName: row.values.lastName.trim(),
+    schoolEmail: row.values.schoolEmail.trim().toLowerCase()
+  };
+}
+
+function shouldAutoIgnoreRow(row: BoostcampGroupedImportPreviewRow) {
+  return (
+    row.values.schoolEmail.trim().toLowerCase().endsWith('@omnesintervenant.com') ||
+    !row.values.detectedClassName
+  );
+}
+
+function shouldIgnoreRow(
+  row: BoostcampGroupedImportPreviewRow,
+  decisions: Record<string, UnclassifiedDecision>
+) {
+  return shouldAutoIgnoreRow(row) || decisions[row.id]?.mode === 'ignore';
+}
+
 export function SessionBoostcampGroupedImport({
   onImportApplied,
   onMetadataSuggestionsChange,
@@ -74,16 +112,28 @@ export function SessionBoostcampGroupedImport({
 
   const detectedClasses = useMemo(() => {
     return sortStrings(
-      [...new Set(rows.map((row) => row.values.detectedClassName).filter(Boolean) as string[])]
+      [
+        ...new Set(
+          rows
+            .filter((row) => !shouldAutoIgnoreRow(row))
+            .map((row) => row.values.detectedClassName)
+            .filter(Boolean) as string[]
+        )
+      ]
     );
   }, [rows]);
 
-  const unresolvedRows = useMemo(
-    () => rows.filter((row) => row.needsResolution),
+  const visibleRows = useMemo(
+    () => rows.filter((row) => !shouldAutoIgnoreRow(row)),
     [rows]
   );
 
-  const invalidRows = useMemo(() => rows.filter((row) => !row.isValid), [rows]);
+  const unresolvedRows = useMemo(
+    () => visibleRows.filter((row) => row.needsResolution),
+    [visibleRows]
+  );
+
+  const invalidRows = useMemo(() => visibleRows.filter((row) => !row.isValid), [visibleRows]);
 
   const hasResolvedAllUnclassifiedRows = useMemo(
     () =>
@@ -95,7 +145,7 @@ export function SessionBoostcampGroupedImport({
   );
 
   const resolvedRows = useMemo(() => {
-    return rows
+    return visibleRows
       .map((row) => {
         if (row.needsResolution) {
           const decision = decisions[row.id];
@@ -132,7 +182,7 @@ export function SessionBoostcampGroupedImport({
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-  }, [decisions, rows]);
+  }, [decisions, visibleRows]);
 
   const selectedRows = useMemo(() => {
     return resolvedRows.filter((entry) => {
@@ -159,6 +209,14 @@ export function SessionBoostcampGroupedImport({
       );
     });
   }, [selectedRows]);
+
+  const allStudentsForImport = useMemo<FinalStudentRecord[]>(() => {
+    return uniqueStudents(rows.map(toStudentRecord));
+  }, [rows]);
+
+  const ignoredStudentsForImport = useMemo<FinalStudentRecord[]>(() => {
+    return uniqueStudents(rows.filter((row) => shouldIgnoreRow(row, decisions)).map(toStudentRecord));
+  }, [decisions, rows]);
 
   const groupedAssignments = useMemo(() => {
     const byGroup = new Map<string, Set<string>>();
@@ -213,23 +271,28 @@ export function SessionBoostcampGroupedImport({
 
   const payloadJson = useMemo(() => {
     const payload = {
-      students: selectedStudents,
+      ignoredStudents: ignoredStudentsForImport,
+      students: allStudentsForImport,
       groups: groupedAssignments.groups
     };
 
-    if (selectedStudents.length === 0) {
+    if (allStudentsForImport.length === 0) {
       return '';
     }
 
     return JSON.stringify(payload);
-  }, [groupedAssignments.groups, selectedStudents]);
+  }, [allStudentsForImport, groupedAssignments.groups, ignoredStudentsForImport]);
 
   const canContinue =
     rows.length > 0 &&
     invalidRows.length === 0 &&
-    unresolvedRows.length > 0
-      ? hasResolvedAllUnclassifiedRows && selectedClassNames.length > 0 && selectedStudents.length > 0
-      : selectedClassNames.length > 0 && selectedStudents.length > 0;
+    (selectedStudents.length > 0
+      ? unresolvedRows.length > 0
+        ? hasResolvedAllUnclassifiedRows &&
+          selectedClassNames.length > 0 &&
+          selectedStudents.length > 0
+        : selectedClassNames.length > 0 && selectedStudents.length > 0
+      : ignoredStudentsForImport.length > 0);
 
   async function handleFile(file: File) {
     setFileName(file.name);
@@ -282,7 +345,14 @@ export function SessionBoostcampGroupedImport({
       setSelectedClassNames(
         result.ok
           ? sortStrings(
-              [...new Set(result.rows.map((row) => row.values.detectedClassName).filter(Boolean) as string[])]
+              [
+                ...new Set(
+                  result.rows
+                    .filter((row) => !shouldAutoIgnoreRow(row))
+                    .map((row) => row.values.detectedClassName)
+                    .filter(Boolean) as string[]
+                )
+              ]
             )
           : []
       );
@@ -748,7 +818,7 @@ export function SessionBoostcampGroupedImport({
                               {decision.className
                                 ? sortStrings(
                                     [...new Set(
-                                      rows
+                                      visibleRows
                                         .filter(
                                           (candidate) =>
                                             candidate.values.detectedClassName === decision.className &&
@@ -785,7 +855,7 @@ export function SessionBoostcampGroupedImport({
 
               <div className="grid gap-3">
                 {detectedClasses.map((className) => {
-                  const classRows = rows.filter((row) => row.values.detectedClassName === className);
+                  const classRows = visibleRows.filter((row) => row.values.detectedClassName === className);
                   const groupedStudents = classRows.filter((row) => Boolean(row.values.detectedGroupName));
                   const unassignedStudents = classRows.filter((row) => !row.values.detectedGroupName);
 

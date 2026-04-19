@@ -803,13 +803,13 @@ export function SessionGroupsBoard({
               <button
                 aria-expanded={isIgnoredDrawerOpen}
                 aria-label="Show ignored students"
-                className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                className="inline-flex items-center justify-center text-lg text-[color:var(--app-fg-muted)] transition hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={visibilityActionState !== null || isRandomizingStudents}
                 title="Show ignored students"
                 type="button"
                 onClick={() => setIsIgnoredDrawerOpen((current) => !current)}
               >
-                🗑 Ignored
+                🗑
               </button>
             </div>
 
@@ -1035,34 +1035,34 @@ export function SessionGroupsBoard({
                   <div className="grid gap-3">
                     <div className="text-sm font-medium">Members</div>
 
-                    {group.members.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
-                        No students in this group yet.
-                      </div>
-                    ) : (
-                      <div className="grid gap-3">
+                  {group.members.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
+                      No students in this group yet.
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
                         {group.members.map((member) => (
-                          <article
+                          <div
                             key={member.id}
-                            className={`cursor-grab rounded-xl border px-4 py-3 transition ${
+                            className={`grid cursor-grab gap-3 border-b border-[color:var(--app-border)] px-4 py-3 transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
                               alert?.kind === 'error' && alert.studentId === member.id
-                                ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
-                                : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)]'
+                                ? 'bg-[color:var(--app-danger)]/5 ring-1 ring-[color:var(--app-danger)]/12'
+                                : 'bg-[color:var(--app-surface-muted)]'
                             }`}
                             draggable
                             onDragEnd={handleDragEnd}
                             onDragStart={(event) => handleDragStart(event, member.id, group.id)}
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="text-sm font-medium">
-                                  {member.firstName} {member.lastName}
-                                </div>
-                                <div className="text-sm text-[color:var(--app-fg-muted)]">{member.schoolEmail}</div>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">
+                                {member.firstName} {member.lastName}
+                              </div>
+                              <div className="truncate text-xs text-[color:var(--app-fg-muted)]">
+                                {member.schoolEmail}
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                               <form className="flex flex-wrap items-center gap-2">
                                 <input name="sessionId" type="hidden" value={sessionId} />
                                 <input
@@ -1070,7 +1070,11 @@ export function SessionGroupsBoard({
                                   type="hidden"
                                   value={member.id}
                                 />
-                                <select className="ui-select" defaultValue={group.id} name="groupId">
+                                <select
+                                  className="ui-select min-w-[10rem]"
+                                  defaultValue={group.id}
+                                  name="groupId"
+                                >
                                   {groups.map((destinationGroup) => (
                                     <option key={destinationGroup.id} value={destinationGroup.id}>
                                       {destinationGroup.name}
@@ -1103,12 +1107,12 @@ export function SessionGroupsBoard({
                                 Ignore
                               </button>
                             </div>
-                          </article>
+                          </div>
                         ))}
-                      </div>
-                    )}
-                  </div>
-                </article>
+                    </div>
+                  )}
+                </div>
+              </article>
               );
             })}
           </div>

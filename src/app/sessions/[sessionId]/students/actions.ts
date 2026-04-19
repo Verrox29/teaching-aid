@@ -34,6 +34,7 @@ const groupedImportGroupSchema = z.object({
 
 const groupedImportPayloadSchema = z.object({
   students: z.array(groupedImportStudentSchema).min(1, 'At least one student is required'),
+  ignoredStudents: z.array(groupedImportStudentSchema).default([]),
   groups: z.array(groupedImportGroupSchema)
 });
 
@@ -221,6 +222,14 @@ export async function importBoostcampGroupedStudentsAction(
     schoolEmail: student.schoolEmail.trim().toLowerCase()
   }));
   const normalizedStudentEmails = normalizedStudents.map((student) => student.schoolEmail);
+  const normalizedIgnoredStudents = parsedPayload.data.ignoredStudents.map((student) => ({
+    firstName: student.firstName.trim(),
+    lastName: student.lastName.trim(),
+    schoolEmail: student.schoolEmail.trim().toLowerCase()
+  }));
+  const normalizedIgnoredStudentEmails = normalizedIgnoredStudents.map(
+    (student) => student.schoolEmail
+  );
 
   if (!uniqueBy(normalizedStudentEmails)) {
     return {
@@ -228,6 +237,25 @@ export async function importBoostcampGroupedStudentsAction(
       message: 'Duplicate emails were found in the grouped import rows.'
     };
   }
+
+  if (!uniqueBy(normalizedIgnoredStudentEmails)) {
+    return {
+      success: false,
+      message: 'Duplicate emails were found in the ignored grouped import rows.'
+    };
+  }
+
+  if (normalizedIgnoredStudentEmails.some((email) => !normalizedStudentEmails.includes(email))) {
+    return {
+      success: false,
+      message: 'One or more ignored students are missing from the grouped import rows.'
+    };
+  }
+
+  const ignoredStudentEmailSet = new Set(normalizedIgnoredStudentEmails);
+  const activeStudentEmails = normalizedStudentEmails.filter(
+    (email) => !ignoredStudentEmailSet.has(email)
+  );
 
   const normalizedGroups = parsedPayload.data.groups.map((group) => ({
     name: group.name.trim(),
@@ -249,7 +277,7 @@ export async function importBoostcampGroupedStudentsAction(
   }
 
   const groupEmailSet = new Set(normalizedGroups.flatMap((group) => group.memberEmails));
-  if ([...groupEmailSet].some((email) => !normalizedStudentEmails.includes(email))) {
+  if ([...groupEmailSet].some((email) => !activeStudentEmails.includes(email))) {
     return {
       success: false,
       message: 'One or more imported group members are missing from the student payload.'
@@ -283,6 +311,7 @@ export async function importBoostcampGroupedStudentsAction(
             .set({
               firstName: student.firstName,
               lastName: student.lastName,
+              isIgnored: ignoredStudentEmailSet.has(student.schoolEmail),
               updatedAt: new Date()
             })
             .where(
@@ -297,7 +326,8 @@ export async function importBoostcampGroupedStudentsAction(
             sessionId,
             firstName: student.firstName,
             lastName: student.lastName,
-            schoolEmail: student.schoolEmail
+            schoolEmail: student.schoolEmail,
+            isIgnored: ignoredStudentEmailSet.has(student.schoolEmail)
           })
           .returning({
             id: sessionStudents.id,
