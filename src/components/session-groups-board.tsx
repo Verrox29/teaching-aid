@@ -108,19 +108,22 @@ function TrashCanIcon({ className }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M9 3.75h6m-7.5 3h9m-7.25 0 .55 10.5a1.5 1.5 0 0 0 1.5 1.42h1.2a1.5 1.5 0 0 0 1.5-1.42L15.5 6.75m-7.5 0h8"
+        d="M4 6H20L18.4199 20.2209C18.3074 21.2337 17.4512 22 16.4321 22H7.56786C6.54876 22 5.69264 21.2337 5.5801 20.2209L4 6Z"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.75"
+        strokeWidth="2"
       />
       <path
-        d="M10 9.25v5.25m4-5.25v5.25"
+        d="M7.34491 3.14716C7.67506 2.44685 8.37973 2 9.15396 2H14.846C15.6203 2 16.3249 2.44685 16.6551 3.14716L18 6H6L7.34491 3.14716Z"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.75"
+        strokeWidth="2"
       />
+      <path d="M2 6H22" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M10 11V16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M14 11V16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
     </svg>
   );
 }
@@ -791,7 +794,7 @@ export function SessionGroupsBoard({
               <button
                 aria-expanded={isIgnoredDrawerOpen}
                 aria-label="Show ignored students"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg-muted)] transition hover:border-[color:var(--app-fg-muted)]/40 hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="relative inline-flex h-9 w-9 items-center justify-center text-[color:var(--app-fg-muted)] transition hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={visibilityActionState !== null || isRandomizingStudents}
                 title="Show ignored students"
                 type="button"
