@@ -38,6 +38,11 @@ function sortStudentsStable(students: SessionGroupBoardStudentRecord[]) {
   });
 }
 
+function getGroupOrderKey(name: string) {
+  const match = /^Group\s+(\d+)$/i.exec(name.trim());
+  return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
+}
+
 export async function getSessionGroupBoardSnapshot(
   sessionId: string
 ): Promise<SessionGroupBoardSnapshot> {
@@ -104,12 +109,22 @@ export async function getSessionGroupBoardSnapshot(
   );
 
   return {
-    groups: groupRows.map((group) => ({
-      capacity: group.capacity,
-      id: group.id,
-      members: sortStudentsStable(membersByGroup.get(group.id) ?? []),
-      name: group.name
-    })),
+    groups: groupRows
+      .map((group) => ({
+        capacity: group.capacity,
+        id: group.id,
+        members: sortStudentsStable(membersByGroup.get(group.id) ?? []),
+        name: group.name
+      }))
+      .sort((left, right) => {
+        const leftOrder = getGroupOrderKey(left.name);
+        const rightOrder = getGroupOrderKey(right.name);
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+
+        return left.name.localeCompare(right.name, 'en', { sensitivity: 'base' });
+      }),
     ignoredStudents: sortStudentsStable(ignoredStudentRows),
     unassignedStudents: sortStudentsStable(unassignedStudents)
   };

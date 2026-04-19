@@ -1035,14 +1035,14 @@ export function SessionGroupsBoard({
                         No students in this group yet.
                       </div>
                     ) : (
-                      <div className="overflow-hidden border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
+                      <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
                         {group.members.map((member) => (
                           <div
                             key={member.id}
-                            className={`grid cursor-grab gap-3 border-b border-[color:var(--app-border)] px-3 py-2 transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
+                            className={`grid cursor-grab gap-2 border-b border-[color:var(--app-border)] px-3 py-2 transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
                               alert?.kind === 'error' && alert.studentId === member.id
                                 ? 'bg-[color:var(--app-danger)]/5 ring-1 ring-[color:var(--app-danger)]/12'
-                                : 'bg-[color:var(--app-surface)]'
+                                : 'bg-transparent'
                             }`}
                             draggable
                             onDragEnd={handleDragEnd}
@@ -1057,10 +1057,10 @@ export function SessionGroupsBoard({
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 self-center sm:justify-end">
+                            <div className="flex flex-nowrap items-center gap-2 self-center sm:justify-end">
                               <select
                                 aria-label={`Move ${member.firstName} ${member.lastName} to a group`}
-                                className="ui-select min-w-[12rem]"
+                                className="ui-select w-[10.5rem] shrink-0"
                                 defaultValue=""
                                 disabled={visibilityActionState !== null || isRandomizingStudents}
                                 onChange={(event) =>
@@ -1080,7 +1080,7 @@ export function SessionGroupsBoard({
                               </select>
 
                               <button
-                                className="ui-button ui-button-danger"
+                                className="ui-button ui-button-danger shrink-0"
                                 type="button"
                                 onClick={() => handleRemoveClick(member.id, group.id)}
                               >
