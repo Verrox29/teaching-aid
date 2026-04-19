@@ -25,6 +25,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Branching AI admin settings (Module 1)
 - Export architecture/module has been implemented and validated in Local mode against the real repo files, including a debug export preview for Pairagogie mapping review
 - Shared admin header / shell
+- Shared admin header / shell now owns the top-level session controls, timeline, and session-language badge
 
 ## Current Export / Template Rules
 
@@ -57,8 +58,10 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 
 ## Confirmed Design / System Decisions
 
-- App UI stays in English for now
-- Translation later
+- UI language is interface-wide, persisted, and separate from the session/class language
+- Course/class language stays on the session row and drives AI output only
+- The sessions hub and session settings modal share the same UI-language control and state
+- The admin UI uses a centralized translation layer for the teacher/admin workflow
 - Docker-first local workflow
 - GitHub is source of truth
 - Supabase is planned production database target
