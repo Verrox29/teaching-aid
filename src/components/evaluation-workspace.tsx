@@ -1332,15 +1332,13 @@ export function EvaluationWorkspaceClient({
                           Generating new challenge questions...
                         </div>
                       ) : !selectedGroupHasUploadedWork ? (
-                        <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                          <GroupSubmissionDropzone
-                            fileName={selectedGroup.submissionTitle}
-                            groupId={selectedGroup.groupId}
-                            groupName="this group"
-                            sessionId={sessionId}
-                            submittedAt={selectedGroup.submittedAt}
-                          />
-                        </div>
+                        <GroupSubmissionDropzone
+                          fileName={selectedGroup.submissionTitle}
+                          groupId={selectedGroup.groupId}
+                          groupName="this group"
+                          sessionId={sessionId}
+                          submittedAt={selectedGroup.submittedAt}
+                        />
                       ) : selectedGroup.aiStatus === 'failed' ? (
                         <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
                           Could not generate challenge questions.

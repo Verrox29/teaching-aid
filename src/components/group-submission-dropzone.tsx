@@ -82,102 +82,98 @@ export function GroupSubmissionDropzone({
   return (
     <form
       action={uploadGroupSubmissionAction}
-      className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+      className={`grid gap-3 rounded-2xl border border-dashed p-4 text-sm transition ${
+        isDragging
+          ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
+          : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
+      }`}
       ref={formRef}
       onSubmit={handleSubmit}
+      onClick={openFilePicker}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        dragDepthRef.current += 1;
+        setIsDragging(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) {
+          setIsDragging(false);
+        }
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        dragDepthRef.current = 0;
+        setIsDragging(false);
+        const file = event.dataTransfer.files[0] ?? null;
+        syncFile(file, true);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openFilePicker();
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <input name="sessionId" type="hidden" value={sessionId} />
       <input name="groupId" type="hidden" value={groupId} />
 
-      <div
-        className={`grid cursor-pointer gap-3 rounded-xl border border-dashed px-4 py-4 text-sm transition ${
-          isDragging
-            ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
-            : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
-        }`}
-        onClick={openFilePicker}
-        onDragEnter={(event) => {
-          event.preventDefault();
-          dragDepthRef.current += 1;
-          setIsDragging(true);
-        }}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={(event) => {
-          event.preventDefault();
-          dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-          if (dragDepthRef.current === 0) {
-            setIsDragging(false);
-          }
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          dragDepthRef.current = 0;
-          setIsDragging(false);
-          const file = event.dataTransfer.files[0] ?? null;
-          syncFile(file, true);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openFilePicker();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-      >
-        <div className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
-          <p className="font-medium text-[color:var(--app-fg)]">Upload group work</p>
-          <p>Drop a file here or click to choose one for {groupName}.</p>
-          <p className="mt-1">Max file size {GROUP_SUBMISSION_MAX_FILE_SIZE_MB} MB.</p>
-          <p>
-            If your file is larger, you can compress it first using a free tool like{' '}
-            <a
-              className="font-medium text-[color:var(--app-accent-strong)] underline decoration-[color:var(--app-accent)] decoration-2 underline-offset-2 hover:text-[color:var(--app-accent)]"
-              href="https://www.ilovepdf.com/fr/compresser_pdf"
-              rel="noreferrer"
-              target="_blank"
-              onClick={(event) => event.stopPropagation()}
-            >
-              iLovePDF
-            </a>
-            .
-          </p>
-          {submittedAt ? <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">Uploaded on {submittedAt}</p> : null}
-        </div>
-
-        <div className="grid gap-1">
-          <span className="font-medium">{selectedFileName ?? fileName ?? 'Drop a file or click to choose'}</span>
-          <span className="text-[color:var(--app-fg-muted)]">One file per group. Drag and drop is supported.</span>
-        </div>
-
-        <input
-          ref={inputRef}
-          className="sr-only"
-          id={inputId}
-          name="file"
-          type="file"
-          onClick={(event) => event.stopPropagation()}
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0] ?? null;
-            syncFile(file, false);
-          }}
-        />
-
-        {selectedFileName ? (
-          <p className="text-xs text-[color:var(--app-fg-muted)]">Selected file: {selectedFileName}</p>
-        ) : null}
-
-        {errorMessage ? (
-          <p className="text-xs font-medium text-[color:var(--app-danger)]" aria-live="polite">
-            {errorMessage}
-          </p>
-        ) : null}
+      <div className="grid gap-2 text-[color:var(--app-fg-muted)]">
+        <p className="font-medium text-[color:var(--app-fg)]">Upload group work</p>
+        <p>Drop a file here or click to choose one for {groupName}.</p>
+        <p className="mt-1">Max file size {GROUP_SUBMISSION_MAX_FILE_SIZE_MB} MB.</p>
+        <p>
+          If your file is larger, you can compress it first using a free tool like{' '}
+          <a
+            className="font-medium text-[color:var(--app-accent-strong)] underline decoration-[color:var(--app-accent)] decoration-2 underline-offset-2 hover:text-[color:var(--app-accent)]"
+            href="https://www.ilovepdf.com/fr/compresser_pdf"
+            rel="noreferrer"
+            target="_blank"
+            onClick={(event) => event.stopPropagation()}
+          >
+            iLovePDF
+          </a>
+          .
+        </p>
+        {submittedAt ? <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">Uploaded on {submittedAt}</p> : null}
       </div>
 
-      <div className="flex items-end">
+      <div className="grid gap-1">
+        <span className="font-medium">{selectedFileName ?? fileName ?? 'Drop a file or click to choose'}</span>
+        <span className="text-[color:var(--app-fg-muted)]">One file per group. Drag and drop is supported.</span>
+      </div>
+
+      <input
+        ref={inputRef}
+        className="sr-only"
+        id={inputId}
+        name="file"
+        type="file"
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0] ?? null;
+          syncFile(file, false);
+        }}
+      />
+
+      {selectedFileName ? (
+        <p className="text-xs text-[color:var(--app-fg-muted)]">Selected file: {selectedFileName}</p>
+      ) : null}
+
+      {errorMessage ? (
+        <p className="text-xs font-medium text-[color:var(--app-danger)]" aria-live="polite">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      <div className="flex justify-end">
         <button
           className="ui-button ui-button-primary"
           type="submit"
