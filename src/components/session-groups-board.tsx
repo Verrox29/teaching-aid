@@ -252,12 +252,14 @@ function PublicPageQrModal({
           </div>
 
           <div className="mt-4 grid justify-items-center gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-            <div className="rounded-2xl bg-white p-4">
-              <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
-            </div>
-            <p className="text-center text-sm font-medium text-[color:var(--app-fg)]">
-              {title}
-            </p>
+            <figure className="grid justify-items-center gap-3">
+              <div className="rounded-2xl bg-white p-4">
+                <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
+              </div>
+              <figcaption className="max-w-[16rem] text-center text-sm font-medium leading-5 text-[color:var(--app-fg-muted)]">
+                {title}
+              </figcaption>
+            </figure>
             <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={publicPageHref}>
               {publicPageLabel}
             </Link>
