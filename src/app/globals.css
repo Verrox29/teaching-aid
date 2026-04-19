@@ -335,8 +335,8 @@ a {
   .ui-switch-track {
     position: relative;
     display: inline-flex;
-    height: 1.35rem;
-    width: 2.45rem;
+    height: 1.5rem;
+    width: 4rem;
     align-items: center;
     border-radius: 999px;
     background: color-mix(in srgb, var(--app-fg-muted) 20%, transparent);
