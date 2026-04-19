@@ -99,6 +99,15 @@ export type PairagogieExportContext = {
   };
 };
 
+type SessionExportMetadataValues = {
+  className: string;
+  professorName: string;
+  programme: string;
+  season: string;
+  sessionDate: string;
+  subject: string;
+};
+
 function hashBuffer(buffer: Buffer) {
   return createHash('sha256').update(buffer).digest('hex');
 }
@@ -112,6 +121,61 @@ function getDefaultMetadata(sessionTitle: string): SessionExportMetadata {
     sessionDate: '',
     subject: ''
   };
+}
+
+function normalizeMetadataValue(value: string | null | undefined) {
+  return value?.trim() ?? '';
+}
+
+function normalizeStoredMetadataRecord(
+  record: Partial<SessionExportMetadataValues> | null | undefined
+): SessionExportMetadataValues {
+  if (!record) {
+    return {
+      className: '',
+      professorName: '',
+      programme: '',
+      season: '',
+      sessionDate: '',
+      subject: ''
+    };
+  }
+
+  return {
+    className: normalizeMetadataValue(record.className),
+    professorName: normalizeMetadataValue(record.professorName),
+    programme: normalizeMetadataValue(record.programme),
+    season: normalizeMetadataValue(record.season),
+    sessionDate: normalizeMetadataValue(record.sessionDate),
+    subject: normalizeMetadataValue(record.subject)
+  };
+}
+
+function normalizeMetadataRecord(
+  record: Partial<SessionExportMetadataValues> | null | undefined,
+  sessionTitle: string
+): SessionExportMetadata {
+  const stored = normalizeStoredMetadataRecord(record);
+
+  return {
+    className: stored.className || sessionTitle,
+    professorName: stored.professorName,
+    programme: stored.programme,
+    season: stored.season,
+    sessionDate: stored.sessionDate,
+    subject: stored.subject
+  };
+}
+
+function metadataMatches(left: SessionExportMetadataValues, right: SessionExportMetadataValues) {
+  return (
+    left.className === right.className &&
+    left.professorName === right.professorName &&
+    left.programme === right.programme &&
+    left.season === right.season &&
+    left.sessionDate === right.sessionDate &&
+    left.subject === right.subject
+  );
 }
 
 function hasStructuredPairagogieMapping(input: unknown): input is PairagogieExportMapping {
@@ -210,7 +274,8 @@ export async function getSessionExportMetadataRecord(
       programme: sessionExportMetadata.programme,
       season: sessionExportMetadata.season,
       sessionDate: sessionExportMetadata.sessionDate,
-      subject: sessionExportMetadata.subject
+      subject: sessionExportMetadata.subject,
+      previousValues: sessionExportMetadata.previousValues
     })
     .from(sessionExportMetadata)
     .where(eq(sessionExportMetadata.sessionId, sessionId))
@@ -221,14 +286,19 @@ export async function getSessionExportMetadataRecord(
     return getDefaultMetadata(sessionTitle);
   }
 
-  return {
-    className: stored.className ?? sessionTitle,
-    professorName: stored.professorName ?? '',
-    programme: stored.programme ?? '',
-    season: stored.season ?? '',
-    sessionDate: stored.sessionDate ?? '',
-    subject: stored.subject ?? ''
-  };
+  return normalizeMetadataRecord(stored, sessionTitle);
+}
+
+export async function getSessionExportMetadataUndoAvailability(sessionId: string): Promise<boolean> {
+  const rows = await db
+    .select({
+      previousValues: sessionExportMetadata.previousValues
+    })
+    .from(sessionExportMetadata)
+    .where(eq(sessionExportMetadata.sessionId, sessionId))
+    .limit(1);
+
+  return Boolean(rows[0]?.previousValues);
 }
 
 export async function upsertSessionExportMetadata(
@@ -236,7 +306,14 @@ export async function upsertSessionExportMetadata(
   values: SessionExportMetadata
 ): Promise<void> {
   const existing = await db
-    .select({ sessionId: sessionExportMetadata.sessionId })
+    .select({
+      className: sessionExportMetadata.className,
+      professorName: sessionExportMetadata.professorName,
+      programme: sessionExportMetadata.programme,
+      season: sessionExportMetadata.season,
+      sessionDate: sessionExportMetadata.sessionDate,
+      subject: sessionExportMetadata.subject
+    })
     .from(sessionExportMetadata)
     .where(eq(sessionExportMetadata.sessionId, sessionId))
     .limit(1);
@@ -245,8 +322,16 @@ export async function upsertSessionExportMetadata(
     await db.insert(sessionExportMetadata).values({
       ...values,
       sessionId,
+      previousValues: null,
       updatedAt: new Date()
     });
+    return;
+  }
+
+  const current = normalizeStoredMetadataRecord(existing[0]);
+  const next = normalizeStoredMetadataRecord(values);
+
+  if (metadataMatches(current, next)) {
     return;
   }
 
@@ -254,9 +339,47 @@ export async function upsertSessionExportMetadata(
     .update(sessionExportMetadata)
     .set({
       ...values,
+      previousValues: current,
       updatedAt: new Date()
     })
     .where(eq(sessionExportMetadata.sessionId, sessionId));
+}
+
+export async function undoSessionExportMetadata(sessionId: string): Promise<boolean> {
+  const rows = await db
+    .select({
+      className: sessionExportMetadata.className,
+      professorName: sessionExportMetadata.professorName,
+      programme: sessionExportMetadata.programme,
+      previousValues: sessionExportMetadata.previousValues,
+      season: sessionExportMetadata.season,
+      sessionDate: sessionExportMetadata.sessionDate,
+      subject: sessionExportMetadata.subject
+    })
+    .from(sessionExportMetadata)
+    .where(eq(sessionExportMetadata.sessionId, sessionId))
+    .limit(1);
+
+  const current = rows[0] ?? null;
+  if (!current) {
+    return false;
+  }
+
+  if (!current.previousValues) {
+    await db.delete(sessionExportMetadata).where(eq(sessionExportMetadata.sessionId, sessionId));
+    return true;
+  }
+
+  await db
+    .update(sessionExportMetadata)
+    .set({
+      ...current.previousValues,
+      previousValues: null,
+      updatedAt: new Date()
+    })
+    .where(eq(sessionExportMetadata.sessionId, sessionId));
+
+  return true;
 }
 
 export async function saveExportTemplateVersion(params: {

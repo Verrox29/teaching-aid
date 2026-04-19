@@ -26,6 +26,7 @@ export const sessions = pgTable(
     title: varchar('title', { length: 160 }).notNull(),
     language: varchar('language', { length: 8 }).notNull(),
     instructions: text('instructions'),
+    instructionsPrevious: text('instructions_previous'),
     defaultGroupCapacity: integer('default_group_capacity').notNull(),
     groupCount: integer('group_count').notNull(),
     adminAccessCodeHash: text('admin_access_code_hash').notNull(),
@@ -353,6 +354,14 @@ export const sessionExportMetadata = pgTable('session_export_metadata', {
   season: varchar('season', { length: 80 }),
   professorName: varchar('professor_name', { length: 160 }),
   sessionDate: varchar('session_date', { length: 80 }),
+  previousValues: jsonb('previous_values').$type<{
+    className: string;
+    professorName: string;
+    programme: string;
+    season: string;
+    sessionDate: string;
+    subject: string;
+  } | null>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 });

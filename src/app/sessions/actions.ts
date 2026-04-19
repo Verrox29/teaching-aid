@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db, sessions } from '@/db';
+import { undoSessionExportMetadata, upsertSessionExportMetadata } from '@/lib/exports/repository';
 import { ensurePairagogieRubric } from '@/lib/evaluation/rubric';
 
 const createSessionSchema = z.object({
@@ -94,6 +95,45 @@ const sessionInstructionsSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
 
+const sessionContextSchema = z.object({
+  className: z.string().trim().optional().default(''),
+  professorName: z.string().trim().optional().default(''),
+  programme: z.string().trim().optional().default(''),
+  season: z.enum(['Fall', 'Spring']).or(z.literal('')).optional().default(''),
+  sessionDate: z.string().trim().optional().default(''),
+  subject: z.string().trim().optional().default(''),
+  sessionId: z.string().uuid('Invalid session id')
+});
+
+function normalizeSessionInstructions(value: string) {
+  return value.trim() || null;
+}
+
+async function getSessionAdminRoutes(sessionId: string) {
+  const sessionRows = await db
+    .select({
+      slug: sessions.slug
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+
+  const session = sessionRows[0] ?? null;
+  if (!session) {
+    throw new Error('Session not found.');
+  }
+
+  return {
+    evaluation: `/sessions/${sessionId}/evaluation`,
+    exports: `/sessions/${sessionId}/exports`,
+    groups: `/sessions/${sessionId}/groups`,
+    order: `/sessions/${sessionId}/order`,
+    publicPage: `/s/${session.slug}`,
+    settings: `/sessions/${sessionId}/exports/settings`,
+    students: `/sessions/${sessionId}/students`
+  };
+}
+
 export async function createSessionAction(
   _prevState: CreateSessionFormState,
   formData: FormData
@@ -153,10 +193,118 @@ export async function saveSessionInstructionsAction(formData: FormData): Promise
   }
 
   const { sessionId, instructions } = parsed.data;
-  const sessionInstructionText = instructions.trim() || null;
   const sessionRows = await db
     .select({
-      slug: sessions.slug
+      instructions: sessions.instructions,
+      instructionsPrevious: sessions.instructionsPrevious
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+  const session = sessionRows[0] ?? null;
+
+  if (!session) {
+    throw new Error('Session not found.');
+  }
+
+  const nextInstructions = normalizeSessionInstructions(instructions);
+  const currentInstructions = session.instructions ?? null;
+
+  if (currentInstructions === nextInstructions) {
+    return;
+  }
+
+  await db
+    .update(sessions)
+    .set({
+      instructions: nextInstructions,
+      instructionsPrevious: currentInstructions,
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, sessionId));
+
+  const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath(routes.students);
+  revalidatePath(routes.groups);
+  revalidatePath(routes.order);
+  revalidatePath(routes.evaluation);
+  revalidatePath(routes.exports);
+  revalidatePath(routes.settings);
+  revalidatePath(routes.publicPage);
+}
+
+export async function saveSessionContextAction(formData: FormData): Promise<void> {
+  const parsed = sessionContextSchema.safeParse({
+    className: String(formData.get('className') ?? ''),
+    professorName: String(formData.get('professorName') ?? ''),
+    programme: String(formData.get('programme') ?? ''),
+    season: String(formData.get('season') ?? ''),
+    sessionDate: String(formData.get('sessionDate') ?? ''),
+    sessionId: String(formData.get('sessionId') ?? ''),
+    subject: String(formData.get('subject') ?? '')
+  });
+
+  if (!parsed.success) {
+    throw new Error('Invalid session context.');
+  }
+
+  const { sessionId, ...values } = parsed.data;
+  await upsertSessionExportMetadata(sessionId, values);
+
+  const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath(routes.students);
+  revalidatePath(routes.groups);
+  revalidatePath(routes.order);
+  revalidatePath(routes.evaluation);
+  revalidatePath(routes.exports);
+  revalidatePath(routes.settings);
+  revalidatePath(routes.publicPage);
+}
+
+export async function undoSessionContextAction(formData: FormData): Promise<void> {
+  const parsed = z
+    .object({
+      sessionId: z.string().uuid('Invalid session id')
+    })
+    .safeParse({
+      sessionId: String(formData.get('sessionId') ?? '')
+    });
+
+  if (!parsed.success) {
+    throw new Error('Invalid session context.');
+  }
+
+  const { sessionId } = parsed.data;
+  const undone = await undoSessionExportMetadata(sessionId);
+
+  if (!undone) {
+    throw new Error('Nothing to undo.');
+  }
+
+  const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath(routes.students);
+  revalidatePath(routes.groups);
+  revalidatePath(routes.evaluation);
+  revalidatePath(routes.exports);
+  revalidatePath(routes.settings);
+  revalidatePath(routes.publicPage);
+}
+
+export async function undoSessionInstructionsAction(formData: FormData): Promise<void> {
+  const parsed = sessionInstructionsSchema.safeParse({
+    instructions: String(formData.get('instructions') ?? ''),
+    sessionId: String(formData.get('sessionId') ?? '')
+  });
+
+  if (!parsed.success) {
+    throw new Error('Invalid session brief.');
+  }
+
+  const { sessionId } = parsed.data;
+  const sessionRows = await db
+    .select({
+      instructions: sessions.instructions,
+      instructionsPrevious: sessions.instructionsPrevious
     })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
@@ -170,11 +318,17 @@ export async function saveSessionInstructionsAction(formData: FormData): Promise
   await db
     .update(sessions)
     .set({
-      instructions: sessionInstructionText,
+      instructions: session.instructionsPrevious ?? null,
+      instructionsPrevious: null,
       updatedAt: new Date()
     })
     .where(eq(sessions.id, sessionId));
 
-  revalidatePath(`/sessions/${sessionId}/evaluation`);
-  revalidatePath(`/s/${session.slug}`);
+  const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath(routes.students);
+  revalidatePath(routes.groups);
+  revalidatePath(routes.evaluation);
+  revalidatePath(routes.exports);
+  revalidatePath(routes.settings);
+  revalidatePath(routes.publicPage);
 }

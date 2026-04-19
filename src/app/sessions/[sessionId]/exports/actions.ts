@@ -8,6 +8,7 @@ import {
   getActiveExportVersions,
   saveExportMappingVersion,
   saveExportTemplateVersion,
+  undoSessionExportMetadata,
   upsertSessionExportMetadata
 } from '@/lib/exports/repository';
 import {
@@ -29,6 +30,10 @@ const metadataSchema = z.object({
   season: z.enum(['Fall', 'Spring']).or(z.literal('')).optional().default(''),
   sessionDate: z.string().trim().optional().default(''),
   subject: z.string().trim().optional().default(''),
+  sessionId: z.string().uuid('Invalid session id')
+});
+
+const undoMetadataSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
 
@@ -139,6 +144,29 @@ export async function saveExportMetadataAction(
   revalidatePath(settingsPath(sessionId));
   revalidatePath(exportsPath(sessionId));
   redirectWithNotice(sessionId, 'notice', 'Export metadata saved.');
+}
+
+export async function undoExportMetadataAction(formData: FormData): Promise<never> {
+  const parsed = undoMetadataSchema.safeParse({
+    sessionId: String(formData.get('sessionId') ?? '')
+  });
+
+  if (!parsed.success) {
+    redirectWithNotice(String(formData.get('sessionId') ?? 'invalid'), 'error', 'Invalid export metadata.');
+  }
+
+  const { sessionId } = parsed.data;
+  const undone = await undoSessionExportMetadata(sessionId);
+
+  if (!undone) {
+    redirectWithNotice(sessionId, 'error', 'Nothing to undo.');
+  }
+
+  revalidatePath(studentsPath(sessionId));
+  revalidatePath(evaluationPath(sessionId));
+  revalidatePath(settingsPath(sessionId));
+  revalidatePath(exportsPath(sessionId));
+  redirectWithNotice(sessionId, 'notice', 'Export metadata reverted.');
 }
 
 export async function saveExportTemplateAction(
