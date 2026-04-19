@@ -112,7 +112,6 @@ async function syncSessionTitleFromSubject(
 ) {
   const sessionRows = await db
     .select({
-      language: sessions.language,
       title: sessions.title
     })
     .from(sessions)

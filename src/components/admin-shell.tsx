@@ -36,6 +36,7 @@ export async function AdminShell({
   const cookieStore = await cookies();
   const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
   const t = getUiText(uiLanguage);
+  const classBadgeLabel = sessionHeaderState?.sessionContext.className?.trim() || t.shared.notSet;
 
   return (
     <main className="min-h-screen">
@@ -52,7 +53,7 @@ export async function AdminShell({
                   </h1>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="ui-chip ui-chip-accent px-2.5 py-1 text-[11px]">
-                      {sessionHeaderState.sessionContext.className || t.shared.notSet}
+                      {classBadgeLabel}
                     </span>
                     <span className="ui-chip px-2.5 py-1 text-[11px]">
                       {t.shared.programme} {sessionHeaderState.sessionContext.programme || t.shared.notSet}

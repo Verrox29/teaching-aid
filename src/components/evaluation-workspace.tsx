@@ -1022,15 +1022,13 @@ export function EvaluationWorkspaceClient({
           </p>
           <form action={saveSessionInstructionsAction} className="grid gap-3">
             <input name="sessionId" type="hidden" value={sessionId} />
-            <label className="grid gap-2 text-sm font-medium">
-              {t.assignmentBrief}
-              <textarea
-                className="ui-textarea min-h-[140px]"
-                defaultValue={sessionInstructions ?? ''}
-                name="instructions"
-                placeholder={t.describeActivity}
-              />
-            </label>
+            <textarea
+              aria-label={t.assignmentBrief}
+              className="ui-textarea min-h-[140px]"
+              defaultValue={sessionInstructions ?? ''}
+              name="instructions"
+              placeholder={t.describeActivity}
+            />
             <div className="flex justify-end">
               <button
                 className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
