@@ -1305,6 +1305,7 @@ export function EvaluationWorkspaceClient({
                         ) : null
                       }
                       contentClassName="gap-3"
+                      description="Please upload the group's work to enable question recommendation."
                       open={challengeOpen}
                       onOpenChange={(open) =>
                         setGroupPanelState(selectedGroup.groupId, (current) => ({
@@ -1332,7 +1333,6 @@ export function EvaluationWorkspaceClient({
                         </div>
                       ) : !selectedGroupHasUploadedWork ? (
                         <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                          <p>Please upload the group&apos;s work to enable question recommendation.</p>
                           <GroupSubmissionDropzone
                             fileName={selectedGroup.submissionTitle}
                             groupId={selectedGroup.groupId}
