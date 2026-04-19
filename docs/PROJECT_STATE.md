@@ -6,7 +6,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 
 ## Current Teacher/Admin Timeline
 
-1. Pairagogie setup
+1. Pairagogie & students setup
 2. Group creation
 3. Presentation order & upload
 4. AI scoring & feedback
@@ -24,6 +24,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - AI scoring & feedback
 - Branching AI admin settings (Module 1)
 - Export architecture/module has been implemented and validated in Local mode against the real repo files, including a debug export preview for Pairagogie mapping review
+- Shared admin header / shell
 
 ## Current Export / Template Rules
 
@@ -41,9 +42,9 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
 - Step 4 is the live evaluation workspace: presentation order is visible there, teacher notes autosave, and AI recommendations are per group and advisory only
-- Pairagogie setup is the first step: session metadata lives there, while student import is a separate tab on the same admin screen
+- Pairagogie & students setup is the first step: session metadata stays in Step 1, while student import opens in a floating modal that appears automatically for a new session and later remains reachable from Settings
 - Group creation and enrolment are unified on one page, with enrolment status shown at the top
-- Session resume from `/sessions` uses the last meaningful admin step/page when available, otherwise it opens Pairagogie setup
+- Session resume from `/sessions` uses the last meaningful admin step/page when available, otherwise it opens Pairagogie & students setup
 - Session/business fields:
   - `programme`
   - `className`
@@ -63,6 +64,9 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Dark/light mode exists
 - Timeline should stay visible on admin pages
 - Width/layout should be consistent across admin pages
+- Shared admin header stays centralized across session admin pages and keeps only the top-level session controls plus the timeline bar
+- Session context is edited from the shared Settings flow, and assignment brief editing also lives there
+- New-session onboarding starts from Step 1 and auto-opens the students setup modal once, then uses the shared admin controls afterward
 
 ## Known Issues / Items That Still Need Validation
 
