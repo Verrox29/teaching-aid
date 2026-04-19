@@ -917,34 +917,34 @@ export function SessionGroupsBoard({
           ) : null}
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="flex flex-nowrap items-stretch gap-2 overflow-x-auto pb-1">
           {isTopPanelExpanded ? (
             <>
-              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
-                <p className="ui-section-title text-[10px]">Total students</p>
-                <p className="text-2xl font-semibold">{totalStudents}</p>
+              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
+                <p className="ui-section-title text-[9px] leading-none">Total students</p>
+                <p className="text-lg font-semibold leading-none">{totalStudents}</p>
               </div>
-              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
-                <p className="ui-section-title text-[10px]">Assigned</p>
-                <p className="text-2xl font-semibold">{assignedStudents}</p>
+              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
+                <p className="ui-section-title text-[9px] leading-none">Assigned</p>
+                <p className="text-lg font-semibold leading-none">{assignedStudents}</p>
               </div>
-              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
-                <p className="ui-section-title text-[10px]">Unassigned</p>
-                <p className="text-2xl font-semibold">{unassignedStudents.length}</p>
+              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
+                <p className="ui-section-title text-[9px] leading-none">Unassigned</p>
+                <p className="text-lg font-semibold leading-none">{unassignedStudents.length}</p>
               </div>
-              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
-                <p className="ui-section-title text-[10px]">Created groups</p>
-                <p className="text-2xl font-semibold">{groups.length}</p>
+              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
+                <p className="ui-section-title text-[9px] leading-none">Created groups</p>
+                <p className="text-lg font-semibold leading-none">{groups.length}</p>
               </div>
-              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
-                <p className="ui-section-title text-[10px]">Seats remaining</p>
-                <p className="text-2xl font-semibold">{totalSeatsRemaining}</p>
+              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
+                <p className="ui-section-title text-[9px] leading-none">Seats remaining</p>
+                <p className="text-lg font-semibold leading-none">{totalSeatsRemaining}</p>
               </div>
             </>
           ) : (
-            <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3 sm:col-span-2 xl:col-span-1">
-              <p className="ui-section-title text-[10px]">Unassigned</p>
-              <p className="text-2xl font-semibold">{unassignedStudents.length}</p>
+            <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
+              <p className="ui-section-title text-[9px] leading-none">Unassigned</p>
+              <p className="text-lg font-semibold leading-none">{unassignedStudents.length}</p>
             </div>
           )}
         </div>
