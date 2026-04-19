@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { AdminTimelineNav } from '@/components/admin-timeline-nav';
 import { SessionAdminHeaderControls } from '@/components/session-admin-header-controls';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { UiLanguageToggle } from '@/components/ui-language-toggle';
 import { getSessionAdminHeaderState } from '@/lib/session-admin-state';
 
 type AdminShellProps = {
@@ -50,6 +51,9 @@ export async function AdminShell({
                     </span>
                     <span className="ui-chip px-2.5 py-1 text-[11px]">Programme {sessionHeaderState.sessionContext.programme || 'Not set'}</span>
                     <span className="ui-chip px-2.5 py-1 text-[11px]">Date {sessionHeaderState.sessionContext.sessionDate || 'Not set'}</span>
+                    <span className="ui-chip px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                      {sessionHeaderState.sessionLanguage === 'fr' ? 'FR' : 'EN'}
+                    </span>
                   </div>
                 </div>
 
@@ -92,6 +96,7 @@ export async function AdminShell({
 
                 <div className="flex flex-wrap items-center gap-3">
                   {actions}
+                  <UiLanguageToggle />
                   <ThemeToggle />
                 </div>
               </div>

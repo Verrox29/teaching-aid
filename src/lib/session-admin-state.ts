@@ -11,6 +11,7 @@ export type SessionAdminHeaderState = {
   canUndoAssignmentBrief: boolean;
   canUndoSessionContext: boolean;
   sessionContext: Awaited<ReturnType<typeof getSessionExportMetadataRecord>>;
+  sessionLanguage: 'en' | 'fr';
   sessionTitle: string;
 };
 
@@ -19,6 +20,7 @@ export async function getSessionAdminHeaderState(
 ): Promise<SessionAdminHeaderState> {
   const sessionRow = await db
     .select({
+      language: sessions.language,
       title: sessions.title,
       instructions: sessions.instructions,
       instructionsPrevious: sessions.instructionsPrevious
@@ -38,6 +40,7 @@ export async function getSessionAdminHeaderState(
     canUndoAssignmentBrief: Boolean(sessionRow?.instructionsPrevious),
     canUndoSessionContext,
     sessionContext,
+    sessionLanguage: (sessionRow?.language === 'fr' ? 'fr' : 'en'),
     sessionTitle: sessionRow?.title ?? ''
   };
 }

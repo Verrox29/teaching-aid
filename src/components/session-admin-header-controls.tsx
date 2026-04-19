@@ -7,6 +7,7 @@ import { saveSessionContextAction, saveSessionInstructionsAction, undoSessionCon
 import type { SessionAdminHeaderState } from '@/lib/session-admin-state';
 
 import { ThemeToggle } from './theme-toggle';
+import { UiLanguageToggle } from './ui-language-toggle';
 
 type SessionAdminHeaderControlsProps = {
   sessionId: string;
@@ -105,12 +106,14 @@ function SunIcon({ className }: { className?: string }) {
 
 function ActionModal({
   children,
+  headerActions,
   onClose,
   open,
   title,
   widthClassName = 'w-[min(44rem,calc(100vw-2rem))]'
 }: {
   children: ReactNode;
+  headerActions?: ReactNode;
   onClose: () => void;
   open: boolean;
   title: string;
@@ -129,19 +132,22 @@ function ActionModal({
           onClick={(event) => event.stopPropagation()}
           role="dialog"
         >
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div className="space-y-1">
               <p className="ui-section-title">Teacher admin</p>
               <h2 className="text-xl font-semibold">{title}</h2>
             </div>
-            <button
-              aria-label="Close"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-sm font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
-              onClick={onClose}
-              type="button"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {headerActions}
+              <button
+                aria-label="Close"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-sm font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
+                onClick={onClose}
+                type="button"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div className="mt-4">{children}</div>
@@ -323,7 +329,12 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
         </form>
       </ActionModal>
 
-      <ActionModal onClose={() => setSettingsOpen(false)} open={settingsOpen} title="Settings">
+      <ActionModal
+        headerActions={<UiLanguageToggle />}
+        onClose={() => setSettingsOpen(false)}
+        open={settingsOpen}
+        title="Settings"
+      >
         <section className="grid gap-5">
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">

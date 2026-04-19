@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 import { ThemeProvider } from '@/components/theme-provider';
+import { UiLanguageProvider } from '@/components/ui-language-toggle';
 
 export const metadata: Metadata = {
   title: 'teaching-aid',
@@ -17,7 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <UiLanguageProvider>{children}</UiLanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
