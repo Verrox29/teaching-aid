@@ -1027,58 +1027,68 @@ export function EvaluationWorkspaceClient({
                     const isDropTarget = dropTargetTabGroupId === group.groupId;
 
                     return (
-                      <button
-                        key={group.groupId}
-                        draggable={!presentationOrderSaving}
-                        className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.1rem] border border-b-0 px-4 py-3 text-sm font-medium transition ${
-                          isActive
-                            ? 'z-20 border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
-                            : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
-                        } ${isDragged ? 'opacity-40' : ''} ${
-                          isDropTarget ? 'ring-2 ring-[color:var(--app-accent)]/25' : ''
-                        } ${presentationOrderSaving ? 'cursor-wait' : 'cursor-grab active:cursor-grabbing'}`}
-                        onClick={() => {
-                          setSelectedGroupId(group.groupId);
-                          updateUrl(group.groupId);
-                        }}
-                        onDragStart={(event) => {
-                          if (presentationOrderSaving) {
+                      <div key={group.groupId} className="group relative shrink-0">
+                        <button
+                          draggable={!presentationOrderSaving}
+                          className={`relative -mb-px flex items-center gap-2 rounded-t-[1.1rem] border border-b-0 px-4 py-3 pr-9 text-sm font-medium transition ${
+                            isActive
+                              ? 'z-20 border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
+                              : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
+                          } ${isDragged ? 'opacity-40' : ''} ${
+                            isDropTarget ? 'ring-2 ring-[color:var(--app-accent)]/25' : ''
+                          } ${presentationOrderSaving ? 'cursor-wait' : 'cursor-grab active:cursor-grabbing'}`}
+                          onClick={() => {
+                            setSelectedGroupId(group.groupId);
+                            updateUrl(group.groupId);
+                          }}
+                          onDragStart={(event) => {
+                            if (presentationOrderSaving) {
+                              event.preventDefault();
+                              return;
+                            }
+
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', group.groupId);
+                            setDraggedTabGroupId(group.groupId);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedTabGroupId(null);
+                            setDropTargetTabGroupId(null);
+                          }}
+                          onDragOver={(event) => {
+                            if (!draggedTabGroupId || draggedTabGroupId === group.groupId) {
+                              return;
+                            }
+
                             event.preventDefault();
-                            return;
-                          }
+                            setDropTargetTabGroupId(group.groupId);
+                          }}
+                          onDrop={(event) => {
+                            if (!draggedTabGroupId) {
+                              return;
+                            }
 
-                          event.dataTransfer.effectAllowed = 'move';
-                          event.dataTransfer.setData('text/plain', group.groupId);
-                          setDraggedTabGroupId(group.groupId);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedTabGroupId(null);
-                          setDropTargetTabGroupId(null);
-                        }}
-                        onDragOver={(event) => {
-                          if (!draggedTabGroupId || draggedTabGroupId === group.groupId) {
-                            return;
-                          }
-
-                          event.preventDefault();
-                          setDropTargetTabGroupId(group.groupId);
-                        }}
-                        onDrop={(event) => {
-                          if (!draggedTabGroupId) {
-                            return;
-                          }
-
-                          event.preventDefault();
-                          event.stopPropagation();
-                          moveGroupBefore(draggedTabGroupId, group.groupId);
-                        }}
-                        type="button"
-                      >
-                        <span className="truncate">{group.groupName}</span>
-                        <span aria-hidden="true" className="text-[10px] leading-none opacity-60">
-                          ⠿
-                        </span>
-                      </button>
+                            event.preventDefault();
+                            event.stopPropagation();
+                            moveGroupBefore(draggedTabGroupId, group.groupId);
+                          }}
+                          type="button"
+                        >
+                          <span className="truncate">{group.groupName}</span>
+                          <span aria-hidden="true" className="text-[10px] leading-none opacity-60">
+                            ⠿
+                          </span>
+                        </button>
+                        <button
+                          aria-label={`Rename ${group.groupName}`}
+                          className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
+                          onClick={() => void renameGroup(group.groupId, group.groupName)}
+                          title="Rename group"
+                          type="button"
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1115,19 +1125,6 @@ export function EvaluationWorkspaceClient({
             ) : null}
 
             <div className="bg-[color:var(--app-surface)] p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-2xl font-semibold">{selectedGroup.groupName}</h3>
-                <button
-                  aria-label={`Rename ${selectedGroup.groupName}`}
-                  className="inline-flex h-8 w-8 items-center justify-center text-[color:var(--app-fg-muted)] transition hover:text-[color:var(--app-fg)]"
-                  title="Rename group"
-                  type="button"
-                  onClick={() => void renameGroup(selectedGroup.groupId, selectedGroup.groupName)}
-                >
-                  <PencilIcon className="h-4 w-4" />
-                </button>
-              </div>
-
               <CollapsiblePanel
                 className="border-0 bg-transparent p-0 shadow-none"
                 actions={
