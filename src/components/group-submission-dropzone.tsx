@@ -4,7 +4,7 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { uploadGroupSubmissionAction } from '@/app/sessions/[sessionId]/order/actions';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES, GROUP_SUBMISSION_MAX_FILE_SIZE_MB } from '@/lib/group-submission';
-import { getUiText } from '@/lib/ui-language';
+import { formatUiDateTime, getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type GroupSubmissionDropzoneProps = {
@@ -27,6 +27,7 @@ export function GroupSubmissionDropzone({
   const inputRef = useRef<HTMLInputElement>(null);
   const { uiLanguage } = useUiLanguage();
   const t = getUiText(uiLanguage).groupSubmission;
+  const formattedSubmittedAt = submittedAt ? formatUiDateTime(submittedAt, uiLanguage) : null;
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -34,9 +35,7 @@ export function GroupSubmissionDropzone({
 
   function rejectFile(fileName: string) {
     setSelectedFileName(null);
-    setErrorMessage(
-      `File "${fileName}" is too large. ${t.maxFileSize.replace('{size}', String(GROUP_SUBMISSION_MAX_FILE_SIZE_MB))}`
-    );
+    setErrorMessage(t.fileTooLarge.replace('{size}', String(GROUP_SUBMISSION_MAX_FILE_SIZE_MB)));
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -148,7 +147,11 @@ export function GroupSubmissionDropzone({
           </a>
           .
         </p>
-        {submittedAt ? <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">{t.uploadedOn.replace('{date}', submittedAt)}</p> : null}
+        {formattedSubmittedAt ? (
+          <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
+            {t.uploadedOn.replace('{date}', formattedSubmittedAt)}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-1">

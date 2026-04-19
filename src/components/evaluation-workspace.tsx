@@ -10,7 +10,8 @@ import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone'
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { useUiLanguage } from '@/components/ui-language-toggle';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
-import { getUiText } from '@/lib/ui-language';
+import { formatUiDateTime, getUiText } from '@/lib/ui-language';
+import type { UiLanguage } from '@/lib/ui-language';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -83,27 +84,24 @@ function buildFeedbackString(sections: EvaluationAiFeedbackSections, language: s
   return formatFeedbackSections(sections, language);
 }
 
-function getTimestampLabel(value: string | null) {
+function getTimestampLabel(value: string | null, language: UiLanguage) {
   if (!value) {
-    return 'Not saved yet';
+    return language === 'fr' ? 'Non enregistré pour le moment' : 'Not saved yet';
   }
 
-  return new Date(value).toLocaleString('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  });
+  return formatUiDateTime(value, language);
 }
 
-function scoreStateLabel(state: SaveState) {
+function scoreStateLabel(state: SaveState, language: UiLanguage) {
   switch (state.kind) {
     case 'failed':
-      return `Save failed: ${state.message}`;
+      return language === 'fr' ? `Échec de l’enregistrement : ${state.message}` : `Save failed: ${state.message}`;
     case 'saved':
-      return `Saved ${getTimestampLabel(state.at)}`;
+      return `${language === 'fr' ? 'Enregistré' : 'Saved'} ${getTimestampLabel(state.at, language)}`;
     case 'saving':
-      return 'Saving...';
+      return language === 'fr' ? 'Enregistrement...' : 'Saving...';
     default:
-      return 'Idle';
+      return language === 'fr' ? 'En attente' : 'Idle';
   }
 }
 
@@ -145,27 +143,13 @@ function PencilIcon({ className }: { className?: string }) {
   );
 }
 
-function extractGroupNumber(groupName: string) {
-  const normalized = groupName.replace(/\s+/g, ' ').trim();
-  const patterns = [
-    /\b(?:group|groupe)\s*0*([1-9]\d*)\b/iu,
-    /\bclasse\s*\d+\s*-\s*g\s*0*([1-9]\d*)\b/iu,
-    /\bg\s*0*([1-9]\d*)\b/iu
-  ];
-
-  for (const pattern of patterns) {
-    const match = normalized.match(pattern);
-    if (match) {
-      return Number.parseInt(match[1], 10);
-    }
-  }
-
-  return null;
-}
-
-function formatGroupDisplayName(groupName: string, fallbackNumber: number) {
-  const groupNumber = extractGroupNumber(groupName) ?? fallbackNumber;
-  return `Group ${groupNumber}`;
+function getAiStatusLabel(status: 'idle' | 'generating' | 'ready' | 'failed', language: UiLanguage) {
+  return {
+    failed: language === 'fr' ? 'Échec' : 'Failed',
+    generating: language === 'fr' ? 'Génération' : 'Generating',
+    idle: language === 'fr' ? 'En attente' : 'Idle',
+    ready: language === 'fr' ? 'Prêt' : 'Ready'
+  }[status];
 }
 
 function sortGroupsByPresentationOrder(groups: GroupDraft[]) {
@@ -226,7 +210,6 @@ export function EvaluationWorkspaceClient({
   const router = useRouter();
   const { uiLanguage } = useUiLanguage();
   const t = getUiText(uiLanguage).evaluationWorkspace;
-  const isFrench = uiLanguage === 'fr';
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [groups, setGroups] = useState<GroupDraft[]>(() => initialDraftGroups(initialGroups));
@@ -370,13 +353,13 @@ export function EvaluationWorkspaceClient({
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not rename the group.');
+        throw new Error(payload.error ?? t.errors.renameGroup);
       }
 
       const renamedGroupName = typeof payload.name === 'string' ? payload.name : trimmedName;
       return renamedGroupName;
     } catch (error) {
-      throw error instanceof Error ? error : new Error('Could not rename the group.');
+      throw error instanceof Error ? error : new Error(t.errors.renameGroup);
     }
   }
 
@@ -439,7 +422,7 @@ export function EvaluationWorkspaceClient({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not update presentation order.');
+        throw new Error(payload.error ?? t.errors.updatePresentationOrder);
       }
 
       const orderByGroupId = new Map(
@@ -461,7 +444,7 @@ export function EvaluationWorkspaceClient({
     } catch (error) {
       setGroups(previousGroups);
       setPresentationOrderError(
-        error instanceof Error ? error.message : 'Could not update presentation order.'
+        error instanceof Error ? error.message : t.errors.updatePresentationOrder
       );
     } finally {
       setPresentationOrderSaving(false);
@@ -540,7 +523,7 @@ export function EvaluationWorkspaceClient({
             ...current,
             [groupId]: {
               kind: 'failed',
-              message: payload.error ?? 'Could not save changes.'
+              message: payload.error ?? t.errors.saveChanges
             }
           }));
         }
@@ -579,7 +562,7 @@ export function EvaluationWorkspaceClient({
         }
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not save changes.';
+      const message = error instanceof Error ? error.message : t.errors.saveChanges;
       if ((requestVersions.current[groupId] ?? 0) === requestVersion) {
         setSaveStates((current) => ({
           ...current,
@@ -686,7 +669,7 @@ export function EvaluationWorkspaceClient({
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not regenerate challenge questions.');
+        throw new Error(payload.error ?? t.errors.regenerateChallengeQuestions);
       }
 
       if (payload.group) {
@@ -696,7 +679,7 @@ export function EvaluationWorkspaceClient({
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Could not regenerate challenge questions.';
+        error instanceof Error ? error.message : t.errors.regenerateChallengeQuestions;
       setGroups((current) =>
         current.map((group) =>
           group.groupId === groupId
@@ -741,7 +724,7 @@ export function EvaluationWorkspaceClient({
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not generate AI recommendations.');
+        throw new Error(payload.error ?? t.errors.generateAiRecommendations);
       }
 
       if (payload.group) {
@@ -756,7 +739,7 @@ export function EvaluationWorkspaceClient({
         [groupId]: { kind: 'saved', at: new Date().toISOString() }
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not generate AI recommendations.';
+      const message = error instanceof Error ? error.message : t.errors.generateAiRecommendations;
       setGroups((current) =>
         current.map((group) =>
           group.groupId === groupId
@@ -789,7 +772,7 @@ export function EvaluationWorkspaceClient({
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not run batch AI.');
+        throw new Error(payload.error ?? t.errors.runBatchAi);
       }
 
       if (Array.isArray(payload.groups)) {
@@ -837,20 +820,20 @@ export function EvaluationWorkspaceClient({
           kind: 'done',
           message:
             skipped.length > 0
-              ? `Generated questions for eligible groups. ${skipped.length} group(s) skipped.`
-              : 'Generated questions for all eligible groups.'
+              ? t.batchQuestionsDoneWithSkipped.replace('{count}', String(skipped.length))
+              : t.batchQuestionsDoneAll
         });
       } else {
         setGradingBatchState({
           kind: 'done',
           message:
             skipped.length > 0
-              ? `Generated feedback and grades for eligible groups. ${skipped.length} group(s) skipped.`
-              : 'Generated feedback and grades for all eligible groups.'
+              ? t.batchFeedbackDoneWithSkipped.replace('{count}', String(skipped.length))
+              : t.batchFeedbackDoneAll
         });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not run batch AI.';
+      const message = error instanceof Error ? error.message : t.errors.runBatchAi;
       if (mode === 'questions') {
         setChallengeQuestionsBatchState({ kind: 'failed', message });
       } else {
@@ -885,7 +868,7 @@ export function EvaluationWorkspaceClient({
           ...current,
           [groupId]: {
             kind: 'failed',
-            message: payload.error ?? 'Could not run spell-check.'
+            message: payload.error ?? t.errors.runSpellCheck
           }
         }));
         return;
@@ -898,7 +881,7 @@ export function EvaluationWorkspaceClient({
       }));
       setSpellcheckReady((current) => ({ ...current, [groupId]: false }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not run spell-check.';
+      const message = error instanceof Error ? error.message : t.errors.runSpellCheck;
       setSaveStates((current) => ({
         ...current,
         [groupId]: {
@@ -932,7 +915,7 @@ export function EvaluationWorkspaceClient({
           ...current,
           [groupId]: {
             kind: 'failed',
-            message: payload.error ?? 'Could not finalize this group.'
+            message: payload.error ?? t.errors.finalizeGroup
           }
         }));
         return;
@@ -949,7 +932,7 @@ export function EvaluationWorkspaceClient({
         [groupId]: { kind: 'saved', at: new Date().toISOString() }
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not finalize this group.';
+      const message = error instanceof Error ? error.message : t.errors.finalizeGroup;
       setSaveStates((current) => ({
         ...current,
         [groupId]: {
@@ -962,7 +945,7 @@ export function EvaluationWorkspaceClient({
 
   async function resetGroupScores(groupId: string) {
     const confirmed = window.confirm(
-      'Reset all criterion scores for this group? Teacher notes, Q&A notes, AI challenge questions, and final feedback will be kept.'
+      t.resetCriterionScoresConfirm
     );
 
     if (!confirmed) {
@@ -1131,7 +1114,7 @@ export function EvaluationWorkspaceClient({
                         {isEditing ? (
                           <input
                             ref={editingGroupNameInputRef}
-                            aria-label={`Rename ${group.groupName}`}
+                            aria-label={t.renameGroupLabel.replace('{name}', group.groupName)}
                             className={`absolute inset-0 z-30 w-full rounded-t-[1.1rem] border border-[color:var(--app-border)] px-4 py-3 pr-9 text-sm font-medium outline-none ${
                               isActive
                                 ? 'bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
@@ -1168,13 +1151,13 @@ export function EvaluationWorkspaceClient({
                           />
                         ) : null}
                         <button
-                          aria-label={`Rename ${group.groupName}`}
+                          aria-label={t.renameGroupLabel.replace('{name}', group.groupName)}
                           className="absolute right-2 top-1/2 z-30 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
                           onClick={(event) => {
                             event.stopPropagation();
                             startEditingGroup(group.groupId, group.groupName);
                           }}
-                          title="Rename group"
+                          title={t.renameGroup}
                           type="button"
                         >
                           <PencilIcon className="h-3.5 w-3.5" />
@@ -1225,7 +1208,7 @@ export function EvaluationWorkspaceClient({
                       onClick={() => setRosterGroupId(selectedGroup.groupId)}
                       type="button"
                     >
-                      Roster
+                      {t.roster}
                     </button>
                   </div>
                 }
@@ -1233,28 +1216,28 @@ export function EvaluationWorkspaceClient({
                   <>
                     <p>
                       {selectedGroup.presentationOrder
-                        ? `Presentation order ${selectedGroup.presentationOrder}.`
-                        : 'Presentation order not locked yet.'}
+                        ? t.presentationOrder.replace('{order}', String(selectedGroup.presentationOrder))
+                        : t.presentationOrderNotLocked}
                     </p>
                     <p>
                       {selectedGroup.submissionTitle
-                        ? `Submission: ${selectedGroup.submissionTitle}.`
-                        : 'No submission uploaded yet.'}
+                        ? t.submission.replace('{title}', selectedGroup.submissionTitle)
+                        : t.noSubmissionUploaded}
                     </p>
                   </>
                 }
-                title="Group details"
-                titleLabel="Group details"
+                title={t.groupDetails}
+                titleLabel={t.groupDetails}
                 titleClassName="text-2xl font-semibold"
               >
                 <div className="grid gap-4">
                   <CollapsiblePanel
                     actions={
                       <div className="text-right text-sm text-[color:var(--app-fg-muted)]">
-                        <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' })}</div>
+                        <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' }, uiLanguage)}</div>
                         <div>
-                          Finalized:{' '}
-                          {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt) : 'No'}
+                          {t.finalized}{' '}
+                          {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt, uiLanguage) : t.no}
                         </div>
                       </div>
                     }
@@ -1266,12 +1249,12 @@ export function EvaluationWorkspaceClient({
                         notesOpen: open
                       }))
                     }
-                    title="Scoring and feedback"
-                    description="with the power of ExpertLab AI"
+                    title={t.scoringAndFeedback}
+                    description={t.poweredBy}
                     titleClassName="text-lg font-semibold"
                   >
                     <label className="grid gap-2 text-sm font-medium">
-                      Presentation comments
+                      {t.writePresentationNotes}
                       <textarea
                         className="ui-textarea min-h-[140px]"
                         onChange={(event) =>
@@ -1280,7 +1263,7 @@ export function EvaluationWorkspaceClient({
                             presentationComments: event.target.value
                           }))
                         }
-                        placeholder="Write the live presentation notes here."
+                        placeholder={t.writePresentationNotes}
                         value={selectedGroup.presentationComments}
                       />
                     </label>
@@ -1297,15 +1280,15 @@ export function EvaluationWorkspaceClient({
                             type="button"
                           >
                             {selectedGroup.aiStatus === 'generating'
-                              ? 'Generating...'
+                              ? t.generatingQuestions
                               : selectedGroupHasChallengeQuestions
-                                ? 'Regenerate questions'
-                                : 'Generate questions'}
+                                ? t.regenerateQuestions
+                                : t.generateQuestions}
                           </button>
                         ) : null
                       }
                       contentClassName="gap-3"
-                      description="Please upload the group's work to enable question recommendation."
+                      description={t.pleaseUploadWork}
                       open={challengeOpen}
                       onOpenChange={(open) =>
                         setGroupPanelState(selectedGroup.groupId, (current) => ({
@@ -1313,7 +1296,7 @@ export function EvaluationWorkspaceClient({
                           challengeOpen: open
                         }))
                       }
-                      title="Challenge questions"
+                      title={t.challengeQuestions}
                       titleClassName="text-base font-semibold"
                     >
                       {selectedGroupHasChallengeQuestions ? (
@@ -1329,30 +1312,30 @@ export function EvaluationWorkspaceClient({
                         </ul>
                       ) : selectedGroup.aiStatus === 'generating' ? (
                         <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                          Generating new challenge questions...
+                          {t.generatingQuestions}
                         </div>
                       ) : !selectedGroupHasUploadedWork ? (
                         <GroupSubmissionDropzone
                           fileName={selectedGroup.submissionTitle}
                           groupId={selectedGroup.groupId}
-                          groupName="this group"
+                          groupName={t.thisGroup}
                           sessionId={sessionId}
                           submittedAt={selectedGroup.submittedAt}
                         />
                       ) : selectedGroup.aiStatus === 'failed' ? (
                         <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
-                          Could not generate challenge questions.
+                          {t.couldNotGenerateChallengeQuestions}
                           {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
                         </div>
                       ) : (
                         <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                          <p>Generate questions from the uploaded work to prepare the oral defense.</p>
+                          <p>{t.generateQuestionsFromWork}</p>
                         </div>
                       )}
                     </CollapsiblePanel>
 
                     <label className="grid gap-2 text-sm font-medium">
-                      Q&amp;A comments
+                      {t.qaComments}
                       <textarea
                         className="ui-textarea min-h-[120px]"
                         onChange={(event) =>
@@ -1361,7 +1344,7 @@ export function EvaluationWorkspaceClient({
                             qaComments: event.target.value
                           }))
                         }
-                        placeholder="Optional notes for the questions and answers phase."
+                        placeholder={t.qaCommentsPlaceholder}
                         value={selectedGroup.qaComments}
                       />
                     </label>
@@ -1371,8 +1354,8 @@ export function EvaluationWorkspaceClient({
                         className="inline-flex"
                         title={
                           selectedGroupHasFeedbackInputs
-                            ? 'Send the notes or uploaded work to AI for structured feedback and conservative grade suggestions.'
-                            : 'Add comments or upload work before generating AI feedback and grades.'
+                            ? t.sendingNotes
+                            : t.addCommentsFirst
                         }
                       >
                         <button
@@ -1382,8 +1365,8 @@ export function EvaluationWorkspaceClient({
                           type="button"
                         >
                           {selectedGroup.aiStatus === 'generating'
-                            ? 'Generating feedback...'
-                            : 'Generate AI feedback & grades'}
+                            ? t.generatingFeedback
+                            : t.generateFeedback}
                         </button>
                       </span>
                     </div>
@@ -1398,7 +1381,7 @@ export function EvaluationWorkspaceClient({
                           onClick={() => void resetGroupScores(selectedGroup.groupId)}
                           type="button"
                         >
-                          Reset scores
+                          {t.resetScores}
                         </button>
                         <button
                           className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
@@ -1406,7 +1389,7 @@ export function EvaluationWorkspaceClient({
                           onClick={() => void finalizeGroup(selectedGroup.groupId)}
                           type="button"
                         >
-                          Mark ready for export
+                          {t.markReadyForExport}
                         </button>
                       </div>
                     }
@@ -1417,20 +1400,22 @@ export function EvaluationWorkspaceClient({
                         gradingOpen: open
                       }))
                     }
-                    title="Final grading"
+                    title={t.finalGradingTitle}
                     titleClassName="text-lg font-semibold"
                   >
                     <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">AI status</span>
-                        <span className="ui-chip">{selectedGroup.aiStatus}</span>
+                        <span className="font-medium">{t.aiStatus}</span>
+                        <span className="ui-chip">
+                          {getAiStatusLabel(selectedGroup.aiStatus, uiLanguage)}
+                        </span>
                       </div>
                       {selectedGroup.aiLastError ? (
                         <p className="text-[color:var(--app-danger)]">{selectedGroup.aiLastError}</p>
                       ) : null}
                       {selectedGroup.aiGeneratedAt ? (
                         <p className="text-[color:var(--app-fg-muted)]">
-                          Generated {getTimestampLabel(selectedGroup.aiGeneratedAt)}
+                          {t.generated} {getTimestampLabel(selectedGroup.aiGeneratedAt, uiLanguage)}
                         </p>
                       ) : null}
                     </div>
@@ -1439,9 +1424,9 @@ export function EvaluationWorkspaceClient({
                       <table className="w-full border-collapse text-sm">
                         <thead className="bg-[color:var(--app-surface-muted)] text-left">
                           <tr>
-                            <th className="px-3 py-3 font-medium">Criterion</th>
-                            <th className="px-3 py-3 font-medium">Final score</th>
-                            <th className="px-3 py-3 font-medium">Max</th>
+                            <th className="px-3 py-3 font-medium">{t.criterion}</th>
+                            <th className="px-3 py-3 font-medium">{t.finalScore}</th>
+                            <th className="px-3 py-3 font-medium">{t.max}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1487,21 +1472,21 @@ export function EvaluationWorkspaceClient({
 
                     <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">Final total</span>
+                        <span className="font-medium">{t.finalTotal}</span>
                         <span className="ui-chip">
                           {formatScoreTotal(selectedGroupTotal)}/{formatScoreTotal(selectedGroupMaxTotal)}
                         </span>
                       </div>
                       <p className="text-[color:var(--app-fg-muted)]">
-                        The total is calculated from the teacher-controlled scores above.
+                        {t.totalCalculatedFromTeacherScores}
                       </p>
                     </div>
 
                     <section className="grid gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <p className="ui-section-title">Final feedback</p>
-                          <h4 className="text-base font-semibold">Editable summary</h4>
+                          <p className="ui-section-title">{t.finalFeedback}</p>
+                          <h4 className="text-base font-semibold">{t.editableSummary}</h4>
                         </div>
                         {selectedGroupCanSpellCheck ? (
                           <button
@@ -1509,7 +1494,7 @@ export function EvaluationWorkspaceClient({
                             onClick={() => void runSpellCheck(selectedGroup.groupId)}
                             type="button"
                           >
-                            Spell-check feedback
+                            {t.spellCheckFeedback}
                           </button>
                         ) : null}
                       </div>
@@ -1528,9 +1513,9 @@ export function EvaluationWorkspaceClient({
                         }}
                       >
                         {[
-                          ['strengths', 'Strengths'],
-                          ['development', 'Points for development'],
-                          ['general', 'General feedback']
+                          ['strengths', t.strengths],
+                          ['development', t.development],
+                          ['general', t.general]
                         ].map(([key, label]) => (
                           <label key={key} className="grid gap-2 text-sm font-medium">
                             {label}
@@ -1568,9 +1553,7 @@ export function EvaluationWorkspaceClient({
       ) : (
         <section className="ui-panel p-6">
           <h2 className="text-lg font-semibold">{t.noGroupsAvailable}</h2>
-          <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
-            Create or assign groups before using the evaluation workspace.
-          </p>
+          <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">{t.noGroupsHelp}</p>
         </section>
       )}
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { EvaluationGroupMember } from '@/lib/evaluation/types';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type RosterGroup = {
   capacity: number;
@@ -43,6 +45,8 @@ export function EvaluationRosterDialog({
   sessionId
 }: EvaluationRosterDialogProps) {
   const router = useRouter();
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).rosterDialog;
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [destinationGroupId, setDestinationGroupId] = useState<string>('');
   const [adjustmentValue, setAdjustmentValue] = useState('');
@@ -104,7 +108,7 @@ export function EvaluationRosterDialog({
   }
 
   async function sendAction(payload: Record<string, string | number | null>) {
-    setStatus('Saving...');
+    setStatus(t.saving);
 
     const response = await fetch(`/api/sessions/${sessionId}/evaluation/roster`, {
       body: JSON.stringify(payload),
@@ -116,11 +120,11 @@ export function EvaluationRosterDialog({
 
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(result.error ?? 'Could not save roster change.');
+      throw new Error(result.error ?? t.couldNotSaveRosterChange);
     }
 
     router.refresh();
-    setStatus('Saved.');
+    setStatus(t.saved);
   }
 
   function parseSignedAdjustment(value: string) {
@@ -147,7 +151,7 @@ export function EvaluationRosterDialog({
 
     const parsed = parseSignedAdjustment(nextValue);
     if (parsed === undefined) {
-      setStatus('Enter a signed whole-number adjustment.');
+      setStatus(t.enterSignedAdjustment);
       return;
     }
 
@@ -171,13 +175,13 @@ export function EvaluationRosterDialog({
         ...current,
         [selectedStudent.id]: selectedStudent.gradeAdjustment
       }));
-      setStatus(error instanceof Error ? error.message : 'Could not save roster change.');
+      setStatus(error instanceof Error ? error.message : t.couldNotSaveRosterChange);
     }
   }
 
   async function moveStudent() {
     if (!selectedStudent || !destinationGroupId) {
-      setStatus('Choose a destination group.');
+      setStatus(t.chooseDestinationGroup);
       return;
     }
 
@@ -188,7 +192,7 @@ export function EvaluationRosterDialog({
         sessionStudentId: selectedStudent.id
       });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not save roster change.');
+      setStatus(error instanceof Error ? error.message : t.couldNotSaveRosterChange);
     }
   }
 
@@ -203,7 +207,7 @@ export function EvaluationRosterDialog({
         sessionStudentId: selectedStudent.id
       });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not save roster change.');
+      setStatus(error instanceof Error ? error.message : t.couldNotSaveRosterChange);
     }
   }
 
@@ -221,18 +225,18 @@ export function EvaluationRosterDialog({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <p className="ui-section-title">Group roster</p>
+              <p className="ui-section-title">{t.title}</p>
               <h2 className="text-xl font-semibold">{currentGroup.groupName}</h2>
             </div>
             <button className="ui-button ui-button-secondary px-3 py-2 text-sm" onClick={onClose} type="button">
-              Close
+              {t.close}
             </button>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="ui-section-title">Students</p>
+                <p className="ui-section-title">{t.students}</p>
                 <span className="ui-chip px-2 py-1">{currentGroup.members.length}</span>
               </div>
               <div className="grid gap-2 max-h-[50vh] overflow-auto pr-1">
@@ -255,19 +259,19 @@ export function EvaluationRosterDialog({
                         </span>
                         <span className="ui-chip px-2 py-1">
                           {getFinalGrade(member.id, member.gradeAdjustment) === null
-                            ? 'No grade'
-                            : `Grade ${formatGrade(getFinalGrade(member.id, member.gradeAdjustment) ?? 0)}`}
+                            ? t.noGrade
+                            : t.grade.replace('{grade}', formatGrade(getFinalGrade(member.id, member.gradeAdjustment) ?? 0))}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
-                        {member.schoolEmail} · Adjustment {formatAdjustment(getAdjustment(member.id, member.gradeAdjustment))}
+                        {member.schoolEmail} · {t.adjustmentValue.replace('{adjustment}', formatAdjustment(getAdjustment(member.id, member.gradeAdjustment)))}
                       </p>
                     </button>
                   );
                 })}
                 {currentGroup.members.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                    No students in this group.
+                    {t.noStudentsInGroup}
                   </div>
                 ) : null}
               </div>
@@ -277,22 +281,22 @@ export function EvaluationRosterDialog({
               {selectedStudent ? (
                 <>
                   <div className="space-y-1">
-                    <p className="ui-section-title">Selected student</p>
+                    <p className="ui-section-title">{t.selectedStudent}</p>
                     <h3 className="text-lg font-semibold">
                       {selectedStudent.firstName} {selectedStudent.lastName}
                     </h3>
                     <p className="text-sm text-[color:var(--app-fg-muted)]">{selectedStudent.schoolEmail}</p>
                     <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      Adjustment:{' '}
+                      {t.adjustment}:{' '}
                       <span className="font-medium text-[color:var(--app-fg)]">
                         {formatAdjustment(getAdjustment(selectedStudent.id, selectedStudent.gradeAdjustment))}
                       </span>
                     </p>
                     <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      Final grade:{' '}
+                      {t.finalGrade}:{' '}
                       <span className="font-medium text-[color:var(--app-fg)]">
                         {getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) === null
-                          ? 'No grade yet'
+                          ? t.noGradeYet
                           : formatGrade(
                               getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) ?? 0
                             )}
@@ -302,42 +306,42 @@ export function EvaluationRosterDialog({
 
                   <div className="grid gap-2">
                     <label className="grid gap-2 text-sm font-medium">
-                      Move to group
+                      {t.moveToGroup}
                       <select
                         className="ui-select"
                         onChange={(event) => setDestinationGroupId(event.target.value)}
                         value={destinationGroupId}
                       >
-                        <option value="">Choose a destination</option>
+                        <option value="">{t.chooseDestination}</option>
                         {groups
                           .filter((group) => group.groupId !== currentGroup.groupId)
                           .map((group) => {
                             const remainingSeats = group.capacity - group.members.length;
                             return (
                               <option key={group.groupId} value={group.groupId} disabled={remainingSeats <= 0}>
-                                {group.groupName} ({remainingSeats} left)
+                                {group.groupName} ({t.remainingSeats.replace('{count}', String(remainingSeats))})
                               </option>
                             );
                           })}
                       </select>
                     </label>
                     <button className="ui-button ui-button-primary" onClick={() => void moveStudent()} type="button">
-                      Move student
+                      {t.moveStudent}
                     </button>
                     <button className="ui-button ui-button-secondary" onClick={() => void removeStudent()} type="button">
-                      Remove from all groups
+                      {t.removeFromAllGroups}
                     </button>
                   </div>
 
                   <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3">
-                    <p className="ui-section-title">Individual grading</p>
+                    <p className="ui-section-title">{t.individualGrading}</p>
                     <label className="grid gap-2 text-sm font-medium">
-                      Adjustment
+                      {t.adjustment}
                       <input
                         className="ui-input w-full"
                         inputMode="numeric"
                         pattern="[+-]?[0-9]*"
-                        placeholder="+1 or -1"
+                        placeholder={t.signedAdjustmentPlaceholder}
                         type="text"
                         value={adjustmentValue}
                         onChange={(event) => {
@@ -348,13 +352,13 @@ export function EvaluationRosterDialog({
                       />
                     </label>
                     <p className="text-xs text-[color:var(--app-fg-muted)]">
-                      Apply a signed whole-number adjustment. The student&apos;s final grade stays between 0 and 20.
+                      {t.signedAdjustmentHelp}
                     </p>
                   </div>
                 </>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                  Select a student to move them, remove them, or apply individual grading.
+                  {t.selectStudentHint}
                 </div>
               )}
 
