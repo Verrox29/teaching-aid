@@ -45,7 +45,9 @@ export async function AdminShell({
                     {sessionHeaderState.sessionTitle || title}
                   </h1>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="ui-chip ui-chip-accent px-2.5 py-1 text-[11px]">Class {sessionHeaderState.sessionContext.className || 'Not set'}</span>
+                    <span className="ui-chip ui-chip-accent px-2.5 py-1 text-[11px]">
+                      {sessionHeaderState.sessionContext.className || 'Not set'}
+                    </span>
                     <span className="ui-chip px-2.5 py-1 text-[11px]">Programme {sessionHeaderState.sessionContext.programme || 'Not set'}</span>
                     <span className="ui-chip px-2.5 py-1 text-[11px]">Date {sessionHeaderState.sessionContext.sessionDate || 'Not set'}</span>
                   </div>

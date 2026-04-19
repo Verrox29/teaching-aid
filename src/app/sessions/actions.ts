@@ -124,17 +124,14 @@ async function syncSessionTitleFromSubject(
   }
 
   const nextTitle = subject.trim() || session.title;
-  const nextLanguage = language ?? session.language;
-
-  if (session.title === nextTitle && session.language === nextLanguage) {
+  if (session.title === nextTitle) {
     return;
   }
 
   await db
     .update(sessions)
     .set({
-      ...(session.title !== nextTitle ? { title: nextTitle } : {}),
-      ...(session.language !== nextLanguage ? { language: nextLanguage } : {}),
+      title: nextTitle,
       updatedAt: new Date()
     })
     .where(eq(sessions.id, sessionId));

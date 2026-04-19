@@ -1012,12 +1012,9 @@ export function EvaluationWorkspaceClient({
         titleClassName="text-2xl font-semibold"
       >
         <section className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-          <div className="space-y-1">
-            <h3 className="text-base font-semibold">Assignment brief</h3>
-            <p className="text-sm text-[color:var(--app-fg-muted)]">
-              This brief is used by the AI question and feedback workflow.
-            </p>
-          </div>
+          <p className="text-sm text-[color:var(--app-fg-muted)]">
+            This brief is used by the AI question and feedback workflow.
+          </p>
           <form action={saveSessionInstructionsAction} className="grid gap-3">
             <input name="sessionId" type="hidden" value={sessionId} />
             <label className="grid gap-2 text-sm font-medium">

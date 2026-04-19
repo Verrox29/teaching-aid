@@ -109,7 +109,7 @@ export default async function SessionExportSettingsPage({
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <form action={saveExportTemplateAction} className="ui-panel grid gap-4 p-6" encType="multipart/form-data">
+        <form action={saveExportTemplateAction} className="ui-panel grid gap-4 p-6">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">Template upload</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
