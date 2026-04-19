@@ -255,7 +255,10 @@ function PublicPageQrModal({
           role="dialog"
         >
           <div className="flex items-start justify-between gap-3">
-            <p className="ui-section-title">{title}</p>
+            <div className="space-y-1">
+              <p className="ui-section-title">{title}</p>
+              <h2 className="text-xl font-semibold">{title}</h2>
+            </div>
             <button
               className="ui-button ui-button-secondary px-3 py-2 text-sm"
               onClick={onClose}
