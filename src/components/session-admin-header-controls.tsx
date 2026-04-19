@@ -383,10 +383,26 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
           {currentStep === 1 ? (
             <div className="grid gap-2">
               <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                <p className="ui-section-title">{t.pairagogieSetup}</p>
-                <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
-                  {t.openStudentsSetup}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="ui-section-title">{t.pairagogieSetup}</p>
+                    <p className="text-sm text-[color:var(--app-fg-muted)]">
+                      Import students, refresh the roster, and keep the setup current.
+                    </p>
+                  </div>
+                  <button
+                    className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                    onClick={() => {
+                      setSettingsOpen(false);
+                      setContextOpen(true);
+                    }}
+                    type="button"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                    {t.edit}
+                  </button>
+                </div>
+
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
                     {t.openStudentsSetup}
@@ -398,33 +414,37 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
 
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-              <p className="ui-section-title">{t.assignmentBriefSummary}</p>
-              <p className="mt-2 max-h-24 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-[color:var(--app-fg-muted)]">
-                {assignmentBriefPreview || t.noAssignmentBrief}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-              <button
-                className="ui-button ui-button-secondary px-3 py-2 text-sm"
-                onClick={() => {
-                  setSettingsOpen(false);
-                  setSettingsEditorOpen(true);
-                }}
-                type="button"
-              >
-                <PencilIcon className="h-4 w-4" />
-                {t.edit}
-              </button>
-            {state.canUndoAssignmentBrief ? (
-              <form action={undoSessionInstructionsAction}>
-                <input name="sessionId" type="hidden" value={sessionId} />
-                <button className="ui-button ui-button-secondary px-3 py-2 text-sm" type="submit">
-                  {t.undo}
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="ui-section-title">{t.assignmentBriefSummary}</p>
+                  <p className="max-h-24 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-[color:var(--app-fg-muted)]">
+                    {assignmentBriefPreview || t.noAssignmentBrief}
+                  </p>
+                </div>
+                <button
+                  className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setSettingsEditorOpen(true);
+                  }}
+                  type="button"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  {t.edit}
                 </button>
-              </form>
-            ) : null}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                {state.canUndoAssignmentBrief ? (
+                  <form action={undoSessionInstructionsAction}>
+                    <input name="sessionId" type="hidden" value={sessionId} />
+                    <button className="ui-button ui-button-secondary px-3 py-2 text-sm" type="submit">
+                      {t.undo}
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
       </ActionModal>

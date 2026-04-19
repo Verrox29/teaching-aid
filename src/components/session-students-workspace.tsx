@@ -326,28 +326,20 @@ export function SessionStudentsWorkspace({
   return (
     <div className="grid gap-6">
       <section className="ui-panel grid gap-5 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="ui-section-title">{t.pageTitle}</p>
-            <h2 className="text-xl font-semibold">{t.metadataTitle}</h2>
-            <p className="text-sm text-[color:var(--app-fg-muted)]">
-              {t.metadataDescription}
-            </p>
-            {metadataSuggestions.className || metadataSuggestions.programme ? (
-              <p className="text-xs text-[color:var(--app-fg-muted)]">
-                {t.suggestedFromImport}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="ui-section-title">{t.pageTitle}</p>
+              <h2 className="text-xl font-semibold">{t.metadataTitle}</h2>
+              <p className="text-sm text-[color:var(--app-fg-muted)]">
+                {t.metadataDescription}
               </p>
-            ) : null}
+              {metadataSuggestions.className || metadataSuggestions.programme ? (
+                <p className="text-xs text-[color:var(--app-fg-muted)]">
+                  {t.suggestedFromImport}
+                </p>
+              ) : null}
+            </div>
           </div>
-
-          <button
-            className="ui-button ui-button-secondary px-3 py-2 text-sm"
-            onClick={() => setImportOpen(true)}
-            type="button"
-          >
-            {t.studentsImportButton}
-          </button>
-        </div>
 
         <form action={saveExportMetadataAction} className="grid gap-4">
           <input name="sessionId" type="hidden" value={sessionId} />
@@ -414,8 +406,10 @@ export function SessionStudentsWorkspace({
                 type="date"
               />
             </label>
+          </div>
 
-            <label className="grid gap-2 text-sm font-medium">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <label className="grid gap-2 text-sm font-medium sm:min-w-[18rem] sm:max-w-[22rem]">
               {getUiText(uiLanguage).sessionAdmin.intake}
               <select
                 className="ui-select"
@@ -431,14 +425,21 @@ export function SessionStudentsWorkspace({
                 <option value="Spring">Spring intake</option>
               </select>
             </label>
-          </div>
 
-        <div className="flex justify-end">
-          <button className="ui-button ui-button-primary" type="submit">
-            {t.saveSetup}
-          </button>
-        </div>
-      </form>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                className="ui-button ui-button-secondary"
+                onClick={() => setImportOpen(true)}
+                type="button"
+              >
+                {t.studentsImportButton}
+              </button>
+              <button className="ui-button ui-button-primary" type="submit">
+                {t.saveSetup}
+              </button>
+            </div>
+          </div>
+        </form>
       </section>
 
       <section className="grid gap-4">
