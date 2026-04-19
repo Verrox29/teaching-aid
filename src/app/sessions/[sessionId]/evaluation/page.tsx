@@ -78,9 +78,11 @@ export default async function SessionEvaluationPage({
       <EvaluationWorkspaceClient
         groups={JSON.parse(JSON.stringify(workspace.groups))}
         initialGroupId={initialGroupId}
+        publicPageHref={`/s/${session.slug}`}
         sessionId={sessionId}
         sessionInstructions={workspace.session.instructions}
         sessionLanguage={workspace.session.language}
+        sessionSubject={session.title}
       />
     </AdminShell>
   );
