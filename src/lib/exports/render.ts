@@ -118,6 +118,53 @@ function sanitizeText(value: string | null | undefined) {
   return value?.trim() ?? '';
 }
 
+function extractGroupNumber(groupName: string) {
+  const normalized = sanitizeText(groupName);
+  if (!normalized) {
+    return null;
+  }
+
+  const matchers = [
+    /\b(?:group|groupe)\s*0*([1-9]\d*)\b/iu,
+    /\bclasse\s*\d+\s*-\s*g\s*0*([1-9]\d*)\b/iu,
+    /\bg\s*0*([1-9]\d*)\b/iu
+  ];
+
+  for (const matcher of matchers) {
+    const match = normalized.match(matcher);
+    if (match) {
+      return String(Number(match[1]));
+    }
+  }
+
+  return null;
+}
+
+function resolveGroupNumber(
+  groupPresentationOrder: number | null | undefined,
+  groupName: string,
+  fallbackNumber?: number
+) {
+  if (
+    typeof groupPresentationOrder === 'number' &&
+    Number.isFinite(groupPresentationOrder) &&
+    groupPresentationOrder > 0
+  ) {
+    return String(Math.trunc(groupPresentationOrder));
+  }
+
+  const normalizedGroupNumber = extractGroupNumber(groupName);
+  if (normalizedGroupNumber) {
+    return normalizedGroupNumber;
+  }
+
+  return fallbackNumber === undefined ? '' : String(fallbackNumber);
+}
+
+function formatGroupTitle(groupNumber: string) {
+  return `GROUPE ${groupNumber} - liste des étudiants (Prénom-Nom)`;
+}
+
 function sanitizeSheetName(value: string) {
   const cleaned = value.replace(/[\[\]\*\/\\\?:]/g, ' ').trim();
   return cleaned.slice(0, 31) || 'Group';
@@ -261,7 +308,7 @@ function buildSubjectProgramme(metadata: SessionExportMetadata) {
 }
 
 function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[] {
-  return input.groups.flatMap((group) =>
+  return input.groups.flatMap((group, index) =>
     group.groupMembers.map((member) => {
       const finalScore =
         group.totalScore === null || group.totalScore === undefined
@@ -270,7 +317,7 @@ function buildStudentReportRows(input: PairagogieWorkbookInput): ReportRowInput[
 
       return {
         firstName: member.firstName,
-        groupName: group.groupName,
+        groupName: resolveGroupNumber(group.groupPresentationOrder, group.groupName, index + 1),
         lastName: member.lastName,
         remarks: sanitizeText(group.finalFeedback),
         totalScore: finalScore
@@ -348,11 +395,7 @@ function fillReportSheet(
     setCell(
       sheet,
       `${mapping.studentRows.columns.groupName}${rowNumber}`,
-      mode === 'debug'
-        ? index < visibleRows
-          ? `report.students[${labelIndex}].groupName`
-          : ''
-        : row?.groupName ?? ''
+      index < visibleRows ? row?.groupName ?? '' : ''
     );
     setCell(
       sheet,
@@ -423,7 +466,8 @@ function fillGroupSheet(
   mapping: PairagogieExportMapping['groupSheet'],
   input: PairagogieGroupExportInput,
   session: SessionExportMetadata,
-  mode: PairagogieRenderMode
+  mode: PairagogieRenderMode,
+  fallbackGroupNumber: number
 ) {
   const rubricCapacity =
     mapping.rubricBlocks.block1.criteriaCount + mapping.rubricBlocks.block2.criteriaCount;
@@ -461,7 +505,7 @@ function fillGroupSheet(
   setCell(
     sheet,
     layout.titleLine.address,
-    mode === 'debug' ? 'group.titleLine' : sheet.getCell(mapping.titleLine.address).text
+    formatGroupTitle(resolveGroupNumber(input.groupPresentationOrder, input.groupName, fallbackGroupNumber))
   );
 
   const studentRowCount = Math.max(baseStudentRows, studentCount);
@@ -567,7 +611,7 @@ export async function renderPairagogieWorkbookBuffer(
     }
 
     usedSheetNames.add(groupSheet.name);
-    fillGroupSheet(groupSheet, mapping.groupSheet, group, input.session, mode);
+    fillGroupSheet(groupSheet, mapping.groupSheet, group, input.session, mode, index + 1);
   });
 
   const output = await workbook.xlsx.writeBuffer();
