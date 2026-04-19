@@ -244,7 +244,11 @@ export function EvaluationWorkspaceClient({
   const [dropTargetTabGroupId, setDropTargetTabGroupId] = useState<string | null>(null);
   const [presentationOrderSaving, setPresentationOrderSaving] = useState(false);
   const [presentationOrderError, setPresentationOrderError] = useState<string | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState('');
   const activeFeedbackGroupIdRef = useRef<string | null>(null);
+  const editingGroupNameInputRef = useRef<HTMLInputElement | null>(null);
+  const renameBlurActionRef = useRef<'save' | 'cancel' | null>(null);
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>(() =>
     Object.fromEntries(
       initialGroups.map((group) => [
@@ -287,6 +291,15 @@ export function EvaluationWorkspaceClient({
     });
   }, [initialGroups]);
 
+  useEffect(() => {
+    if (!editingGroupId) {
+      return;
+    }
+
+    editingGroupNameInputRef.current?.focus();
+    editingGroupNameInputRef.current?.select();
+  }, [editingGroupId]);
+
   const tabGroups = sortGroupsByPresentationOrder(groups);
   const displayGroups = tabGroups.map((group) => ({
     ...group,
@@ -328,13 +341,8 @@ export function EvaluationWorkspaceClient({
   }
 
   async function renameGroup(groupId: string, currentName: string) {
-    const nextName = window.prompt('Rename group', currentName);
-    if (nextName === null) {
-      return;
-    }
-
-    const trimmedName = nextName.trim();
-    if (!trimmedName || trimmedName === currentName.trim()) {
+    const trimmedName = currentName.trim();
+    if (!trimmedName) {
       return;
     }
 
@@ -363,7 +371,44 @@ export function EvaluationWorkspaceClient({
         )
       );
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Could not rename the group.');
+      throw error instanceof Error ? error : new Error('Could not rename the group.');
+    }
+  }
+
+  function startEditingGroup(groupId: string, currentName: string) {
+    renameBlurActionRef.current = null;
+    setSelectedGroupId(groupId);
+    updateUrl(groupId);
+    setEditingGroupId(groupId);
+    setEditingGroupName(currentName);
+  }
+
+  function cancelEditingGroup() {
+    renameBlurActionRef.current = null;
+    setEditingGroupId(null);
+    setEditingGroupName('');
+  }
+
+  async function finishEditingGroup(groupId: string, nextName: string) {
+    const trimmedName = nextName.trim();
+    const currentGroup = groups.find((group) => group.groupId === groupId);
+    if (!currentGroup || !trimmedName || trimmedName === currentGroup.groupName.trim()) {
+      cancelEditingGroup();
+      return;
+    }
+
+    try {
+      const renamedGroupName = await renameGroup(groupId, trimmedName);
+      setGroups((current) =>
+        current.map((group) =>
+          group.groupId === groupId ? { ...group, groupName: renamedGroupName } : group
+        )
+      );
+      cancelEditingGroup();
+    } catch (error) {
+      setEditingGroupName(currentGroup?.groupName ?? nextName);
+      renameBlurActionRef.current = null;
+      console.error(error);
     }
   }
 
@@ -1025,6 +1070,7 @@ export function EvaluationWorkspaceClient({
                     const isActive = group.groupId === selectedGroupId;
                     const isDragged = draggedTabGroupId === group.groupId;
                     const isDropTarget = dropTargetTabGroupId === group.groupId;
+                    const isEditing = editingGroupId === group.groupId;
 
                     return (
                       <div key={group.groupId} className="group relative shrink-0">
@@ -1036,7 +1082,9 @@ export function EvaluationWorkspaceClient({
                               : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
                           } ${isDragged ? 'opacity-40' : ''} ${
                             isDropTarget ? 'ring-2 ring-[color:var(--app-accent)]/25' : ''
-                          } ${presentationOrderSaving ? 'cursor-wait' : 'cursor-grab active:cursor-grabbing'}`}
+                          } ${presentationOrderSaving ? 'cursor-wait' : 'cursor-grab active:cursor-grabbing'} ${
+                            isEditing ? 'pointer-events-none opacity-0' : ''
+                          }`}
                           onClick={() => {
                             setSelectedGroupId(group.groupId);
                             updateUrl(group.groupId);
@@ -1075,14 +1123,53 @@ export function EvaluationWorkspaceClient({
                           type="button"
                         >
                           <span className="truncate">{group.groupName}</span>
-                          <span aria-hidden="true" className="text-[10px] leading-none opacity-60">
-                            ⠿
-                          </span>
                         </button>
+                        {isEditing ? (
+                          <input
+                            ref={editingGroupNameInputRef}
+                            aria-label={`Rename ${group.groupName}`}
+                            className={`absolute inset-0 z-30 w-full rounded-t-[1.1rem] border border-[color:var(--app-border)] px-4 py-3 pr-9 text-sm font-medium outline-none ${
+                              isActive
+                                ? 'bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
+                                : 'bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
+                            }`}
+                            autoComplete="off"
+                            onBlur={(event) => {
+                              if (renameBlurActionRef.current === 'cancel') {
+                                cancelEditingGroup();
+                                return;
+                              }
+
+                              renameBlurActionRef.current = null;
+                              void finishEditingGroup(group.groupId, event.currentTarget.value);
+                            }}
+                            onChange={(event) => setEditingGroupName(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Escape') {
+                                event.preventDefault();
+                                renameBlurActionRef.current = 'cancel';
+                                event.currentTarget.blur();
+                                return;
+                              }
+
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                renameBlurActionRef.current = 'save';
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            spellCheck={false}
+                            type="text"
+                            value={editingGroupName}
+                          />
+                        ) : null}
                         <button
                           aria-label={`Rename ${group.groupName}`}
-                          className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
-                          onClick={() => void renameGroup(group.groupId, group.groupName)}
+                          className="absolute right-2 top-1/2 z-30 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            startEditingGroup(group.groupId, group.groupName);
+                          }}
                           title="Rename group"
                           type="button"
                         >
