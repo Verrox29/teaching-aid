@@ -148,6 +148,16 @@ function sortGroupsByPresentationOrder(groups: GroupDraft[]) {
     .map(({ group }) => group);
 }
 
+function reorderGroupsByIds(groups: GroupDraft[], orderedGroupIds: string[]) {
+  const groupsById = new Map(groups.map((group) => [group.groupId, group]));
+  const orderedGroups = orderedGroupIds
+    .map((groupId) => groupsById.get(groupId))
+    .filter((group): group is GroupDraft => Boolean(group));
+  const remainingGroups = groups.filter((group) => !orderedGroupIds.includes(group.groupId));
+
+  return [...orderedGroups, ...remainingGroups];
+}
+
 function initialDraftGroups(groups: SerializableGroup[]) {
   return groups.map((group) => ({
     ...group,
@@ -200,6 +210,10 @@ export function EvaluationWorkspaceClient({
     {}
   );
   const [rosterGroupId, setRosterGroupId] = useState<string | null>(null);
+  const [draggedTabGroupId, setDraggedTabGroupId] = useState<string | null>(null);
+  const [dropTargetTabGroupId, setDropTargetTabGroupId] = useState<string | null>(null);
+  const [presentationOrderSaving, setPresentationOrderSaving] = useState(false);
+  const [presentationOrderError, setPresentationOrderError] = useState<string | null>(null);
   const activeFeedbackGroupIdRef = useRef<string | null>(null);
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>(() =>
     Object.fromEntries(
@@ -257,6 +271,7 @@ export function EvaluationWorkspaceClient({
     groupId: group.groupId,
     groupName: group.groupName
   }));
+  const tabGroupIds = tabGroups.map((group) => group.groupId);
   const selectedGroupTotal = selectedGroup
     ? selectedGroup.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0)
     : 0;
@@ -271,6 +286,75 @@ export function EvaluationWorkspaceClient({
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set('groupId', groupId);
     router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  }
+
+  async function persistPresentationOrder(nextGroupIds: string[]) {
+    const previousGroups = groups;
+    setGroups(reorderGroupsByIds(previousGroups, nextGroupIds));
+    setPresentationOrderError(null);
+    setPresentationOrderSaving(true);
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/order/reorder`, {
+        body: JSON.stringify({ orderedGroupIds: nextGroupIds }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Could not update presentation order.');
+      }
+
+      const orderByGroupId = new Map(
+        payload.groups.map((group: { groupId: string; presentationOrder: number }) => [
+          group.groupId,
+          group.presentationOrder
+        ])
+      );
+
+      setGroups((current) =>
+        reorderGroupsByIds(
+          current,
+          payload.groups.map((group: { groupId: string }) => group.groupId)
+        ).map((group) => ({
+          ...group,
+          presentationOrder: orderByGroupId.get(group.groupId) ?? group.presentationOrder
+        }))
+      );
+    } catch (error) {
+      setGroups(previousGroups);
+      setPresentationOrderError(
+        error instanceof Error ? error.message : 'Could not update presentation order.'
+      );
+    } finally {
+      setPresentationOrderSaving(false);
+      setDraggedTabGroupId(null);
+      setDropTargetTabGroupId(null);
+    }
+  }
+
+  function moveGroupBefore(draggedGroupId: string, targetGroupId: string | null) {
+    if (draggedGroupId === targetGroupId) {
+      return;
+    }
+
+    const nextGroupIds = tabGroupIds.filter((groupId) => groupId !== draggedGroupId);
+    if (!targetGroupId) {
+      nextGroupIds.push(draggedGroupId);
+    } else {
+      const targetIndex = nextGroupIds.indexOf(targetGroupId);
+      if (targetIndex === -1) {
+        nextGroupIds.push(draggedGroupId);
+      } else {
+        nextGroupIds.splice(targetIndex, 0, draggedGroupId);
+      }
+    }
+
+    void persistPresentationOrder(nextGroupIds);
   }
 
   function setGroupState(groupId: string, updater: (group: GroupDraft) => GroupDraft) {
@@ -839,406 +923,469 @@ export function EvaluationWorkspaceClient({
 
       {selectedGroup ? (
         <>
-      <section className="overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] shadow-sm">
-        <div className="flex items-end gap-3 border-b border-[color:var(--app-border)] px-3 pt-3">
-          <div className="flex min-w-0 flex-1 flex-nowrap items-end gap-1 overflow-x-auto">
-            {displayGroups.map((group) => {
-                const isActive = group.groupId === selectedGroupId;
+          <section className="overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] shadow-sm">
+            <div className="border-b border-[color:var(--app-border)] px-3 pt-3">
+              <div
+                className="flex items-end gap-3"
+                onDragOver={(event) => {
+                  if (draggedTabGroupId) {
+                    event.preventDefault();
+                  }
+                }}
+                onDrop={(event) => {
+                  if (!draggedTabGroupId) {
+                    return;
+                  }
 
-                return (
-                  <button
-                    key={group.groupId}
-                    className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.1rem] border border-b-0 px-4 py-3 text-sm font-medium transition ${
-                      isActive
-                        ? 'z-20 border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
-                        : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
-                    }`}
-                    onClick={() => {
-                      setSelectedGroupId(group.groupId);
-                      updateUrl(group.groupId);
-                    }}
-                    type="button"
-                  >
-                    <span className="truncate">{group.groupName}</span>
-                  </button>
-                );
-              })}
-          </div>
+                  event.preventDefault();
+                  moveGroupBefore(draggedTabGroupId, null);
+                }}
+              >
+                <div className="flex min-w-0 flex-1 flex-nowrap items-end gap-1 overflow-x-auto">
+                  {displayGroups.map((group) => {
+                    const isActive = group.groupId === selectedGroupId;
+                    const isDragged = draggedTabGroupId === group.groupId;
+                    const isDropTarget = dropTargetTabGroupId === group.groupId;
 
-          <div className="pb-3">
-            <RandomizeOrderButton
-              groups={tabGroupsForRandomization}
-              onRandomized={(randomizedGroups) => {
-                const orderByGroupId = new Map(
-                  randomizedGroups.map((group) => [group.groupId, group.presentationOrder])
-                );
+                    return (
+                      <button
+                        key={group.groupId}
+                        draggable={!presentationOrderSaving}
+                        className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.1rem] border border-b-0 px-4 py-3 text-sm font-medium transition ${
+                          isActive
+                            ? 'z-20 border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
+                            : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
+                        } ${isDragged ? 'opacity-40' : ''} ${
+                          isDropTarget ? 'ring-2 ring-[color:var(--app-accent)]/25' : ''
+                        } ${presentationOrderSaving ? 'cursor-wait' : 'cursor-grab active:cursor-grabbing'}`}
+                        onClick={() => {
+                          setSelectedGroupId(group.groupId);
+                          updateUrl(group.groupId);
+                        }}
+                        onDragStart={(event) => {
+                          if (presentationOrderSaving) {
+                            event.preventDefault();
+                            return;
+                          }
 
-                setGroups((current) =>
-                  current.map((group) =>
-                    orderByGroupId.has(group.groupId)
-                      ? {
-                          ...group,
-                          presentationOrder: orderByGroupId.get(group.groupId) ?? group.presentationOrder
-                        }
-                      : group
-                  )
-                );
-              }}
-              sessionId={sessionId}
-            />
-          </div>
-        </div>
+                          event.dataTransfer.effectAllowed = 'move';
+                          event.dataTransfer.setData('text/plain', group.groupId);
+                          setDraggedTabGroupId(group.groupId);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTabGroupId(null);
+                          setDropTargetTabGroupId(null);
+                        }}
+                        onDragOver={(event) => {
+                          if (!draggedTabGroupId || draggedTabGroupId === group.groupId) {
+                            return;
+                          }
 
-        <div className="bg-[color:var(--app-surface)] p-4">
-          <CollapsiblePanel
-              className="border-0 bg-transparent p-0 shadow-none"
-              actions={
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => setRosterGroupId(selectedGroup.groupId)}
-                    type="button"
-                  >
-                    Roster
-                  </button>
+                          event.preventDefault();
+                          setDropTargetTabGroupId(group.groupId);
+                        }}
+                        onDrop={(event) => {
+                          if (!draggedTabGroupId) {
+                            return;
+                          }
+
+                          event.preventDefault();
+                          event.stopPropagation();
+                          moveGroupBefore(draggedTabGroupId, group.groupId);
+                        }}
+                        type="button"
+                      >
+                        <span className="truncate">{group.groupName}</span>
+                        <span aria-hidden="true" className="text-[10px] leading-none opacity-60">
+                          ⠿
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              }
-              description={
-                <>
-                  <p>
-                    {selectedGroup.presentationOrder
-                      ? `Presentation order ${selectedGroup.presentationOrder}.`
-                      : 'Presentation order not locked yet.'}
-                  </p>
-                  <p>
-                    {selectedGroup.submissionTitle
-                      ? `Submission: ${selectedGroup.submissionTitle}.`
-                      : 'No submission uploaded yet.'}
-                  </p>
-                </>
-              }
-              title="Group details"
-              titleLabel="Group details"
-              titleClassName="text-2xl font-semibold"
-            >
-              <div className="grid gap-4">
-                <CollapsiblePanel
-                  actions={
-                    <div className="text-right text-sm text-[color:var(--app-fg-muted)]">
-                      <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' })}</div>
-                      <div>
-                        Finalized: {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt) : 'No'}
-                      </div>
-                    </div>
-                  }
-                  contentClassName="gap-4"
-                  open={notesOpen}
-                  onOpenChange={(open) =>
-                    setGroupPanelState(selectedGroup.groupId, (current) => ({
-                      ...current,
-                      notesOpen: open
-                    }))
-                  }
-                  title="Scoring and feedback"
-                  description="with the power of ExpertLab AI"
-                  titleClassName="text-lg font-semibold"
-                >
-                  <label className="grid gap-2 text-sm font-medium">
-                    Presentation comments
-                    <textarea
-                      className="ui-textarea min-h-[140px]"
-                      onChange={(event) =>
-                        updateGroup(selectedGroup.groupId, (current) => ({
-                          ...current,
-                          presentationComments: event.target.value
-                        }))
-                      }
-                      placeholder="Write the live presentation notes here."
-                      value={selectedGroup.presentationComments}
-                    />
-                  </label>
 
+                <div className="pb-3">
+                  <RandomizeOrderButton
+                    groups={tabGroupsForRandomization}
+                    onRandomized={(randomizedGroups) => {
+                      const orderByGroupId = new Map(
+                        randomizedGroups.map((group) => [group.groupId, group.presentationOrder])
+                      );
+
+                      setGroups((current) =>
+                        reorderGroupsByIds(
+                          current,
+                          randomizedGroups.map((group) => group.groupId)
+                        ).map((group) => ({
+                          ...group,
+                          presentationOrder:
+                            orderByGroupId.get(group.groupId) ?? group.presentationOrder
+                        }))
+                      );
+                    }}
+                    sessionId={sessionId}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {presentationOrderError ? (
+              <div className="px-4 pt-3 text-sm text-[color:var(--app-danger)]">
+                {presentationOrderError}
+              </div>
+            ) : null}
+
+            <div className="bg-[color:var(--app-surface)] p-4">
+              <CollapsiblePanel
+                className="border-0 bg-transparent p-0 shadow-none"
+                actions={
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => setRosterGroupId(selectedGroup.groupId)}
+                      type="button"
+                    >
+                      Roster
+                    </button>
+                  </div>
+                }
+                description={
+                  <>
+                    <p>
+                      {selectedGroup.presentationOrder
+                        ? `Presentation order ${selectedGroup.presentationOrder}.`
+                        : 'Presentation order not locked yet.'}
+                    </p>
+                    <p>
+                      {selectedGroup.submissionTitle
+                        ? `Submission: ${selectedGroup.submissionTitle}.`
+                        : 'No submission uploaded yet.'}
+                    </p>
+                  </>
+                }
+                title="Group details"
+                titleLabel="Group details"
+                titleClassName="text-2xl font-semibold"
+              >
+                <div className="grid gap-4">
                   <CollapsiblePanel
                     actions={
-                      selectedGroupHasChallengeQuestions ||
-                      selectedGroup.aiStatus === 'generating' ||
-                      selectedGroupHasUploadedWork ? (
-                        <button
-                          className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={selectedGroup.aiStatus === 'generating'}
-                          onClick={() => void regenerateChallengeQuestions(selectedGroup.groupId)}
-                          type="button"
-                        >
-                          {selectedGroup.aiStatus === 'generating'
-                            ? 'Generating...'
-                            : selectedGroupHasChallengeQuestions
-                              ? 'Regenerate questions'
-                              : 'Generate questions'}
-                        </button>
-                      ) : null
+                      <div className="text-right text-sm text-[color:var(--app-fg-muted)]">
+                        <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' })}</div>
+                        <div>
+                          Finalized:{' '}
+                          {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt) : 'No'}
+                        </div>
+                      </div>
                     }
-                    contentClassName="gap-3"
-                    open={challengeOpen}
+                    contentClassName="gap-4"
+                    open={notesOpen}
                     onOpenChange={(open) =>
                       setGroupPanelState(selectedGroup.groupId, (current) => ({
                         ...current,
-                        challengeOpen: open
+                        notesOpen: open
                       }))
                     }
-                    title="Challenge questions"
-                    titleClassName="text-base font-semibold"
+                    title="Scoring and feedback"
+                    description="with the power of ExpertLab AI"
+                    titleClassName="text-lg font-semibold"
                   >
-                    {selectedGroupHasChallengeQuestions ? (
-                      <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
-                        {selectedGroup.aiRecommendedQuestions.map((question, index) => (
-                          <li
-                            key={`${question}-${index}`}
-                            className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
-                          >
-                            {question}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : selectedGroup.aiStatus === 'generating' ? (
-                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                        Generating new challenge questions...
-                      </div>
-                    ) : !selectedGroupHasUploadedWork ? (
-                      <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                        <p>Please upload the group&apos;s work to enable question recommendation.</p>
-                        <GroupSubmissionDropzone
-                          fileName={selectedGroup.submissionTitle}
-                          groupId={selectedGroup.groupId}
-                          groupName="this group"
-                          sessionId={sessionId}
-                          submittedAt={selectedGroup.submittedAt}
-                        />
-                      </div>
-                    ) : selectedGroup.aiStatus === 'failed' ? (
-                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
-                        Could not generate challenge questions.
-                        {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
-                      </div>
-                    ) : (
-                      <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                        <p>Generate questions from the uploaded work to prepare the oral defense.</p>
-                      </div>
-                    )}
-                  </CollapsiblePanel>
+                    <label className="grid gap-2 text-sm font-medium">
+                      Presentation comments
+                      <textarea
+                        className="ui-textarea min-h-[140px]"
+                        onChange={(event) =>
+                          updateGroup(selectedGroup.groupId, (current) => ({
+                            ...current,
+                            presentationComments: event.target.value
+                          }))
+                        }
+                        placeholder="Write the live presentation notes here."
+                        value={selectedGroup.presentationComments}
+                      />
+                    </label>
 
-                  <label className="grid gap-2 text-sm font-medium">
-                    Q&amp;A comments
-                    <textarea
-                      className="ui-textarea min-h-[120px]"
-                      onChange={(event) =>
-                        updateGroup(selectedGroup.groupId, (current) => ({
+                    <CollapsiblePanel
+                      actions={
+                        selectedGroupHasChallengeQuestions ||
+                        selectedGroup.aiStatus === 'generating' ||
+                        selectedGroupHasUploadedWork ? (
+                          <button
+                            className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={selectedGroup.aiStatus === 'generating'}
+                            onClick={() => void regenerateChallengeQuestions(selectedGroup.groupId)}
+                            type="button"
+                          >
+                            {selectedGroup.aiStatus === 'generating'
+                              ? 'Generating...'
+                              : selectedGroupHasChallengeQuestions
+                                ? 'Regenerate questions'
+                                : 'Generate questions'}
+                          </button>
+                        ) : null
+                      }
+                      contentClassName="gap-3"
+                      open={challengeOpen}
+                      onOpenChange={(open) =>
+                        setGroupPanelState(selectedGroup.groupId, (current) => ({
                           ...current,
-                          qaComments: event.target.value
+                          challengeOpen: open
                         }))
                       }
-                      placeholder="Optional notes for the questions and answers phase."
-                      value={selectedGroup.qaComments}
-                    />
-                  </label>
-
-                  <div className="flex justify-end">
-                    <span
-                      className="inline-flex"
-                      title={
-                        selectedGroupHasFeedbackInputs
-                          ? 'Send the notes or uploaded work to AI for structured feedback and conservative grade suggestions.'
-                          : 'Add comments or upload work before generating AI feedback and grades.'
-                      }
+                      title="Challenge questions"
+                      titleClassName="text-base font-semibold"
                     >
-                      <button
-                        className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={!selectedGroupHasFeedbackInputs || selectedGroup.aiStatus === 'generating'}
-                        onClick={() => void generateGroupFeedback(selectedGroup.groupId)}
-                        type="button"
+                      {selectedGroupHasChallengeQuestions ? (
+                        <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
+                          {selectedGroup.aiRecommendedQuestions.map((question, index) => (
+                            <li
+                              key={`${question}-${index}`}
+                              className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                            >
+                              {question}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : selectedGroup.aiStatus === 'generating' ? (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          Generating new challenge questions...
+                        </div>
+                      ) : !selectedGroupHasUploadedWork ? (
+                        <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
+                          <p>Please upload the group&apos;s work to enable question recommendation.</p>
+                          <GroupSubmissionDropzone
+                            fileName={selectedGroup.submissionTitle}
+                            groupId={selectedGroup.groupId}
+                            groupName="this group"
+                            sessionId={sessionId}
+                            submittedAt={selectedGroup.submittedAt}
+                          />
+                        </div>
+                      ) : selectedGroup.aiStatus === 'failed' ? (
+                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
+                          Could not generate challenge questions.
+                          {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
+                          <p>Generate questions from the uploaded work to prepare the oral defense.</p>
+                        </div>
+                      )}
+                    </CollapsiblePanel>
+
+                    <label className="grid gap-2 text-sm font-medium">
+                      Q&amp;A comments
+                      <textarea
+                        className="ui-textarea min-h-[120px]"
+                        onChange={(event) =>
+                          updateGroup(selectedGroup.groupId, (current) => ({
+                            ...current,
+                            qaComments: event.target.value
+                          }))
+                        }
+                        placeholder="Optional notes for the questions and answers phase."
+                        value={selectedGroup.qaComments}
+                      />
+                    </label>
+
+                    <div className="flex justify-end">
+                      <span
+                        className="inline-flex"
+                        title={
+                          selectedGroupHasFeedbackInputs
+                            ? 'Send the notes or uploaded work to AI for structured feedback and conservative grade suggestions.'
+                            : 'Add comments or upload work before generating AI feedback and grades.'
+                        }
                       >
-                        {selectedGroup.aiStatus === 'generating'
-                          ? 'Generating feedback...'
-                          : 'Generate AI feedback & grades'}
-                      </button>
-                    </span>
-                  </div>
-                </CollapsiblePanel>
-
-                <CollapsiblePanel
-                  contentClassName="gap-4"
-                  actions={
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        className="ui-button ui-button-danger disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() => void resetGroupScores(selectedGroup.groupId)}
-                        type="button"
-                      >
-                        Reset scores
-                      </button>
-                      <button
-                        className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={!selectedGroup.readyForFinalization}
-                        onClick={() => void finalizeGroup(selectedGroup.groupId)}
-                        type="button"
-                      >
-                        Mark ready for export
-                      </button>
-                    </div>
-                  }
-                  open={gradingOpen}
-                  onOpenChange={(open) =>
-                    setGroupPanelState(selectedGroup.groupId, (current) => ({
-                      ...current,
-                      gradingOpen: open
-                    }))
-                  }
-                  title="Final grading"
-                  titleClassName="text-lg font-semibold"
-                >
-                  <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">AI status</span>
-                      <span className="ui-chip">{selectedGroup.aiStatus}</span>
-                    </div>
-                    {selectedGroup.aiLastError ? (
-                      <p className="text-[color:var(--app-danger)]">{selectedGroup.aiLastError}</p>
-                    ) : null}
-                    {selectedGroup.aiGeneratedAt ? (
-                      <p className="text-[color:var(--app-fg-muted)]">
-                        Generated {getTimestampLabel(selectedGroup.aiGeneratedAt)}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
-                    <table className="w-full border-collapse text-sm">
-                      <thead className="bg-[color:var(--app-surface-muted)] text-left">
-                        <tr>
-                          <th className="px-3 py-3 font-medium">Criterion</th>
-                          <th className="px-3 py-3 font-medium">Final score</th>
-                          <th className="px-3 py-3 font-medium">Max</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedGroup.criteria.map((criterion) => (
-                          <tr key={criterion.id} className="border-t border-[color:var(--app-border)]">
-                            <td className="px-3 py-3 align-top">
-                              <div className="font-medium">{criterion.label}</div>
-                              {criterion.description ? (
-                                <div className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
-                                  {criterion.description}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="px-3 py-3 align-top">
-                              <input
-                                className="ui-input w-24"
-                                max={criterion.maxScore}
-                                min={0}
-                                step={0.5}
-                                onChange={(event) => {
-                                  const parsed =
-                                    event.target.value === ''
-                                      ? null
-                                      : Number.parseFloat(event.target.value);
-                                  const value = parsed === null || Number.isNaN(parsed) ? null : parsed;
-                                  updateGroup(selectedGroup.groupId, (current) => ({
-                                    ...current,
-                                    criteria: current.criteria.map((entry) =>
-                                      entry.id === criterion.id ? { ...entry, score: value } : entry
-                                    )
-                                  }));
-                                }}
-                                type="number"
-                                value={criterion.score ?? ''}
-                              />
-                            </td>
-                            <td className="px-3 py-3 align-top">{criterion.maxScore}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">Final total</span>
-                      <span className="ui-chip">
-                        {formatScoreTotal(selectedGroupTotal)}/{formatScoreTotal(selectedGroupMaxTotal)}
-                      </span>
-                    </div>
-                    <p className="text-[color:var(--app-fg-muted)]">
-                      The total is calculated from the teacher-controlled scores above.
-                    </p>
-                  </div>
-
-                  <section className="grid gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <p className="ui-section-title">Final feedback</p>
-                        <h4 className="text-base font-semibold">Editable summary</h4>
-                      </div>
-                      {selectedGroupCanSpellCheck ? (
                         <button
-                          className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={() => void runSpellCheck(selectedGroup.groupId)}
+                          className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={!selectedGroupHasFeedbackInputs || selectedGroup.aiStatus === 'generating'}
+                          onClick={() => void generateGroupFeedback(selectedGroup.groupId)}
                           type="button"
                         >
-                          Spell-check feedback
+                          {selectedGroup.aiStatus === 'generating'
+                            ? 'Generating feedback...'
+                            : 'Generate AI feedback & grades'}
                         </button>
+                      </span>
+                    </div>
+                  </CollapsiblePanel>
+
+                  <CollapsiblePanel
+                    contentClassName="gap-4"
+                    actions={
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          className="ui-button ui-button-danger disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => void resetGroupScores(selectedGroup.groupId)}
+                          type="button"
+                        >
+                          Reset scores
+                        </button>
+                        <button
+                          className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={!selectedGroup.readyForFinalization}
+                          onClick={() => void finalizeGroup(selectedGroup.groupId)}
+                          type="button"
+                        >
+                          Mark ready for export
+                        </button>
+                      </div>
+                    }
+                    open={gradingOpen}
+                    onOpenChange={(open) =>
+                      setGroupPanelState(selectedGroup.groupId, (current) => ({
+                        ...current,
+                        gradingOpen: open
+                      }))
+                    }
+                    title="Final grading"
+                    titleClassName="text-lg font-semibold"
+                  >
+                    <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">AI status</span>
+                        <span className="ui-chip">{selectedGroup.aiStatus}</span>
+                      </div>
+                      {selectedGroup.aiLastError ? (
+                        <p className="text-[color:var(--app-danger)]">{selectedGroup.aiLastError}</p>
+                      ) : null}
+                      {selectedGroup.aiGeneratedAt ? (
+                        <p className="text-[color:var(--app-fg-muted)]">
+                          Generated {getTimestampLabel(selectedGroup.aiGeneratedAt)}
+                        </p>
                       ) : null}
                     </div>
 
-                    <div
-                      className="grid gap-4"
-                      onBlurCapture={(event) => {
-                        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                          return;
-                        }
-
-                        activeFeedbackGroupIdRef.current = null;
-                      }}
-                      onFocusCapture={() => {
-                        activeFeedbackGroupIdRef.current = selectedGroup.groupId;
-                      }}
-                    >
-                      {[
-                        ['strengths', 'Strengths'],
-                        ['development', 'Points for development'],
-                        ['general', 'General feedback']
-                      ].map(([key, label]) => (
-                        <label key={key} className="grid gap-2 text-sm font-medium">
-                          {label}
-                          <textarea
-                            className="ui-textarea min-h-[120px]"
-                            onChange={(event) => {
-                              setSpellcheckReady((current) => ({
-                                ...current,
-                                [selectedGroup.groupId]: true
-                              }));
-                              updateGroup(selectedGroup.groupId, (current) => {
-                                const nextSections = {
-                                  ...current.finalFeedbackSections,
-                                  [key]: event.target.value
-                                } as EvaluationAiFeedbackSections;
-                                return {
-                                  ...current,
-                                  finalFeedback: buildFeedbackString(nextSections, sessionLanguage),
-                                  finalFeedbackSections: nextSections
-                                };
-                              });
-                            }}
-                            value={selectedGroup.finalFeedbackSections[key as keyof EvaluationAiFeedbackSections]}
-                          />
-                        </label>
-                      ))}
+                    <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="bg-[color:var(--app-surface-muted)] text-left">
+                          <tr>
+                            <th className="px-3 py-3 font-medium">Criterion</th>
+                            <th className="px-3 py-3 font-medium">Final score</th>
+                            <th className="px-3 py-3 font-medium">Max</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedGroup.criteria.map((criterion) => (
+                            <tr key={criterion.id} className="border-t border-[color:var(--app-border)]">
+                              <td className="px-3 py-3 align-top">
+                                <div className="font-medium">{criterion.label}</div>
+                                {criterion.description ? (
+                                  <div className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
+                                    {criterion.description}
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <input
+                                  className="ui-input w-24"
+                                  max={criterion.maxScore}
+                                  min={0}
+                                  step={0.5}
+                                  onChange={(event) => {
+                                    const parsed =
+                                      event.target.value === ''
+                                        ? null
+                                        : Number.parseFloat(event.target.value);
+                                    const value = parsed === null || Number.isNaN(parsed) ? null : parsed;
+                                    updateGroup(selectedGroup.groupId, (current) => ({
+                                      ...current,
+                                      criteria: current.criteria.map((entry) =>
+                                        entry.id === criterion.id ? { ...entry, score: value } : entry
+                                      )
+                                    }));
+                                  }}
+                                  type="number"
+                                  value={criterion.score ?? ''}
+                                />
+                              </td>
+                              <td className="px-3 py-3 align-top">{criterion.maxScore}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  </section>
-                </CollapsiblePanel>
-              </div>
-          </CollapsiblePanel>
-        </div>
-      </section>
+
+                    <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">Final total</span>
+                        <span className="ui-chip">
+                          {formatScoreTotal(selectedGroupTotal)}/{formatScoreTotal(selectedGroupMaxTotal)}
+                        </span>
+                      </div>
+                      <p className="text-[color:var(--app-fg-muted)]">
+                        The total is calculated from the teacher-controlled scores above.
+                      </p>
+                    </div>
+
+                    <section className="grid gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="ui-section-title">Final feedback</p>
+                          <h4 className="text-base font-semibold">Editable summary</h4>
+                        </div>
+                        {selectedGroupCanSpellCheck ? (
+                          <button
+                            className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => void runSpellCheck(selectedGroup.groupId)}
+                            type="button"
+                          >
+                            Spell-check feedback
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className="grid gap-4"
+                        onBlurCapture={(event) => {
+                          if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                            return;
+                          }
+
+                          activeFeedbackGroupIdRef.current = null;
+                        }}
+                        onFocusCapture={() => {
+                          activeFeedbackGroupIdRef.current = selectedGroup.groupId;
+                        }}
+                      >
+                        {[
+                          ['strengths', 'Strengths'],
+                          ['development', 'Points for development'],
+                          ['general', 'General feedback']
+                        ].map(([key, label]) => (
+                          <label key={key} className="grid gap-2 text-sm font-medium">
+                            {label}
+                            <textarea
+                              className="ui-textarea min-h-[120px]"
+                              onChange={(event) => {
+                                setSpellcheckReady((current) => ({
+                                  ...current,
+                                  [selectedGroup.groupId]: true
+                                }));
+                                updateGroup(selectedGroup.groupId, (current) => {
+                                  const nextSections = {
+                                    ...current.finalFeedbackSections,
+                                    [key]: event.target.value
+                                  } as EvaluationAiFeedbackSections;
+                                  return {
+                                    ...current,
+                                    finalFeedback: buildFeedbackString(nextSections, sessionLanguage),
+                                    finalFeedbackSections: nextSections
+                                  };
+                                });
+                              }}
+                              value={selectedGroup.finalFeedbackSections[key as keyof EvaluationAiFeedbackSections]}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  </CollapsiblePanel>
+                </div>
+              </CollapsiblePanel>
+            </div>
+          </section>
         </>
       ) : (
         <section className="ui-panel p-6">

@@ -33,8 +33,7 @@ export async function recordSessionAdminPath(sessionId: string, path: string): P
 export async function resolveSessionResumePath(sessionId: string): Promise<string> {
   const sessionRows = await db
     .select({
-      lastAdminPath: sessions.lastAdminPath,
-      presentationOrderLocked: sessions.presentationOrderLocked
+      lastAdminPath: sessions.lastAdminPath
     })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
@@ -81,7 +80,7 @@ export async function resolveSessionResumePath(sessionId: string): Promise<strin
     return buildPath(sessionId, '/evaluation');
   }
 
-  if (sessionRow?.presentationOrderLocked || orderedGroupRows.length > 0 || submissionRows.length > 0) {
+  if (orderedGroupRows.length > 0 || submissionRows.length > 0) {
     return buildPath(sessionId, '/evaluation');
   }
 

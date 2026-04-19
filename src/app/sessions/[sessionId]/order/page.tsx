@@ -2,11 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import {
-  lockPresentationOrderAction,
-  movePresentationOrderAction,
-  unlockPresentationOrderAction
-} from './actions';
+import { movePresentationOrderAction } from './actions';
 
 import { AdminShell } from '@/components/admin-shell';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
@@ -37,8 +33,7 @@ export default async function SessionOrderPage({
     .select({
       id: sessions.id,
       slug: sessions.slug,
-      title: sessions.title,
-      presentationOrderLocked: sessions.presentationOrderLocked
+      title: sessions.title
     })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
@@ -86,7 +81,6 @@ export default async function SessionOrderPage({
   });
 
   const orderReady = orderedGroups.some((group) => group.presentationOrder !== null);
-  const currentStepLocked = session.presentationOrderLocked;
 
   return (
     <AdminShell
@@ -100,7 +94,7 @@ export default async function SessionOrderPage({
           </Link>
         </>
       }
-      description="Generate presentation order, lock it, and attach one file per group."
+      description="Generate presentation order and attach one file per group."
       sessionId={sessionId}
       slug={session.slug}
       subtitle="Presentation order & upload"
@@ -122,40 +116,20 @@ export default async function SessionOrderPage({
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Presentation order controls</h2>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            {currentStepLocked
-              ? 'The presentation order is locked. Unlock it to change the order.'
-              : orderReady
-                ? 'Use the buttons to move groups, randomize the order, or lock it once final.'
-                : 'Generate a random order or move groups manually to set the sequence.'}
+            {orderReady
+              ? 'Use the buttons to move groups or randomize the order.'
+              : 'Generate a random order or move groups manually to set the sequence.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {currentStepLocked ? (
-            <form action={unlockPresentationOrderAction}>
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <button className="ui-button ui-button-secondary" type="submit">
-                Unlock order
-              </button>
-            </form>
-          ) : (
-            <>
-              <RandomizeOrderButton
-                disabled={currentStepLocked}
-                groups={orderedGroups.map((group) => ({
-                  groupId: group.id,
-                  groupName: group.name
-                }))}
-                sessionId={sessionId}
-              />
-              <form action={lockPresentationOrderAction}>
-                <input name="sessionId" type="hidden" value={sessionId} />
-                <button className="ui-button ui-button-secondary" type="submit">
-                  Lock order
-                </button>
-              </form>
-            </>
-          )}
+          <RandomizeOrderButton
+            groups={orderedGroups.map((group) => ({
+              groupId: group.id,
+              groupName: group.name
+            }))}
+            sessionId={sessionId}
+          />
         </div>
       </section>
 
@@ -205,7 +179,7 @@ export default async function SessionOrderPage({
                       <input name="direction" type="hidden" value="up" />
                       <button
                         className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={currentStepLocked || isFirst}
+                        disabled={isFirst}
                         type="submit"
                       >
                         Move up
@@ -217,7 +191,7 @@ export default async function SessionOrderPage({
                       <input name="direction" type="hidden" value="down" />
                       <button
                         className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={currentStepLocked || isLast}
+                        disabled={isLast}
                         type="submit"
                       >
                         Move down

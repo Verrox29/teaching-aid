@@ -42,8 +42,7 @@ async function getSession(sessionId: string) {
     .select({
       id: sessions.id,
       title: sessions.title,
-      slug: sessions.slug,
-      presentationOrderLocked: sessions.presentationOrderLocked
+      slug: sessions.slug
     })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
@@ -70,10 +69,6 @@ export async function randomizePresentationOrderAction(formData: FormData): Prom
     redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
   }
 
-  if (session.presentationOrderLocked) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Presentation order is locked.');
-  }
-
   const randomized = await randomizePresentationOrder(parsed.data.sessionId);
   if (!randomized.ok) {
     redirectWithMessage(parsed.data.sessionId, 'error', randomized.error);
@@ -96,10 +91,6 @@ export async function movePresentationOrderAction(formData: FormData): Promise<n
   const session = await getSession(parsed.data.sessionId);
   if (!session) {
     redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
-  }
-
-  if (session.presentationOrderLocked) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Presentation order is locked.');
   }
 
   const orderedGroups = await getOrderedGroups(parsed.data.sessionId);
@@ -135,58 +126,6 @@ export async function movePresentationOrderAction(formData: FormData): Promise<n
   revalidatePath(evaluationPath(parsed.data.sessionId));
   revalidatePath(sessionHubPath(parsed.data.sessionId));
   redirectNotice(parsed.data.sessionId, 'Presentation order updated.');
-}
-
-async function setPresentationOrderLocked(
-  formData: FormData,
-  locked: boolean
-): Promise<never> {
-  const parsed = sessionSchema.safeParse({
-    sessionId: String(formData.get('sessionId') ?? '')
-  });
-
-  if (!parsed.success) {
-    redirectWithMessage('invalid', 'error', 'Invalid session id.');
-  }
-
-  const session = await getSession(parsed.data.sessionId);
-  if (!session) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Session not found.');
-  }
-
-  if (session.presentationOrderLocked === locked) {
-    redirectWithMessage(
-      parsed.data.sessionId,
-      'notice',
-      locked ? 'Presentation order is already locked.' : 'Presentation order is already unlocked.'
-    );
-  }
-
-  await db
-    .update(sessions)
-    .set({
-      presentationOrderLocked: locked,
-      presentationOrderLockedAt: locked ? new Date() : null,
-      updatedAt: new Date()
-    })
-    .where(eq(sessions.id, parsed.data.sessionId));
-
-  revalidatePath(orderPath(parsed.data.sessionId));
-  revalidatePath(evaluationPath(parsed.data.sessionId));
-  revalidatePath(sessionHubPath(parsed.data.sessionId));
-
-  redirectNotice(
-    parsed.data.sessionId,
-    locked ? 'Presentation order locked.' : 'Presentation order unlocked.'
-  );
-}
-
-export async function lockPresentationOrderAction(formData: FormData): Promise<never> {
-  return setPresentationOrderLocked(formData, true);
-}
-
-export async function unlockPresentationOrderAction(formData: FormData): Promise<never> {
-  return setPresentationOrderLocked(formData, false);
 }
 
 export async function uploadGroupSubmissionAction(formData: FormData): Promise<never> {
