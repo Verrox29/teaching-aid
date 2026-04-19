@@ -108,8 +108,27 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
-function formatGroupDisplayName(index: number) {
-  return `Group ${index + 1}`;
+function extractGroupNumber(groupName: string) {
+  const normalized = groupName.replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\b(?:group|groupe)\s*0*([1-9]\d*)\b/iu,
+    /\bclasse\s*\d+\s*-\s*g\s*0*([1-9]\d*)\b/iu,
+    /\bg\s*0*([1-9]\d*)\b/iu
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (match) {
+      return Number.parseInt(match[1], 10);
+    }
+  }
+
+  return null;
+}
+
+function formatGroupDisplayName(groupName: string, fallbackNumber: number) {
+  const groupNumber = extractGroupNumber(groupName) ?? fallbackNumber;
+  return `Group ${groupNumber}`;
 }
 
 function sortGroupsByPresentationOrder(groups: GroupDraft[]) {
@@ -217,7 +236,7 @@ export function EvaluationWorkspaceClient({
   const tabGroups = sortGroupsByPresentationOrder(groups);
   const displayGroups = tabGroups.map((group, index) => ({
     ...group,
-    groupName: formatGroupDisplayName(index)
+    groupName: formatGroupDisplayName(group.groupName, index + 1)
   }));
   const selectedGroup =
     tabGroups.find((group) => group.groupId === selectedGroupId) ?? tabGroups[0] ?? null;
