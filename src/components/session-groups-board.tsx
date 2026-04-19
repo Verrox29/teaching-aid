@@ -98,6 +98,33 @@ function shuffleStudents(students: StudentRecord[]) {
   return shuffleValues(students);
 }
 
+function TrashCanIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9 3.75h6m-7.5 3h9m-7.25 0 .55 10.5a1.5 1.5 0 0 0 1.5 1.42h1.2a1.5 1.5 0 0 0 1.5-1.42L15.5 6.75m-7.5 0h8"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.75"
+      />
+      <path
+        d="M10 9.25v5.25m4-5.25v5.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.75"
+      />
+    </svg>
+  );
+}
+
 function groupSnapshot(group: GroupRecord) {
   return {
     name: group.name.trim(),
@@ -135,28 +162,26 @@ function copyGroups(groups: InitialGroupRecord[]) {
 
 function randomizeGroupMemberships(groups: GroupRecord[], students: StudentRecord[]) {
   const shuffledStudents = shuffleStudents(students);
-  const shuffledGroupSlots = shuffleValues(
-    groups.flatMap((group) => {
-      const capacity = Number(group.capacity);
-      const safeCapacity = Number.isFinite(capacity) && capacity > 0 ? capacity : 0;
-      return Array.from({ length: safeCapacity }, () => group.id);
-    })
-  );
 
-  const nextGroups = groups.map((group) => ({
+  const nextGroups = groups.map((group, index) => ({
     ...group,
-    members: [] as StudentRecord[]
+    members: [] as StudentRecord[],
+    order: index
   }));
   const nextUnassignedStudents: StudentRecord[] = [];
 
-  shuffledStudents.forEach((student, index) => {
-    const slot = shuffledGroupSlots[index];
-    if (!slot) {
-      nextUnassignedStudents.push(student);
-      return;
-    }
+  shuffledStudents.forEach((student) => {
+    const targetGroup = nextGroups
+      .filter((group) => group.members.length < Number(group.capacity))
+      .sort((left, right) => {
+        const memberCountDelta = left.members.length - right.members.length;
+        if (memberCountDelta !== 0) {
+          return memberCountDelta;
+        }
 
-    const targetGroup = nextGroups.find((group) => group.id === slot);
+        return left.order - right.order;
+      })[0];
+
     if (!targetGroup) {
       nextUnassignedStudents.push(student);
       return;
@@ -166,7 +191,7 @@ function randomizeGroupMemberships(groups: GroupRecord[], students: StudentRecor
   });
 
   return {
-    groups: nextGroups.map((group) => ({
+    groups: nextGroups.map(({ order: _order, ...group }) => ({
       ...group,
       members: sortStudentsStable(group.members)
     })),
@@ -352,50 +377,13 @@ export function SessionGroupsBoard({
     }
   }
 
-  function handleAssignClick(
-    event: React.MouseEvent<HTMLButtonElement>,
+  function handleDestinationChange(
     studentId: string,
-    sourceGroupId: string | null
+    sourceGroupId: string | null,
+    event: React.ChangeEvent<HTMLSelectElement>
   ) {
-    const form = event.currentTarget.form;
-    if (!form) {
-      return;
-    }
-
-    const formData = new FormData(form);
-    const groupId = String(formData.get('groupId') ?? '');
-
+    const groupId = event.currentTarget.value;
     if (!groupId) {
-      setLocalAlert({
-        kind: 'error',
-        message: 'Pick a destination group.',
-        studentId
-      });
-      return;
-    }
-
-    moveStudent(studentId, sourceGroupId, groupId);
-  }
-
-  function handleMoveClick(
-    event: React.MouseEvent<HTMLButtonElement>,
-    studentId: string,
-    sourceGroupId: string
-  ) {
-    const form = event.currentTarget.form;
-    if (!form) {
-      return;
-    }
-
-    const formData = new FormData(form);
-    const groupId = String(formData.get('groupId') ?? '');
-
-    if (!groupId) {
-      setLocalAlert({
-        kind: 'error',
-        message: 'Pick a destination group.',
-        studentId
-      });
       return;
     }
 
@@ -803,13 +791,18 @@ export function SessionGroupsBoard({
               <button
                 aria-expanded={isIgnoredDrawerOpen}
                 aria-label="Show ignored students"
-                className="inline-flex items-center justify-center text-lg text-[color:var(--app-fg-muted)] transition hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg-muted)] transition hover:border-[color:var(--app-fg-muted)]/40 hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={visibilityActionState !== null || isRandomizingStudents}
                 title="Show ignored students"
                 type="button"
                 onClick={() => setIsIgnoredDrawerOpen((current) => !current)}
               >
-                🗑
+                <TrashCanIcon className="h-5 w-5" />
+                {ignoredStudents.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full border border-[color:var(--app-surface)] bg-[color:var(--app-danger)] px-1 text-[10px] font-semibold leading-4 text-white shadow-sm">
+                    {ignoredStudents.length}
+                  </span>
+                ) : null}
               </button>
             </div>
 
@@ -841,10 +834,17 @@ export function SessionGroupsBoard({
                     </div>
 
                     {groups.length > 0 ? (
-                      <form className="mt-3 flex flex-wrap items-center gap-2">
-                        <input name="sessionId" type="hidden" value={sessionId} />
-                        <input name="sessionStudentId" type="hidden" value={student.id} />
-                        <select className="ui-select min-w-0 flex-1" defaultValue={groups[0]?.id} name="groupId">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <select
+                          aria-label={`Move ${student.firstName} ${student.lastName} to a group`}
+                          className="ui-select min-w-[12rem] flex-1"
+                          defaultValue=""
+                          disabled={visibilityActionState !== null || isRandomizingStudents}
+                          onChange={(event) => handleDestinationChange(student.id, null, event)}
+                        >
+                          <option disabled hidden value="">
+                            Move student to...
+                          </option>
                           {groups.map((group) => (
                             <option key={group.id} value={group.id}>
                               {group.name}
@@ -853,20 +853,13 @@ export function SessionGroupsBoard({
                         </select>
                         <button
                           className="ui-button ui-button-secondary px-3 py-2 text-sm"
-                          type="button"
-                          onClick={(event) => handleAssignClick(event, student.id, null)}
-                        >
-                          Assign
-                        </button>
-                        <button
-                          className="ui-button ui-button-secondary px-3 py-2 text-sm"
                           disabled={visibilityActionState !== null || isRandomizingStudents}
                           type="button"
                           onClick={() => handleIgnoreStudent(student.id, null)}
                         >
                           Ignore
                         </button>
-                      </form>
+                      </div>
                     ) : (
                       <p className="mt-3 text-sm text-[color:var(--app-fg-muted)]">Create groups first to assign.</p>
                     )}
@@ -884,7 +877,6 @@ export function SessionGroupsBoard({
                       Restored users return to the unassigned list.
                     </p>
                   </div>
-                  <span className="ui-chip">{ignoredStudents.length}</span>
                 </div>
 
                 {ignoredStudents.length === 0 ? (
@@ -1035,12 +1027,12 @@ export function SessionGroupsBoard({
                   <div className="grid gap-3">
                     <div className="text-sm font-medium">Members</div>
 
-                  {group.members.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
-                      No students in this group yet.
-                    </div>
-                  ) : (
-                    <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
+                    {group.members.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
+                        No students in this group yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
                         {group.members.map((member) => (
                           <div
                             key={member.id}
@@ -1063,32 +1055,26 @@ export function SessionGroupsBoard({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                              <form className="flex flex-wrap items-center gap-2">
-                                <input name="sessionId" type="hidden" value={sessionId} />
-                                <input
-                                  name="sessionStudentId"
-                                  type="hidden"
-                                  value={member.id}
-                                />
-                                <select
-                                  className="ui-select min-w-[10rem]"
-                                  defaultValue={group.id}
-                                  name="groupId"
-                                >
-                                  {groups.map((destinationGroup) => (
+                              <select
+                                aria-label={`Move ${member.firstName} ${member.lastName} to a group`}
+                                className="ui-select min-w-[12rem]"
+                                defaultValue=""
+                                disabled={visibilityActionState !== null || isRandomizingStudents}
+                                onChange={(event) =>
+                                  handleDestinationChange(member.id, group.id, event)
+                                }
+                              >
+                                <option disabled hidden value="">
+                                  Move student to...
+                                </option>
+                                {groups
+                                  .filter((destinationGroup) => destinationGroup.id !== group.id)
+                                  .map((destinationGroup) => (
                                     <option key={destinationGroup.id} value={destinationGroup.id}>
                                       {destinationGroup.name}
                                     </option>
                                   ))}
-                                </select>
-                                <button
-                                  className="ui-button ui-button-secondary"
-                                  type="button"
-                                  onClick={(event) => handleMoveClick(event, member.id, group.id)}
-                                >
-                                  Move
-                                </button>
-                              </form>
+                              </select>
 
                               <button
                                 className="ui-button ui-button-danger"
@@ -1109,10 +1095,10 @@ export function SessionGroupsBoard({
                             </div>
                           </div>
                         ))}
-                    </div>
-                  )}
-                </div>
-              </article>
+                      </div>
+                    )}
+                  </div>
+                </article>
               );
             })}
           </div>

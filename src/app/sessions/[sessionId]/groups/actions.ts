@@ -165,16 +165,16 @@ async function getNextGroupName(sessionId: string) {
     .from(groups)
     .where(eq(groups.sessionId, sessionId));
 
-  const usedNames = new Set(rows.map((row) => row.name));
-
-  for (let index = 1; index <= rows.length + 25; index += 1) {
-    const candidate = `Group ${index}`;
-    if (!usedNames.has(candidate)) {
-      return candidate;
+  const highestNumericGroup = rows.reduce((highest, row) => {
+    const match = /^Group\s+(\d+)$/i.exec(row.name.trim());
+    if (!match) {
+      return highest;
     }
-  }
 
-  return `Group ${rows.length + 1}`;
+    return Math.max(highest, Number(match[1]));
+  }, 0);
+
+  return `Group ${Math.max(rows.length, highestNumericGroup) + 1}`;
 }
 
 export async function createDefaultGroupsAction(formData: FormData): Promise<never> {
