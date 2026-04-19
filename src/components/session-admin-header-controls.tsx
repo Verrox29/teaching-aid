@@ -199,15 +199,6 @@ export function SessionAdminHeaderControls({ sessionId, slug, state }: SessionAd
           <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/s/${slug}`}>
             Public Enrolment page
           </Link>
-          <button
-            aria-haspopup="dialog"
-            aria-expanded={contextOpen}
-            className="ui-button ui-button-secondary px-3 py-2 text-sm"
-            onClick={() => setContextOpen(true)}
-            type="button"
-          >
-            Session context
-          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -332,7 +323,42 @@ export function SessionAdminHeaderControls({ sessionId, slug, state }: SessionAd
       </ActionModal>
 
       <ActionModal onClose={() => setSettingsOpen(false)} open={settingsOpen} title="Settings">
-        <section className="grid gap-4">
+        <section className="grid gap-5">
+          <div className="grid gap-2">
+            <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1.5">
+                  <p className="ui-section-title">Session context</p>
+                  <div className="grid gap-1 text-sm text-[color:var(--app-fg-muted)]">
+                    <p>
+                      <span className="font-medium text-[color:var(--app-fg)]">Class:</span>{' '}
+                      {state.sessionContext.className || 'Not set'}
+                    </p>
+                    <p>
+                      <span className="font-medium text-[color:var(--app-fg)]">Programme:</span>{' '}
+                      {state.sessionContext.programme || 'Not set'}
+                    </p>
+                    <p>
+                      <span className="font-medium text-[color:var(--app-fg)]">Date:</span>{' '}
+                      {state.sessionContext.sessionDate || 'Not set'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setContextOpen(true);
+                  }}
+                  type="button"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
               <p className="ui-section-title">Assignment brief</p>

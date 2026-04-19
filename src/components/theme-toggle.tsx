@@ -54,14 +54,15 @@ export function ThemeToggle() {
       type="button"
     >
       <span className="ui-switch-track" aria-hidden>
-        <span className="absolute inset-y-0 left-1.5 flex items-center">
-          <MoonIcon className={`h-3.5 w-3.5 transition-opacity ${isDark ? 'opacity-100' : 'opacity-45'}`} />
+        <span className="absolute inset-y-0 left-3 flex items-center">
+          <MoonIcon className={`h-3.5 w-3.5 transition-opacity ${isDark ? 'opacity-100' : 'opacity-0'}`} />
         </span>
         <span
-          className={`ui-switch-thumb absolute top-[0.125rem] ${isDark ? 'left-[2.25rem]' : 'left-[0.125rem]'}`}
+          className="ui-switch-thumb absolute top-[0.125rem] transition-[left] duration-150 ease-out"
+          style={{ left: isDark ? '2.5rem' : '0.75rem' }}
         />
-        <span className="absolute inset-y-0 right-1.5 flex items-center">
-          <SunIcon className={`h-3.5 w-3.5 transition-opacity ${isDark ? 'opacity-45' : 'opacity-100'}`} />
+        <span className="absolute inset-y-0 right-3 flex items-center">
+          <SunIcon className={`h-3.5 w-3.5 transition-opacity ${isDark ? 'opacity-0' : 'opacity-100'}`} />
         </span>
       </span>
     </button>
