@@ -936,8 +936,12 @@ export function SessionGroupsBoard({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-4">
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold">
-                {sessionTitle} {isFrench ? 'groupes' : 'groups'}
+              <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold capitalize">
+                <span>{sessionTitle}</span>
+                <span aria-hidden="true" className="text-[color:var(--app-fg-muted)]">
+                  •
+                </span>
+                <span>{isFrench ? 'Groupes' : 'Groups'}</span>
               </h2>
               <p className="max-w-3xl text-sm text-[color:var(--app-fg-muted)]">
                 {isFrench
