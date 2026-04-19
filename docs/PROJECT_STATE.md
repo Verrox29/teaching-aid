@@ -7,7 +7,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 ## Current Teacher/Admin Timeline
 
 1. Pairagogie & students setup
-2. Group creation
+2. Group creation & enrolment
 3. Presentation order & upload
 4. AI scoring & feedback
 5. Grille & grades export
@@ -41,15 +41,17 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
   - cloned group sheets from `Fiche éval group 1`
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
+- Step 1 is Pairagogie & students setup: session metadata stays there, `Subject` drives the session title, class language is stored on the session, and student import/update opens in the floating modal that also remains reachable from Settings
+- Step 2 is group creation & enrolment: group creation and enrolment are unified on one page, with enrolment status shown at the top
+- Step 3 is presentation order & upload: presentation order and uploaded work live together in the same workflow
 - Step 4 is the live evaluation workspace: presentation order is visible there, teacher notes autosave, and AI recommendations are per group and advisory only
-- Pairagogie & students setup is the first step: session metadata stays in Step 1, while student import opens in a floating modal that appears automatically for a new session and later remains reachable from Settings
-- Group creation and enrolment are unified on one page, with enrolment status shown at the top
+- Step 5 is Grille & grades export: exports stay template-driven and use the current Pairagogie mapping layer
 - Session resume from `/sessions` uses the last meaningful admin step/page when available, otherwise it opens Pairagogie & students setup
 - Session/business fields:
   - `programme`
   - `className`
   - `subject`
-  - `season`
+  - `season` as intake
   - `professorName`
   - `sessionDate`
 
@@ -67,6 +69,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 - Shared admin header stays centralized across session admin pages and keeps only the top-level session controls plus the timeline bar
 - Session context is edited from the shared Settings flow, and assignment brief editing also lives there
 - New-session onboarding starts from Step 1 and auto-opens the students setup modal once, then uses the shared admin controls afterward
+- Session language is stored on the session row and is used by evaluation/AI behavior
 
 ## Known Issues / Items That Still Need Validation
 
