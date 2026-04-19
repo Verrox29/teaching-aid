@@ -66,7 +66,7 @@ export async function getPublicGroupsForSession(sessionId: string): Promise<Publ
     })
     .from(groupMembers)
     .innerJoin(sessionStudents, eq(groupMembers.sessionStudentId, sessionStudents.id))
-    .where(eq(groupMembers.sessionId, sessionId))
+    .where(and(eq(groupMembers.sessionId, sessionId), eq(sessionStudents.isIgnored, false)))
     .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName));
 
   const membersByGroup = new Map<string, PublicGroupRecord['members']>();
@@ -101,7 +101,11 @@ export async function getStudentByEmail(
     })
     .from(sessionStudents)
     .where(
-      and(eq(sessionStudents.sessionId, sessionId), eq(sessionStudents.schoolEmail, schoolEmail))
+      and(
+        eq(sessionStudents.sessionId, sessionId),
+        eq(sessionStudents.schoolEmail, schoolEmail),
+        eq(sessionStudents.isIgnored, false)
+      )
     )
     .limit(1);
 
@@ -120,7 +124,13 @@ export async function getStudentById(
       schoolEmail: sessionStudents.schoolEmail
     })
     .from(sessionStudents)
-    .where(and(eq(sessionStudents.sessionId, sessionId), eq(sessionStudents.id, studentId)))
+    .where(
+      and(
+        eq(sessionStudents.sessionId, sessionId),
+        eq(sessionStudents.id, studentId),
+        eq(sessionStudents.isIgnored, false)
+      )
+    )
     .limit(1);
 
   return rows[0] ?? null;
@@ -154,7 +164,7 @@ export async function getSessionStudentsForSession(
       schoolEmail: sessionStudents.schoolEmail
     })
     .from(sessionStudents)
-    .where(eq(sessionStudents.sessionId, sessionId))
+    .where(and(eq(sessionStudents.sessionId, sessionId), eq(sessionStudents.isIgnored, false)))
     .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName), asc(sessionStudents.schoolEmail));
 
   return rows;

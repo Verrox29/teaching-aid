@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
@@ -10,8 +10,9 @@ import {
 
 import { AdminShell } from '@/components/admin-shell';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
-import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
+import { db, sessions } from '@/db';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
+import { getSessionGroupBoardSnapshot } from '@/lib/session-group-board';
 
 type SessionGroupsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -54,66 +55,16 @@ export default async function SessionGroupsPage({
 
   const session = sessionRows[0];
   await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/groups`);
-
-  const groupRows = await db
-    .select({
-      id: groups.id,
-      name: groups.name,
-      capacity: groups.capacity,
-      createdAt: groups.createdAt,
-      updatedAt: groups.updatedAt
-    })
-    .from(groups)
-    .where(eq(groups.sessionId, sessionId))
-    .orderBy(asc(groups.createdAt));
-
-  const membershipRows = await db
-    .select({
-      id: sessionStudents.id,
-      groupId: groupMembers.groupId,
-      firstName: sessionStudents.firstName,
-      lastName: sessionStudents.lastName,
-      schoolEmail: sessionStudents.schoolEmail
-    })
-    .from(groupMembers)
-    .innerJoin(sessionStudents, eq(groupMembers.sessionStudentId, sessionStudents.id))
-    .where(eq(groupMembers.sessionId, sessionId))
-    .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName));
-
-  const studentRows = await db
-    .select({
-      id: sessionStudents.id,
-      firstName: sessionStudents.firstName,
-      lastName: sessionStudents.lastName,
-      schoolEmail: sessionStudents.schoolEmail
-    })
-    .from(sessionStudents)
-    .where(eq(sessionStudents.sessionId, sessionId))
-    .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName));
-
-  const membersByGroup = new Map<string, typeof membershipRows>();
-  for (const member of membershipRows) {
-    const currentMembers = membersByGroup.get(member.groupId) ?? [];
-    currentMembers.push(member);
-    membersByGroup.set(member.groupId, currentMembers);
-  }
-
-  const assignedStudentIds = new Set(membershipRows.map((member) => member.id));
-  const unassignedStudents = studentRows.filter((student) => !assignedStudentIds.has(student.id));
-
-  const groupsWithMembers = groupRows.map((group) => ({
-    id: group.id,
-    name: group.name,
-    capacity: group.capacity,
-    members: membersByGroup.get(group.id) ?? []
-  }));
-  const boardRevision = JSON.stringify(
-    groupRows.map((group) => ({
+  const boardSnapshot = await getSessionGroupBoardSnapshot(sessionId);
+  const boardRevision = JSON.stringify({
+    groups: boardSnapshot.groups.map((group) => ({
       id: group.id,
-      updatedAt: group.updatedAt.toISOString(),
-      memberCount: membersByGroup.get(group.id)?.length ?? 0
-    }))
-  );
+      memberCount: group.members.length,
+      name: group.name
+    })),
+    ignored: boardSnapshot.ignoredStudents.map((student) => student.id),
+    unassigned: boardSnapshot.unassignedStudents.map((student) => student.id)
+  });
 
   return (
     <AdminShell
@@ -170,7 +121,7 @@ export default async function SessionGroupsPage({
         )}
       </section>
 
-      {groupRows.length === 0 ? (
+      {boardSnapshot.groups.length === 0 ? (
         <section className="ui-panel p-6">
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">Create default groups</h2>
@@ -198,11 +149,12 @@ export default async function SessionGroupsPage({
         error={error}
         errorGroupId={errorGroupId}
         errorStudentId={errorStudentId}
-        groups={groupsWithMembers}
+        groups={boardSnapshot.groups}
+        ignoredStudents={boardSnapshot.ignoredStudents}
         notice={notice}
         sessionId={sessionId}
         sessionTitle={session.title}
-        unassignedStudents={unassignedStudents}
+        unassignedStudents={boardSnapshot.unassignedStudents}
       />
     </AdminShell>
   );

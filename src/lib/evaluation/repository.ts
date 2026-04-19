@@ -175,7 +175,7 @@ async function getGroupMembers(sessionId: string) {
     })
     .from(groupMembers)
     .innerJoin(sessionStudents, eq(groupMembers.sessionStudentId, sessionStudents.id))
-    .where(eq(groupMembers.sessionId, sessionId))
+    .where(and(eq(groupMembers.sessionId, sessionId), eq(sessionStudents.isIgnored, false)))
     .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName));
 
   const membersByGroupId = new Map<

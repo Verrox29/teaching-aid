@@ -36,6 +36,7 @@ type SessionGroupsBoardProps = {
   errorGroupId?: string;
   errorStudentId?: string;
   groups: InitialGroupRecord[];
+  ignoredStudents: StudentRecord[];
   notice?: string;
   sessionId: string;
   sessionTitle: string;
@@ -54,6 +55,17 @@ type AlertState = {
   studentId?: string;
 };
 
+type VisibilityActionState =
+  | {
+      action: 'ignore';
+      studentId: string;
+    }
+  | {
+      action: 'restore';
+      studentId: string;
+    }
+  | null;
+
 function compareStudents(left: StudentRecord, right: StudentRecord) {
   const lastName = left.lastName.localeCompare(right.lastName, 'en', { sensitivity: 'base' });
   if (lastName !== 0) {
@@ -70,6 +82,20 @@ function compareStudents(left: StudentRecord, right: StudentRecord) {
 
 function sortStudentsStable(students: StudentRecord[]) {
   return [...students].sort(compareStudents);
+}
+
+function shuffleValues<T>(values: T[]) {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+
+  return result;
+}
+
+function shuffleStudents(students: StudentRecord[]) {
+  return shuffleValues(students);
 }
 
 function groupSnapshot(group: GroupRecord) {
@@ -107,12 +133,54 @@ function copyGroups(groups: InitialGroupRecord[]) {
   }));
 }
 
+function randomizeGroupMemberships(groups: GroupRecord[], students: StudentRecord[]) {
+  const shuffledStudents = shuffleStudents(students);
+  const shuffledGroupSlots = shuffleValues(
+    groups.flatMap((group) => {
+      const capacity = Number(group.capacity);
+      const safeCapacity = Number.isFinite(capacity) && capacity > 0 ? capacity : 0;
+      return Array.from({ length: safeCapacity }, () => group.id);
+    })
+  );
+
+  const nextGroups = groups.map((group) => ({
+    ...group,
+    members: [] as StudentRecord[]
+  }));
+  const nextUnassignedStudents: StudentRecord[] = [];
+
+  shuffledStudents.forEach((student, index) => {
+    const slot = shuffledGroupSlots[index];
+    if (!slot) {
+      nextUnassignedStudents.push(student);
+      return;
+    }
+
+    const targetGroup = nextGroups.find((group) => group.id === slot);
+    if (!targetGroup) {
+      nextUnassignedStudents.push(student);
+      return;
+    }
+
+    targetGroup.members.push(student);
+  });
+
+  return {
+    groups: nextGroups.map((group) => ({
+      ...group,
+      members: sortStudentsStable(group.members)
+    })),
+    unassignedStudents: sortStudentsStable(nextUnassignedStudents)
+  };
+}
+
 export function SessionGroupsBoard({
   defaultGroupCapacity,
   error,
   errorGroupId,
   errorStudentId,
   groups: initialGroups,
+  ignoredStudents: initialIgnoredStudents,
   notice,
   sessionId,
   sessionTitle,
@@ -122,20 +190,31 @@ export function SessionGroupsBoard({
   const [unassignedStudents, setUnassignedStudents] = useState<StudentRecord[]>(() =>
     sortStudentsStable(initialUnassignedStudents)
   );
+  const [ignoredStudents, setIgnoredStudents] = useState<StudentRecord[]>(() =>
+    sortStudentsStable(initialIgnoredStudents)
+  );
+  const [savedMemberIdsByGroupId, setSavedMemberIdsByGroupId] = useState(
+    () =>
+      new Map(
+        initialGroups.map((group) => [group.id, group.members.map((student) => student.id)])
+      )
+  );
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [isRandomizingStudents, setIsRandomizingStudents] = useState(false);
+  const [visibilityActionState, setVisibilityActionState] =
+    useState<VisibilityActionState>(null);
+  const [isIgnoredDrawerOpen, setIsIgnoredDrawerOpen] = useState(false);
   const [localAlert, setLocalAlert] = useState<AlertState | null>(null);
 
-  const initialSnapshots = useMemo(
+  const initialGroupMetaSnapshots = useMemo(
     () =>
       new Map(
         initialGroups.map((group) => [
           group.id,
-          groupSnapshot({
-            id: group.id,
-            name: group.name,
+          {
             capacity: String(group.capacity),
-            members: group.members
-          })
+            name: group.name.trim()
+          }
         ])
       ),
     [initialGroups]
@@ -156,6 +235,9 @@ export function SessionGroupsBoard({
     (count, group) => count + Math.max(0, Number(group.capacity) - group.members.length),
     0
   );
+  const hasInvalidGroupCapacity = groups.some(
+    (group) => !Number.isFinite(Number(group.capacity)) || Number(group.capacity) < 1
+  );
 
   function getStudentFromGroups(sessionStudentId: string) {
     for (const group of groups) {
@@ -166,6 +248,27 @@ export function SessionGroupsBoard({
     }
 
     return null;
+  }
+
+  function getVisibleStudents() {
+    return sortStudentsStable([...groups.flatMap((group) => group.members), ...unassignedStudents]);
+  }
+
+  function updateMembershipSnapshots(nextGroups: GroupRecord[]) {
+    setSavedMemberIdsByGroupId(
+      new Map(nextGroups.map((group) => [group.id, group.members.map((student) => student.id)]))
+    );
+  }
+
+  function applyMembershipState(
+    nextGroups: GroupRecord[],
+    nextUnassignedStudents: StudentRecord[],
+    nextIgnoredStudents: StudentRecord[]
+  ) {
+    setGroups(nextGroups);
+    setUnassignedStudents(sortStudentsStable(nextUnassignedStudents));
+    setIgnoredStudents(sortStudentsStable(nextIgnoredStudents));
+    updateMembershipSnapshots(nextGroups);
   }
 
   function moveStudent(
@@ -303,6 +406,209 @@ export function SessionGroupsBoard({
     moveStudent(studentId, sourceGroupId, null);
   }
 
+  async function handleRandomizeEnrollment() {
+    if (isRandomizingStudents || groups.length === 0 || getVisibleStudents().length === 0) {
+      return;
+    }
+
+    if (hasInvalidGroupCapacity) {
+      setLocalAlert({
+        kind: 'error',
+        message: 'Fix the group capacities before randomizing enrollment.'
+      });
+      return;
+    }
+
+    const previousGroups = groups.map((group) => ({
+      ...group,
+      members: [...group.members]
+    }));
+    const previousUnassignedStudents = [...unassignedStudents];
+    const previousIgnoredStudents = [...ignoredStudents];
+    const previousSavedMemberIdsByGroupId = new Map(savedMemberIdsByGroupId);
+    const randomized = randomizeGroupMemberships(previousGroups, getVisibleStudents());
+    const randomizedGroupsJson = saveAllPayload(randomized.groups);
+
+    setLocalAlert(null);
+    setIsRandomizingStudents(true);
+    applyMembershipState(randomized.groups, randomized.unassignedStudents, previousIgnoredStudents);
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/groups/randomize`, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          groupsJson: randomizedGroupsJson
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Could not randomize the student enrollment.');
+      }
+
+      setLocalAlert({ kind: 'notice', message: 'Student enrollment randomized.' });
+    } catch (randomizeError) {
+      setGroups(previousGroups);
+      setUnassignedStudents(previousUnassignedStudents);
+      setIgnoredStudents(previousIgnoredStudents);
+      setSavedMemberIdsByGroupId(previousSavedMemberIdsByGroupId);
+      setLocalAlert({
+        kind: 'error',
+        message:
+          randomizeError instanceof Error
+            ? randomizeError.message
+            : 'Could not randomize the student enrollment.'
+      });
+    } finally {
+      setIsRandomizingStudents(false);
+    }
+  }
+
+  async function handleIgnoreStudent(studentId: string, sourceGroupId: string | null) {
+    if (visibilityActionState) {
+      return;
+    }
+
+    const student = sourceGroupId
+      ? getStudentFromGroups(studentId)
+      : unassignedStudents.find((entry) => entry.id === studentId) ?? null;
+
+    if (!student) {
+      setLocalAlert({ kind: 'error', message: 'That student could not be found.' });
+      return;
+    }
+
+    const previousGroups = groups.map((group) => ({
+      ...group,
+      members: [...group.members]
+    }));
+    const previousUnassignedStudents = [...unassignedStudents];
+    const previousIgnoredStudents = [...ignoredStudents];
+    const previousSavedMemberIdsByGroupId = new Map(savedMemberIdsByGroupId);
+
+    const nextGroups = previousGroups.map((group) =>
+      group.id === sourceGroupId
+        ? {
+            ...group,
+            members: sortStudentsStable(
+              group.members.filter((member) => member.id !== studentId)
+            )
+          }
+        : group
+    );
+    const nextUnassignedStudents = sourceGroupId
+      ? previousUnassignedStudents
+      : sortStudentsStable(previousUnassignedStudents.filter((entry) => entry.id !== studentId));
+    const nextIgnoredStudents = sortStudentsStable([...previousIgnoredStudents, student]);
+
+    setLocalAlert(null);
+    setVisibilityActionState({ action: 'ignore', studentId });
+    applyMembershipState(nextGroups, nextUnassignedStudents, nextIgnoredStudents);
+
+    try {
+      const response = await fetch(
+        `/api/sessions/${sessionId}/students/${studentId}/visibility`,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          method: 'PATCH',
+          body: JSON.stringify({
+            action: 'ignore'
+          })
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Could not ignore the student.');
+      }
+
+      setLocalAlert({ kind: 'notice', message: 'Student ignored.' });
+    } catch (ignoreError) {
+      setGroups(previousGroups);
+      setUnassignedStudents(previousUnassignedStudents);
+      setIgnoredStudents(previousIgnoredStudents);
+      setSavedMemberIdsByGroupId(previousSavedMemberIdsByGroupId);
+      setLocalAlert({
+        kind: 'error',
+        message:
+          ignoreError instanceof Error ? ignoreError.message : 'Could not ignore the student.'
+      });
+    } finally {
+      setVisibilityActionState(null);
+    }
+  }
+
+  async function handleRestoreStudent(studentId: string) {
+    if (visibilityActionState) {
+      return;
+    }
+
+    const student = ignoredStudents.find((entry) => entry.id === studentId) ?? null;
+    if (!student) {
+      setLocalAlert({ kind: 'error', message: 'That student could not be found.' });
+      return;
+    }
+
+    const previousGroups = groups.map((group) => ({
+      ...group,
+      members: [...group.members]
+    }));
+    const previousUnassignedStudents = [...unassignedStudents];
+    const previousIgnoredStudents = [...ignoredStudents];
+    const previousSavedMemberIdsByGroupId = new Map(savedMemberIdsByGroupId);
+
+    const nextIgnoredStudents = sortStudentsStable(
+      previousIgnoredStudents.filter((entry) => entry.id !== studentId)
+    );
+    const nextUnassignedStudents = sortStudentsStable([...previousUnassignedStudents, student]);
+
+    setLocalAlert(null);
+    setVisibilityActionState({ action: 'restore', studentId });
+    applyMembershipState(previousGroups, nextUnassignedStudents, nextIgnoredStudents);
+
+    try {
+      const response = await fetch(
+        `/api/sessions/${sessionId}/students/${studentId}/visibility`,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          method: 'PATCH',
+          body: JSON.stringify({
+            action: 'restore'
+          })
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Could not restore the student.');
+      }
+
+      setLocalAlert({ kind: 'notice', message: 'Student restored.' });
+    } catch (restoreError) {
+      setGroups(previousGroups);
+      setUnassignedStudents(previousUnassignedStudents);
+      setIgnoredStudents(previousIgnoredStudents);
+      setSavedMemberIdsByGroupId(previousSavedMemberIdsByGroupId);
+      setLocalAlert({
+        kind: 'error',
+        message:
+          restoreError instanceof Error
+            ? restoreError.message
+            : 'Could not restore the student.'
+      });
+    } finally {
+      setVisibilityActionState(null);
+    }
+  }
+
   function syncGroupsJsonInput(form: HTMLFormElement) {
     const input = form.elements.namedItem('groupsJson');
     if (input instanceof HTMLInputElement) {
@@ -346,16 +652,17 @@ export function SessionGroupsBoard({
   }
 
   function isGroupDirty(group: GroupRecord) {
-    const snapshot = initialSnapshots.get(group.id);
+    const snapshot = initialGroupMetaSnapshots.get(group.id);
     if (!snapshot) {
       return true;
     }
 
     const currentSnapshot = groupSnapshot(group);
+    const savedMemberIds = savedMemberIdsByGroupId.get(group.id) ?? [];
     return (
       snapshot.name !== currentSnapshot.name ||
       snapshot.capacity !== currentSnapshot.capacity ||
-      !areMemberIdsEqual(snapshot.memberIds, currentSnapshot.memberIds)
+      !areMemberIdsEqual(savedMemberIds, currentSnapshot.memberIds)
     );
   }
 
@@ -431,6 +738,21 @@ export function SessionGroupsBoard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              isRandomizingStudents ||
+              hasInvalidGroupCapacity ||
+              visibilityActionState !== null ||
+              groups.length === 0 ||
+              getVisibleStudents().length === 0
+            }
+            type="button"
+            onClick={handleRandomizeEnrollment}
+          >
+            {isRandomizingStudents ? 'Randomizing enrollment...' : 'Randomize enrollment'}
+          </button>
+
           <form action={createGroupAction}>
             <input name="sessionId" type="hidden" value={sessionId} />
             <button className="ui-button ui-button-secondary" type="submit">
@@ -470,11 +792,25 @@ export function SessionGroupsBoard({
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleUnassignedDrop}
           >
-            <div className="space-y-1">
-              <h3 className="text-lg font-semibold">Unassigned students</h3>
-              <p className="text-sm text-[color:var(--app-fg-muted)]">
-                Drag a student card here to remove them from a group.
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold">Unassigned students</h3>
+                <p className="text-sm text-[color:var(--app-fg-muted)]">
+                  Drag a student card here to remove them from a group.
+                </p>
+              </div>
+
+              <button
+                aria-expanded={isIgnoredDrawerOpen}
+                aria-label="Show ignored students"
+                className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                disabled={visibilityActionState !== null || isRandomizingStudents}
+                title="Show ignored students"
+                type="button"
+                onClick={() => setIsIgnoredDrawerOpen((current) => !current)}
+              >
+                🗑 Ignored
+              </button>
             </div>
 
             {unassignedStudents.length === 0 ? (
@@ -522,6 +858,14 @@ export function SessionGroupsBoard({
                         >
                           Assign
                         </button>
+                        <button
+                          className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                          disabled={visibilityActionState !== null || isRandomizingStudents}
+                          type="button"
+                          onClick={() => handleIgnoreStudent(student.id, null)}
+                        >
+                          Ignore
+                        </button>
                       </form>
                     ) : (
                       <p className="mt-3 text-sm text-[color:var(--app-fg-muted)]">Create groups first to assign.</p>
@@ -530,6 +874,55 @@ export function SessionGroupsBoard({
                 ))}
               </div>
             )}
+
+            {isIgnoredDrawerOpen ? (
+              <div className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold">Ignored users</h4>
+                    <p className="text-xs text-[color:var(--app-fg-muted)]">
+                      Restored users return to the unassigned list.
+                    </p>
+                  </div>
+                  <span className="ui-chip">{ignoredStudents.length}</span>
+                </div>
+
+                {ignoredStudents.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
+                    No ignored users.
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {ignoredStudents.map((student) => (
+                      <article
+                        key={student.id}
+                        className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-4 py-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-medium">
+                              {student.firstName} {student.lastName}
+                            </div>
+                            <div className="text-sm text-[color:var(--app-fg-muted)]">
+                              {student.schoolEmail}
+                            </div>
+                          </div>
+
+                          <button
+                            className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                            disabled={visibilityActionState !== null || isRandomizingStudents}
+                            type="button"
+                            onClick={() => handleRestoreStudent(student.id)}
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </section>
         </aside>
 
@@ -699,6 +1092,15 @@ export function SessionGroupsBoard({
                                 onClick={() => handleRemoveClick(member.id, group.id)}
                               >
                                 Remove
+                              </button>
+
+                              <button
+                                className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                                disabled={visibilityActionState !== null || isRandomizingStudents}
+                                type="button"
+                                onClick={() => handleIgnoreStudent(member.id, group.id)}
+                              >
+                                Ignore
                               </button>
                             </div>
                           </article>

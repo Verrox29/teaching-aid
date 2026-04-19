@@ -52,7 +52,7 @@ export async function resolveSessionResumePath(sessionId: string): Promise<strin
     db
       .select({ id: sessionStudents.id })
       .from(sessionStudents)
-      .where(eq(sessionStudents.sessionId, sessionId))
+      .where(and(eq(sessionStudents.sessionId, sessionId), eq(sessionStudents.isIgnored, false)))
       .limit(1),
     db
       .select({ id: groups.id })

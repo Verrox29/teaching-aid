@@ -1,0 +1,1 @@
+ALTER TABLE "session_students" ADD COLUMN "is_ignored" boolean DEFAULT false NOT NULL;

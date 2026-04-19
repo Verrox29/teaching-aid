@@ -63,7 +63,7 @@ const savedGroupSchema = z.object({
   memberIds: z.array(z.string().uuid('Invalid student id'))
 });
 
-const savedGroupsPayloadSchema = z.object({
+export const savedGroupsPayloadSchema = z.object({
   groups: z.array(savedGroupSchema).min(1, 'At least one group is required')
 });
 
@@ -159,7 +159,11 @@ async function getStudent(sessionId: string, sessionStudentId: string) {
     })
     .from(sessionStudents)
     .where(
-      and(eq(sessionStudents.id, sessionStudentId), eq(sessionStudents.sessionId, sessionId))
+      and(
+        eq(sessionStudents.id, sessionStudentId),
+        eq(sessionStudents.sessionId, sessionId),
+        eq(sessionStudents.isIgnored, false)
+      )
     )
     .limit(1);
 
@@ -621,7 +625,9 @@ export async function saveGroupsAction(formData: FormData): Promise<never> {
       id: sessionStudents.id
     })
     .from(sessionStudents)
-    .where(eq(sessionStudents.sessionId, parsed.data.sessionId));
+    .where(
+      and(eq(sessionStudents.sessionId, parsed.data.sessionId), eq(sessionStudents.isIgnored, false))
+    );
 
   const validStudentIds = new Set(sessionStudentRows.map((row) => row.id));
   const memberIds = parsedGroups.data.groups.flatMap((group) => group.memberIds);

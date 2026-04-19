@@ -47,7 +47,13 @@ async function getStudent(sessionId: string, studentId: string) {
       id: sessionStudents.id
     })
     .from(sessionStudents)
-    .where(and(eq(sessionStudents.sessionId, sessionId), eq(sessionStudents.id, studentId)))
+    .where(
+      and(
+        eq(sessionStudents.sessionId, sessionId),
+        eq(sessionStudents.id, studentId),
+        eq(sessionStudents.isIgnored, false)
+      )
+    )
     .limit(1);
 
   return rows[0] ?? null;

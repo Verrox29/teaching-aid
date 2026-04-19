@@ -471,7 +471,7 @@ export async function getPairagogieExportContext(sessionId: string): Promise<Pai
     })
     .from(groupMembers)
     .innerJoin(sessionStudents, eq(groupMembers.sessionStudentId, sessionStudents.id))
-    .where(eq(groupMembers.sessionId, sessionId))
+    .where(and(eq(groupMembers.sessionId, sessionId), eq(sessionStudents.isIgnored, false)))
     .orderBy(asc(sessionStudents.lastName), asc(sessionStudents.firstName));
 
   const membershipByGroupId = new Map<string, ExportGroupSnapshot['members']>();
