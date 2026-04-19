@@ -252,9 +252,6 @@ export function EvaluationWorkspaceClient({
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
-  const selectedGroupDisplayName = selectedGroup
-    ? displayGroups.find((group) => group.groupId === selectedGroup.groupId)?.groupName ?? null
-    : null;
   const selectedGroupTotal = selectedGroup
     ? selectedGroup.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0)
     : 0;
@@ -837,17 +834,17 @@ export function EvaluationWorkspaceClient({
 
       {selectedGroup ? (
         <>
-      <section className="grid gap-0 overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-sm">
-        <div className="flex flex-nowrap items-end gap-1 overflow-x-auto px-3 pt-3">
+      <section className="overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] shadow-sm">
+        <div className="flex flex-nowrap items-end gap-1 overflow-x-auto border-b border-[color:var(--app-border)] px-3 pt-3">
               {displayGroups.map((group) => {
                 const isActive = group.groupId === selectedGroupId;
 
                 return (
                   <button
                     key={group.groupId}
-                    className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.35rem] border px-4 py-3 text-sm font-medium transition ${
+                    className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.1rem] border border-b-0 px-4 py-3 text-sm font-medium transition ${
                       isActive
-                        ? 'z-20 border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)]'
+                        ? 'z-20 border-[color:var(--app-border)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
                         : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
                     }`}
                     onClick={() => {
@@ -862,7 +859,7 @@ export function EvaluationWorkspaceClient({
               })}
         </div>
 
-        <div className="p-4 pt-0">
+        <div className="bg-[color:var(--app-surface)] p-4">
           <CollapsiblePanel
               className="border-0 bg-transparent p-0 shadow-none"
               actions={
@@ -982,7 +979,7 @@ export function EvaluationWorkspaceClient({
                         <GroupSubmissionDropzone
                           fileName={selectedGroup.submissionTitle}
                           groupId={selectedGroup.groupId}
-                          groupName={selectedGroupDisplayName ?? 'Group'}
+                          groupName="this group"
                           sessionId={sessionId}
                           submittedAt={selectedGroup.submittedAt}
                         />
