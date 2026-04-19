@@ -179,6 +179,46 @@ function PencilIcon({ className }: { className?: string }) {
   );
 }
 
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6 9 6 6 6-6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function ChevronUpIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m18 15-6-6-6 6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
 function groupSnapshot(group: GroupRecord) {
   return {
     name: group.name.trim(),
@@ -311,13 +351,6 @@ export function SessionGroupsBoard({
     studentId: errorStudentId
   } : null);
 
-  const totalStudents = groups.reduce((count, group) => count + group.members.length, 0) +
-    unassignedStudents.length;
-  const assignedStudents = groups.reduce((count, group) => count + group.members.length, 0);
-  const totalSeatsRemaining = groups.reduce(
-    (count, group) => count + Math.max(0, Number(group.capacity) - group.members.length),
-    0
-  );
   const hasInvalidGroupCapacity = groups.some(
     (group) => !Number.isFinite(Number(group.capacity)) || Number(group.capacity) < 1
   );
@@ -783,29 +816,6 @@ export function SessionGroupsBoard({
 
   return (
     <section className="grid gap-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="ui-card p-4">
-          <p className="ui-section-title">Total students</p>
-          <p className="mt-2 text-3xl font-semibold">{totalStudents}</p>
-        </div>
-        <div className="ui-card p-4">
-          <p className="ui-section-title">Assigned</p>
-          <p className="mt-2 text-3xl font-semibold">{assignedStudents}</p>
-        </div>
-        <div className="ui-card p-4">
-          <p className="ui-section-title">Unassigned</p>
-          <p className="mt-2 text-3xl font-semibold">{unassignedStudents.length}</p>
-        </div>
-        <div className="ui-card p-4">
-          <p className="ui-section-title">Created groups</p>
-          <p className="mt-2 text-3xl font-semibold">{groups.length}</p>
-        </div>
-        <div className="ui-card p-4">
-          <p className="ui-section-title">Seats remaining</p>
-          <p className="mt-2 text-3xl font-semibold">{totalSeatsRemaining}</p>
-        </div>
-      </div>
-
       {alert ? (
         <div
           className={`rounded-2xl border px-4 py-3 text-sm ${
@@ -1037,29 +1047,30 @@ export function SessionGroupsBoard({
 
           <div className="grid gap-4">
             {groups.map((group) => {
-              const memberCount = group.members.length;
-              const remainingSeats = Number(group.capacity) - memberCount;
-              const dirty = isGroupDirty(group);
+          const memberCount = group.members.length;
+          const remainingSeats = Number(group.capacity) - memberCount;
+          const dirty = isGroupDirty(group);
+          const capacity = Math.max(1, Number(group.capacity) || 1);
 
-              return (
-                <article
-                  key={group.id}
-                  className={`grid gap-4 rounded-2xl border p-5 transition ${
+          return (
+            <article
+              key={group.id}
+              className={`grid gap-4 rounded-2xl border p-5 transition ${
                     alert?.kind === 'error' && alert.groupId === group.id
                       ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
                       : dirty
                         ? 'border-[color:var(--app-warning)]/30 ring-1 ring-[color:var(--app-warning)]/12'
-                        : 'border-[color:var(--app-border)] bg-[color:var(--app-surface)]'
+                : 'border-[color:var(--app-border)] bg-[color:var(--app-surface)]'
                   }`}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => handleGroupDrop(event, group.id)}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <div className="flex flex-nowrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-nowrap items-center gap-2">
                       <div className="group relative shrink-0">
                         <button
                           aria-label={`Rename ${group.name}`}
-                          className={`relative flex items-center gap-2 rounded-full border px-3 py-1.5 pr-9 text-sm font-semibold transition ${
+                          className={`relative flex items-center gap-2 rounded-full border px-2.5 py-1.5 pr-8 text-sm font-semibold transition ${
                             dirty
                               ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
                               : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
@@ -1074,7 +1085,7 @@ export function SessionGroupsBoard({
                           <input
                             ref={editingGroupNameInputRef}
                             aria-label={`Rename ${group.name}`}
-                            className={`absolute inset-0 z-30 w-full rounded-full border px-3 py-1.5 pr-9 text-sm font-semibold outline-none ${
+                            className={`absolute inset-0 z-30 w-full rounded-full border px-2.5 py-1.5 pr-8 text-sm font-semibold outline-none ${
                               dirty
                                 ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
                                 : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
@@ -1123,43 +1134,52 @@ export function SessionGroupsBoard({
                         </button>
                       </div>
 
-                      <span className={`ui-chip ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}>
+                      <span
+                        className={`ui-chip px-2.5 py-1 text-xs ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}
+                      >
                         <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
                         {dirty ? 'Unsaved changes' : 'Saved and unchanged'}
                       </span>
 
-                      <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-1.5 text-sm font-medium text-[color:var(--app-fg-muted)]">
-                        <span className="text-xs font-semibold uppercase tracking-[0.12em]">
+                      <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-2 py-1 text-[color:var(--app-fg-muted)]">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
                           Capacity
                         </span>
-                        <input
-                          className="w-14 border-0 bg-transparent p-0 text-center text-sm font-semibold text-[color:var(--app-fg)] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          min="1"
-                          name="capacity"
-                          onChange={(event) => updateGroupField(group.id, 'capacity', event.target.value)}
-                          type="number"
-                          value={group.capacity}
-                        />
+                        <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-1 py-0.5">
+                          <button
+                            aria-label={`Decrease capacity for ${group.name}`}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={capacity <= 1}
+                            type="button"
+                            onClick={() => updateGroupField(group.id, 'capacity', String(capacity - 1))}
+                          >
+                            <ChevronDownIcon className="h-3 w-3" />
+                          </button>
+                          <span className="min-w-5 text-center text-sm font-semibold text-[color:var(--app-fg)]">
+                            {capacity}
+                          </span>
+                          <button
+                            aria-label={`Increase capacity for ${group.name}`}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)]"
+                            type="button"
+                            onClick={() => updateGroupField(group.id, 'capacity', String(capacity + 1))}
+                          >
+                            <ChevronUpIcon className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
-
-                      <p className="text-sm text-[color:var(--app-fg-muted)]">
-                        {memberCount} member{memberCount === 1 ? '' : 's'} ·{' '}
-                        {remainingSeats >= 0
-                          ? `${remainingSeats} seat${remainingSeats === 1 ? '' : 's'} left`
-                          : `Over capacity by ${Math.abs(remainingSeats)}`}
-                      </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-nowrap items-center gap-2">
                       <form
                         action={saveGroupsAction}
-                        className="flex flex-wrap items-center gap-2"
+                        className="flex items-center gap-2"
                         onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
                       >
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="groupsJson" type="hidden" value={groupsJson} />
                         <input name="sourceGroupId" type="hidden" value={group.id} />
-                        <button className="ui-button ui-button-secondary" type="submit">
+                        <button className="ui-button ui-button-secondary px-3 py-1.5 text-sm" type="submit">
                           {dirty ? 'Update and save' : 'Save group'}
                         </button>
                       </form>
@@ -1178,12 +1198,19 @@ export function SessionGroupsBoard({
                       >
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="groupId" type="hidden" value={group.id} />
-                        <button className="ui-button ui-button-danger" type="submit">
+                        <button className="ui-button ui-button-danger px-3 py-1.5 text-sm" type="submit">
                           Delete group
                         </button>
                       </form>
                     </div>
                   </div>
+
+                  <p className="text-sm text-[color:var(--app-fg-muted)]">
+                    {memberCount} member{memberCount === 1 ? '' : 's'} ·{' '}
+                    {remainingSeats >= 0
+                      ? `${remainingSeats} seat${remainingSeats === 1 ? '' : 's'} left`
+                      : `Over capacity by ${Math.abs(remainingSeats)}`}
+                  </p>
 
                   <div className="grid gap-3">
                     <div className="text-sm font-medium">Members</div>
