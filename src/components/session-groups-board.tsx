@@ -255,6 +255,9 @@ function PublicPageQrModal({
             <div className="rounded-2xl bg-white p-4">
               <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
             </div>
+            <p className="text-center text-sm font-medium text-[color:var(--app-fg)]">
+              {title}
+            </p>
             <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={publicPageHref}>
               {publicPageLabel}
             </Link>
