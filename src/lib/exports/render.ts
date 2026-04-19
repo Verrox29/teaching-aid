@@ -184,6 +184,16 @@ function cloneWorksheetModel(
     ...structuredClone(sourceModel),
     name: sheetName
   };
+
+  const mergeRanges = (
+    (sourceModel as { mergeCells?: string[]; merges?: string[] }).mergeCells ??
+    (sourceModel as { merges?: string[] }).merges ??
+    []
+  ).filter(Boolean);
+  for (const range of mergeRanges) {
+    clone.mergeCellsWithoutStyle(range);
+  }
+
   return clone;
 }
 
