@@ -112,6 +112,22 @@ function formatGroupDisplayName(index: number) {
   return `Group ${index + 1}`;
 }
 
+function sortGroupsByPresentationOrder(groups: GroupDraft[]) {
+  return groups
+    .map((group, index) => ({ group, index }))
+    .sort((left, right) => {
+      const leftOrder = left.group.presentationOrder ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = right.group.presentationOrder ?? Number.MAX_SAFE_INTEGER;
+
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ group }) => group);
+}
+
 function initialDraftGroups(groups: SerializableGroup[]) {
   return groups.map((group) => ({
     ...group,
@@ -198,25 +214,13 @@ export function EvaluationWorkspaceClient({
     });
   }, [initialGroups]);
 
-  const orderedGroups = groups
-    .map((group, index) => ({ group, index }))
-    .sort((left, right) => {
-      const leftOrder = left.group.presentationOrder ?? Number.MAX_SAFE_INTEGER;
-      const rightOrder = right.group.presentationOrder ?? Number.MAX_SAFE_INTEGER;
-
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
-      }
-
-      return left.index - right.index;
-    })
-    .map(({ group }) => group);
-  const displayGroups = orderedGroups.map((group, index) => ({
+  const tabGroups = sortGroupsByPresentationOrder(groups);
+  const displayGroups = tabGroups.map((group, index) => ({
     ...group,
     groupName: formatGroupDisplayName(index)
   }));
   const selectedGroup =
-    orderedGroups.find((group) => group.groupId === selectedGroupId) ?? orderedGroups[0] ?? null;
+    tabGroups.find((group) => group.groupId === selectedGroupId) ?? tabGroups[0] ?? null;
   const selectedGroupPanelState = selectedGroup ? panelStates[selectedGroup.groupId] : null;
   const challengeOpen = selectedGroupPanelState?.challengeOpen ?? true;
   const notesOpen = selectedGroupPanelState?.notesOpen ?? true;
@@ -814,7 +818,7 @@ export function EvaluationWorkspaceClient({
 
       {selectedGroup ? (
         <>
-      <section className="grid gap-0 rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-sm">
+      <section className="grid gap-0 overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-sm">
         <div className="flex flex-nowrap gap-1 overflow-x-auto px-3 pt-3">
               {displayGroups.map((group) => {
                 const isActive = group.groupId === selectedGroupId;
@@ -822,7 +826,7 @@ export function EvaluationWorkspaceClient({
                 return (
                   <button
                     key={group.groupId}
-                    className={`relative flex shrink-0 items-center gap-2 rounded-t-[1.35rem] border px-4 py-3 text-sm font-medium transition ${
+                    className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.35rem] border px-4 py-3 text-sm font-medium transition ${
                       isActive
                         ? 'z-10 border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)]'
                         : 'border-[color:var(--app-border)] border-b-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
@@ -839,7 +843,7 @@ export function EvaluationWorkspaceClient({
               })}
         </div>
 
-        <div className="border-t border-[color:var(--app-border)] p-4">
+        <div className="p-4 pt-0">
           <CollapsiblePanel
               className="border-0 bg-transparent p-0 shadow-none"
               actions={
