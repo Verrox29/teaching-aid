@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { saveSessionInstructionsAction } from '@/app/sessions/actions';
@@ -177,6 +177,26 @@ export function EvaluationWorkspaceClient({
   );
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const requestVersions = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    setGroups((current) => {
+      let changed = false;
+      const nextGroups = current.map((group) => {
+        const incoming = initialGroups.find((entry) => entry.groupId === group.groupId);
+        if (!incoming || incoming.presentationOrder === group.presentationOrder) {
+          return group;
+        }
+
+        changed = true;
+        return {
+          ...group,
+          presentationOrder: incoming.presentationOrder
+        };
+      });
+
+      return changed ? nextGroups : current;
+    });
+  }, [initialGroups]);
 
   const orderedGroups = groups
     .map((group, index) => ({ group, index }))
@@ -794,18 +814,18 @@ export function EvaluationWorkspaceClient({
 
       {selectedGroup ? (
         <>
-          <section className="grid gap-3">
-            <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+      <section className="grid gap-0 rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-sm">
+        <div className="flex flex-nowrap gap-1 overflow-x-auto px-3 pt-3">
               {displayGroups.map((group) => {
                 const isActive = group.groupId === selectedGroupId;
 
                 return (
                   <button
                     key={group.groupId}
-                    className={`relative flex shrink-0 items-center gap-2 rounded-t-2xl border border-b-0 px-4 py-3 text-sm font-medium transition ${
+                    className={`relative flex shrink-0 items-center gap-2 rounded-t-[1.35rem] border px-4 py-3 text-sm font-medium transition ${
                       isActive
-                        ? 'z-10 bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-[0_-1px_0_var(--app-border)]'
-                        : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
+                        ? 'z-10 border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)]'
+                        : 'border-[color:var(--app-border)] border-b-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
                     }`}
                     onClick={() => {
                       setSelectedGroupId(group.groupId);
@@ -817,9 +837,11 @@ export function EvaluationWorkspaceClient({
                   </button>
                 );
               })}
-            </div>
+        </div>
 
-            <CollapsiblePanel
+        <div className="border-t border-[color:var(--app-border)] p-4">
+          <CollapsiblePanel
+              className="border-0 bg-transparent p-0 shadow-none"
               actions={
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -1164,8 +1186,9 @@ export function EvaluationWorkspaceClient({
                   </section>
                 </CollapsiblePanel>
               </div>
-            </CollapsiblePanel>
-          </section>
+          </CollapsiblePanel>
+        </div>
+      </section>
         </>
       ) : (
         <section className="ui-panel p-6">

@@ -9,6 +9,7 @@ import { db, groups, sessions, submissions } from '@/db';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES } from '@/lib/group-submission';
 
 const orderPath = (sessionId: string) => `/sessions/${sessionId}/order`;
+const evaluationPath = (sessionId: string) => `/sessions/${sessionId}/evaluation`;
 const sessionHubPath = (sessionId: string) => `/sessions/${sessionId}`;
 
 const sessionSchema = z.object({
@@ -124,6 +125,7 @@ export async function randomizePresentationOrderAction(formData: FormData): Prom
   });
 
   revalidatePath(orderPath(parsed.data.sessionId));
+  revalidatePath(evaluationPath(parsed.data.sessionId));
   revalidatePath(sessionHubPath(parsed.data.sessionId));
   redirectNotice(parsed.data.sessionId, 'Presentation order randomized.');
 }
@@ -178,6 +180,7 @@ export async function movePresentationOrderAction(formData: FormData): Promise<n
   });
 
   revalidatePath(orderPath(parsed.data.sessionId));
+  revalidatePath(evaluationPath(parsed.data.sessionId));
   revalidatePath(sessionHubPath(parsed.data.sessionId));
   redirectNotice(parsed.data.sessionId, 'Presentation order updated.');
 }
@@ -217,6 +220,7 @@ async function setPresentationOrderLocked(
     .where(eq(sessions.id, parsed.data.sessionId));
 
   revalidatePath(orderPath(parsed.data.sessionId));
+  revalidatePath(evaluationPath(parsed.data.sessionId));
   revalidatePath(sessionHubPath(parsed.data.sessionId));
 
   redirectNotice(
