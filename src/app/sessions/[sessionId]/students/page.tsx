@@ -26,6 +26,7 @@ export default async function SessionStudentsPage({
       id: sessions.id,
       slug: sessions.slug,
       lastAdminPath: sessions.lastAdminPath,
+      language: sessions.language,
       title: sessions.title
     })
     .from(sessions)
@@ -91,6 +92,7 @@ export default async function SessionStudentsPage({
         autoOpenImport={shouldAutoOpenImport}
         existingEmails={studentRows.map((student) => student.schoolEmail)}
         metadata={metadata}
+        language={session[0].language}
         sessionId={sessionId}
         students={studentRows}
       />

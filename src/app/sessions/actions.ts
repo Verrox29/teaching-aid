@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { db, sessions } from '@/db';
+import { db, sessionExportMetadata, sessions } from '@/db';
 import { undoSessionExportMetadata, upsertSessionExportMetadata } from '@/lib/exports/repository';
 import { ensurePairagogieRubric } from '@/lib/evaluation/rubric';
 
@@ -104,6 +104,41 @@ const sessionContextSchema = z.object({
   subject: z.string().trim().optional().default(''),
   sessionId: z.string().uuid('Invalid session id')
 });
+
+async function syncSessionTitleFromSubject(
+  sessionId: string,
+  subject: string
+) {
+  const sessionRows = await db
+    .select({
+      language: sessions.language,
+      title: sessions.title
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+
+  const session = sessionRows[0] ?? null;
+  if (!session) {
+    throw new Error('Session not found.');
+  }
+
+  const nextTitle = subject.trim() || session.title;
+  const nextLanguage = language ?? session.language;
+
+  if (session.title === nextTitle && session.language === nextLanguage) {
+    return;
+  }
+
+  await db
+    .update(sessions)
+    .set({
+      ...(session.title !== nextTitle ? { title: nextTitle } : {}),
+      ...(session.language !== nextLanguage ? { language: nextLanguage } : {}),
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, sessionId));
+}
 
 function normalizeSessionInstructions(value: string) {
   return value.trim() || null;
@@ -228,6 +263,7 @@ export async function saveSessionInstructionsAction(formData: FormData): Promise
     .where(eq(sessions.id, sessionId));
 
   const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath('/sessions');
   revalidatePath(routes.students);
   revalidatePath(routes.groups);
   revalidatePath(routes.order);
@@ -254,8 +290,10 @@ export async function saveSessionContextAction(formData: FormData): Promise<void
 
   const { sessionId, ...values } = parsed.data;
   await upsertSessionExportMetadata(sessionId, values);
+  await syncSessionTitleFromSubject(sessionId, values.subject);
 
   const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath('/sessions');
   revalidatePath(routes.students);
   revalidatePath(routes.groups);
   revalidatePath(routes.order);
@@ -285,7 +323,18 @@ export async function undoSessionContextAction(formData: FormData): Promise<void
     throw new Error('Nothing to undo.');
   }
 
+  const metadataRows = await db
+    .select({
+      subject: sessionExportMetadata.subject
+    })
+    .from(sessionExportMetadata)
+    .where(eq(sessionExportMetadata.sessionId, sessionId))
+    .limit(1);
+  const restoredSubject = metadataRows[0]?.subject ?? '';
+  await syncSessionTitleFromSubject(sessionId, restoredSubject);
+
   const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath('/sessions');
   revalidatePath(routes.students);
   revalidatePath(routes.groups);
   revalidatePath(routes.evaluation);
@@ -329,6 +378,7 @@ export async function undoSessionInstructionsAction(formData: FormData): Promise
     .where(eq(sessions.id, sessionId));
 
   const routes = await getSessionAdminRoutes(sessionId);
+  revalidatePath('/sessions');
   revalidatePath(routes.students);
   revalidatePath(routes.groups);
   revalidatePath(routes.evaluation);

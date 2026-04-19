@@ -28,6 +28,7 @@ type SessionStudentsWorkspaceProps = {
   existingEmails: string[];
   autoOpenImport?: boolean;
   metadata: SessionExportMetadata;
+  language: 'fr' | 'en';
   sessionId: string;
   students: SessionStudentRecord[];
 };
@@ -110,6 +111,7 @@ function FloatingModal({
 export function SessionStudentsWorkspace({
   autoOpenImport = false,
   existingEmails,
+  language,
   metadata,
   sessionId,
   students
@@ -117,6 +119,7 @@ export function SessionStudentsWorkspace({
   const [importOpen, setImportOpen] = useState(autoOpenImport);
   const [importMode, setImportMode] = useState<ImportMode>('chooser');
   const [metadataDraft, setMetadataDraft] = useState(metadata);
+  const [languageDraft, setLanguageDraft] = useState<'fr' | 'en'>(language);
   const [metadataSuggestions, setMetadataSuggestions] = useState<MetadataSuggestionState>({
     className: '',
     programme: ''
@@ -140,6 +143,10 @@ export function SessionStudentsWorkspace({
         : metadata
     );
   }, [metadata]);
+
+  useEffect(() => {
+    setLanguageDraft((current) => (current === language ? current : language));
+  }, [language]);
 
   useEffect(() => {
     if (!importOpen) {
@@ -313,17 +320,27 @@ export function SessionStudentsWorkspace({
   return (
     <div className="grid gap-6">
       <section className="ui-panel grid gap-5 p-6">
-        <div className="space-y-1">
-          <p className="ui-section-title">Pairagogie &amp; students setup</p>
-          <h2 className="text-xl font-semibold">Pairagogie session metadata</h2>
-          <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Save the session details used by exports.
-          </p>
-          {metadataSuggestions.className || metadataSuggestions.programme ? (
-            <p className="text-xs text-[color:var(--app-fg-muted)]">
-              Suggested from imported Boostcamp data.
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="ui-section-title">Pairagogie &amp; students setup</p>
+            <h2 className="text-xl font-semibold">Pairagogie session metadata</h2>
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
+              Save the session details used by exports.
             </p>
-          ) : null}
+            {metadataSuggestions.className || metadataSuggestions.programme ? (
+              <p className="text-xs text-[color:var(--app-fg-muted)]">
+                Suggested from imported Boostcamp data.
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            className="ui-button ui-button-secondary px-3 py-2 text-sm"
+            onClick={() => setImportOpen(true)}
+            type="button"
+          >
+            Students update/import
+          </button>
         </div>
 
         <form action={saveExportMetadataAction} className="grid gap-4">
@@ -360,6 +377,18 @@ export function SessionStudentsWorkspace({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium">
+              Class language
+              <select
+                className="ui-select"
+                name="language"
+                onChange={(event) => setLanguageDraft(event.target.value as 'fr' | 'en')}
+                value={languageDraft}
+              >
+                <option value="fr">French</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
               Professor name
               <input
                 className="ui-input"
@@ -376,12 +405,12 @@ export function SessionStudentsWorkspace({
                 name="sessionDate"
                 onChange={(event) => updateMetadataField('sessionDate', event.target.value)}
                 value={metadataDraft.sessionDate}
-                type="text"
+                type="date"
               />
             </label>
 
             <label className="grid gap-2 text-sm font-medium">
-              Season
+              Intake
               <select
                 className="ui-select"
                 name="season"
@@ -390,10 +419,10 @@ export function SessionStudentsWorkspace({
                 required
               >
                 <option disabled value="">
-                  Choose season
+                  Choose intake
                 </option>
-                <option value="Fall">Fall</option>
-                <option value="Spring">Spring</option>
+                <option value="Fall">Fall intake</option>
+                <option value="Spring">Spring intake</option>
               </select>
             </label>
           </div>

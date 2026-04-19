@@ -224,7 +224,7 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
               ['Programme', state.sessionContext.programme],
               ['Class', state.sessionContext.className],
               ['Subject', state.sessionContext.subject],
-              ['Season', state.sessionContext.season],
+              ['Intake', state.sessionContext.season],
               ['Professor', state.sessionContext.professorName],
               ['Presentation date', state.sessionContext.sessionDate]
             ].map(([label, value]) => (
@@ -284,11 +284,11 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
               <input className="ui-input" defaultValue={state.sessionContext.subject} name="subject" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Season
+              Intake
               <select className="ui-select" defaultValue={state.sessionContext.season} name="season">
                 <option value="">Not set</option>
-                <option value="Fall">Fall</option>
-                <option value="Spring">Spring</option>
+                <option value="Fall">Fall intake</option>
+                <option value="Spring">Spring intake</option>
               </select>
             </label>
             <label className="grid gap-2 text-sm font-medium">
@@ -297,7 +297,7 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Presentation date
-              <input className="ui-input" defaultValue={state.sessionContext.sessionDate} name="sessionDate" />
+              <input className="ui-input" defaultValue={state.sessionContext.sessionDate} name="sessionDate" type="date" />
             </label>
           </div>
 

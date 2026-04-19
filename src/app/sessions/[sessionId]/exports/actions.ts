@@ -1,8 +1,10 @@
 'use server';
+import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
+import { db, sessionExportMetadata, sessions } from '@/db';
 import {
   activateExportVersions,
   getActiveExportVersions,
@@ -33,9 +35,44 @@ const metadataSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
 
+const languageSchema = z.enum(['fr', 'en']);
+
 const undoMetadataSchema = z.object({
   sessionId: z.string().uuid('Invalid session id')
 });
+
+async function syncSessionTitleFromSubject(sessionId: string) {
+  const rows = await db
+    .select({
+      subject: sessionExportMetadata.subject,
+      slug: sessions.slug,
+      title: sessions.title
+    })
+    .from(sessionExportMetadata)
+    .innerJoin(sessions, eq(sessionExportMetadata.sessionId, sessions.id))
+    .where(eq(sessionExportMetadata.sessionId, sessionId))
+    .limit(1);
+
+  const row = rows[0] ?? null;
+  if (!row) {
+    return;
+  }
+
+  const nextTitle = row.subject?.trim() || row.title;
+  if (nextTitle === row.title) {
+    return row.slug;
+  }
+
+  await db
+    .update(sessions)
+    .set({
+      title: nextTitle,
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, sessionId));
+
+  return row.slug;
+}
 
 function redirectWithNotice(sessionId: string, kind: 'notice' | 'error', message: string): never {
   const params = new URLSearchParams({ [kind]: message });
@@ -137,12 +174,25 @@ export async function saveExportMetadataAction(
   }
 
   const { sessionId, ...metadata } = parsed.data;
+  const language = languageSchema.parse(String(formData.get('language') ?? 'fr'));
   await upsertSessionExportMetadata(sessionId, metadata as SessionExportMetadata);
+  const slug = await syncSessionTitleFromSubject(sessionId);
+  await db
+    .update(sessions)
+    .set({
+      language,
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, sessionId));
 
+  revalidatePath('/sessions');
   revalidatePath(studentsPath(sessionId));
   revalidatePath(evaluationPath(sessionId));
   revalidatePath(settingsPath(sessionId));
   revalidatePath(exportsPath(sessionId));
+  if (slug) {
+    revalidatePath(`/s/${slug}`);
+  }
   redirectWithNotice(sessionId, 'notice', 'Export metadata saved.');
 }
 
@@ -162,10 +212,15 @@ export async function undoExportMetadataAction(formData: FormData): Promise<neve
     redirectWithNotice(sessionId, 'error', 'Nothing to undo.');
   }
 
+  const slug = await syncSessionTitleFromSubject(sessionId);
+  revalidatePath('/sessions');
   revalidatePath(studentsPath(sessionId));
   revalidatePath(evaluationPath(sessionId));
   revalidatePath(settingsPath(sessionId));
   revalidatePath(exportsPath(sessionId));
+  if (slug) {
+    revalidatePath(`/s/${slug}`);
+  }
   redirectWithNotice(sessionId, 'notice', 'Export metadata reverted.');
 }
 
