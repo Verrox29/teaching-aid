@@ -838,7 +838,7 @@ export function EvaluationWorkspaceClient({
       {selectedGroup ? (
         <>
       <section className="grid gap-0 overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-sm">
-        <div className="flex flex-nowrap gap-1 overflow-x-auto px-3 pt-3">
+        <div className="flex flex-nowrap items-end gap-1 overflow-x-auto px-3 pt-3">
               {displayGroups.map((group) => {
                 const isActive = group.groupId === selectedGroupId;
 
@@ -847,8 +847,8 @@ export function EvaluationWorkspaceClient({
                     key={group.groupId}
                     className={`relative -mb-px flex shrink-0 items-center gap-2 rounded-t-[1.35rem] border px-4 py-3 text-sm font-medium transition ${
                       isActive
-                        ? 'z-10 border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)]'
-                        : 'border-[color:var(--app-border)] border-b-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
+                        ? 'z-20 border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface)] text-[color:var(--app-fg)]'
+                        : 'border-[color:var(--app-border)] border-b-[color:var(--app-surface)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-surface-soft)]'
                     }`}
                     onClick={() => {
                       setSelectedGroupId(group.groupId);
@@ -890,8 +890,8 @@ export function EvaluationWorkspaceClient({
                   </p>
                 </>
               }
-              title={selectedGroupDisplayName ?? 'Group'}
-              titleLabel={selectedGroupDisplayName ?? 'Group'}
+              title="Group details"
+              titleLabel="Group details"
               titleClassName="text-2xl font-semibold"
             >
               <div className="grid gap-4">
