@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import Link from 'next/link';
+import { QRCodeSVG } from 'qrcode.react';
 
 import {
   createGroupAction,
@@ -186,6 +187,92 @@ function PencilIcon({ className }: { className?: string }) {
   );
 }
 
+function QrIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 20 20"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4.5 4.5h4v4h-4v-4Zm0 7h4v4h-4v-4Zm7-7h4v4h-4v-4Zm1.25 7.5h1.5v1.5h-1.5v-1.5Zm0 2.75h1.5v1.5h-1.5v-1.5Zm2.75-2.75h1.5v1.5h-1.5v-1.5Zm0 2.75h1.5v1.5h-1.5v-1.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function PublicPageQrModal({
+  closeLabel,
+  onClose,
+  open,
+  title,
+  url
+}: {
+  closeLabel: string;
+  onClose: () => void;
+  open: boolean;
+  title: string;
+  url: string;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div
+          aria-modal="true"
+          className="w-[min(28rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-xl font-semibold">{title}</h2>
+            <button
+              className="ui-button ui-button-secondary px-3 py-2 text-sm"
+              onClick={onClose}
+              type="button"
+            >
+              {closeLabel}
+            </button>
+          </div>
+
+          <div className="mt-4 grid justify-items-center gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+            <div className="rounded-2xl bg-white p-4">
+              <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
+            </div>
+            <p className="break-all text-center text-xs text-[color:var(--app-fg-muted)]">{url}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChevronUpIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -334,6 +421,8 @@ export function SessionGroupsBoard({
   const [visibilityActionState, setVisibilityActionState] =
     useState<VisibilityActionState>(null);
   const [isIgnoredDrawerOpen, setIsIgnoredDrawerOpen] = useState(false);
+  const [publicQrOpen, setPublicQrOpen] = useState(false);
+  const [publicPageUrl, setPublicPageUrl] = useState('');
   const [localAlert, setLocalAlert] = useState<AlertState | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState('');
@@ -384,6 +473,10 @@ export function SessionGroupsBoard({
     editingGroupNameInputRef.current?.focus();
     editingGroupNameInputRef.current?.select();
   }, [editingGroupId]);
+
+  useEffect(() => {
+    setPublicPageUrl(new URL(publicPageHref, window.location.origin).toString());
+  }, [publicPageHref]);
 
   function getStudentFromGroups(sessionStudentId: string) {
     for (const group of groups) {
@@ -835,6 +928,7 @@ export function SessionGroupsBoard({
   const hasDirtyGroups = dirtyGroups.length > 0;
   const highlightErrorSection = alert?.kind === 'error';
   const isFrench = uiLanguage === 'fr';
+  const closeLabel = isFrench ? 'Fermer' : 'Close';
 
   return (
     <section className="grid gap-6">
@@ -842,7 +936,6 @@ export function SessionGroupsBoard({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-4">
             <div className="space-y-1">
-              <p className="ui-section-title">{t.testGroups}</p>
               <h2 className="text-lg font-semibold">
                 {sessionTitle} {isFrench ? 'groupes' : 'groups'}
               </h2>
@@ -857,6 +950,18 @@ export function SessionGroupsBoard({
               <Link className={topActionButtonClass} href={publicPageHref}>
                 {isFrench ? 'Page publique' : 'Public page'}
               </Link>
+
+              <button
+                aria-expanded={publicQrOpen}
+                aria-haspopup="dialog"
+                className={topActionButtonClass}
+                disabled={!publicPageUrl}
+                onClick={() => setPublicQrOpen(true)}
+                type="button"
+              >
+                <QrIcon className="h-4 w-4" />
+                {t.showPublicQr}
+              </button>
 
               {groupSelectionLocked ? (
                 <form action={unlockGroupSelectionAction}>
@@ -1403,6 +1508,14 @@ export function SessionGroupsBoard({
           ) : null}
         </section>
       </div>
+
+      <PublicPageQrModal
+        closeLabel={closeLabel}
+        onClose={() => setPublicQrOpen(false)}
+        open={publicQrOpen}
+        title={t.scanToEnrolInGroup}
+        url={publicPageUrl}
+      />
     </section>
   );
 }

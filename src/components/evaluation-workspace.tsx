@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { QRCodeSVG } from 'qrcode.react';
 
 import { saveSessionInstructionsAction } from '@/app/sessions/actions';
 import { CollapsiblePanel } from '@/components/collapsible-panel';
@@ -51,7 +50,6 @@ type SerializableGroup = {
 type EvaluationWorkspaceClientProps = {
   groups: SerializableGroup[];
   initialGroupId: string;
-  publicPageHref: string;
   sessionId: string;
   sessionLanguage: string;
   sessionInstructions: string | null;
@@ -146,95 +144,6 @@ function PencilIcon({ className }: { className?: string }) {
   );
 }
 
-function QrIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M4.5 4.5h4v4h-4v-4Zm0 7h4v4h-4v-4Zm7-7h4v4h-4v-4Zm1.25 7.5h1.5v1.5h-1.5v-1.5Zm0 2.75h1.5v1.5h-1.5v-1.5Zm2.75-2.75h1.5v1.5h-1.5v-1.5Zm0 2.75h1.5v1.5h-1.5v-1.5Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function PublicPageQrModal({
-  onClose,
-  open,
-  title,
-  closeLabel,
-  url
-}: {
-  onClose: () => void;
-  open: boolean;
-  title: string;
-  closeLabel: string;
-  url: string;
-}) {
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onClose, open]);
-
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
-      onClick={onClose}
-    >
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          aria-modal="true"
-          className="w-[min(28rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-xl font-semibold">{title}</h2>
-            <button
-              className="ui-button ui-button-secondary px-3 py-2 text-sm"
-              onClick={onClose}
-              type="button"
-            >
-              {closeLabel}
-            </button>
-          </div>
-
-          <div className="mt-4 grid justify-items-center gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-            <div className="rounded-2xl bg-white p-4">
-              <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
-            </div>
-            <p className="max-w-sm text-center text-sm leading-6 text-[color:var(--app-fg-muted)]">
-              Open the public enrolment page on a phone by scanning the code below.
-            </p>
-            <p className="break-all text-center text-xs text-[color:var(--app-fg-muted)]">{url}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function getAiStatusLabel(status: 'idle' | 'generating' | 'ready' | 'failed', language: UiLanguage) {
   return {
     failed: language === 'fr' ? 'Échec' : 'Failed',
@@ -295,7 +204,6 @@ function initialPanelStates(groups: SerializableGroup[]) {
 export function EvaluationWorkspaceClient({
   groups: initialGroups,
   initialGroupId,
-  publicPageHref,
   sessionId,
   sessionInstructions,
   sessionLanguage,
@@ -306,8 +214,6 @@ export function EvaluationWorkspaceClient({
   const t = getUiText(uiLanguage).evaluationWorkspace;
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [publicPageUrl, setPublicPageUrl] = useState('');
-  const [publicQrOpen, setPublicQrOpen] = useState(false);
   const [groups, setGroups] = useState<GroupDraft[]>(() => initialDraftGroups(initialGroups));
   const [selectedGroupId, setSelectedGroupId] = useState(initialGroupId);
   const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() =>
@@ -387,10 +293,6 @@ export function EvaluationWorkspaceClient({
     editingGroupNameInputRef.current?.focus();
     editingGroupNameInputRef.current?.select();
   }, [editingGroupId]);
-
-  useEffect(() => {
-    setPublicPageUrl(new URL(publicPageHref, window.location.origin).toString());
-  }, [publicPageHref]);
 
   const tabGroups = sortGroupsByPresentationOrder(groups);
   const displayGroups = tabGroups.map((group) => ({
@@ -1093,17 +995,6 @@ export function EvaluationWorkspaceClient({
                 ? t.generatingAllFeedback
                 : t.generateAllFeedback}
             </button>
-            <button
-              className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!publicPageUrl}
-              aria-expanded={publicQrOpen}
-              aria-haspopup="dialog"
-              onClick={() => setPublicQrOpen(true)}
-              type="button"
-            >
-              <QrIcon className="h-4 w-4" />
-              {t.showPublicQr}
-            </button>
           </div>
         }
         className="mb-1"
@@ -1675,13 +1566,6 @@ export function EvaluationWorkspaceClient({
         onClose={() => setRosterGroupId(null)}
         open={Boolean(rosterGroup)}
         sessionId={sessionId}
-      />
-      <PublicPageQrModal
-        onClose={() => setPublicQrOpen(false)}
-        open={publicQrOpen}
-        closeLabel={t.close}
-        title={t.scanToEnrolInGroup}
-        url={publicPageUrl}
       />
     </div>
   );
