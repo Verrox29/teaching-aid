@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { db, groups, sessions, submissions } from '@/db';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES } from '@/lib/group-submission';
+import { randomizePresentationOrder } from './presentation-order';
 
 const orderPath = (sessionId: string) => `/sessions/${sessionId}/order`;
 const evaluationPath = (sessionId: string) => `/sessions/${sessionId}/evaluation`;
@@ -36,15 +37,6 @@ function redirectWithMessage(
   redirect(`${orderPath(sessionId)}?${params.toString()}`);
 }
 
-function shuffle<T>(values: T[]) {
-  const result = [...values];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-  }
-  return result;
-}
-
 async function getSession(sessionId: string) {
   const rows = await db
     .select({
@@ -58,29 +50,6 @@ async function getSession(sessionId: string) {
     .limit(1);
 
   return rows[0] ?? null;
-}
-
-async function getOrderedGroups(sessionId: string) {
-  const rows = await db
-    .select({
-      id: groups.id,
-      name: groups.name,
-      presentationOrder: groups.presentationOrder,
-      createdAt: groups.createdAt
-    })
-    .from(groups)
-    .where(eq(groups.sessionId, sessionId));
-
-  return rows.sort((left, right) => {
-    const leftOrder = left.presentationOrder ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = right.presentationOrder ?? Number.MAX_SAFE_INTEGER;
-
-    if (leftOrder !== rightOrder) {
-      return leftOrder - rightOrder;
-    }
-
-    return left.createdAt.getTime() - right.createdAt.getTime();
-  });
 }
 
 function redirectNotice(sessionId: string, message: string): never {
@@ -105,28 +74,11 @@ export async function randomizePresentationOrderAction(formData: FormData): Prom
     redirectWithMessage(parsed.data.sessionId, 'error', 'Presentation order is locked.');
   }
 
-  const orderedGroups = await getOrderedGroups(parsed.data.sessionId);
-  if (orderedGroups.length === 0) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Create groups before generating an order.');
+  const randomized = await randomizePresentationOrder(parsed.data.sessionId);
+  if (!randomized.ok) {
+    redirectWithMessage(parsed.data.sessionId, 'error', randomized.error);
   }
 
-  const randomizedGroups = shuffle(orderedGroups);
-
-  await db.transaction(async (tx) => {
-    for (const [index, group] of randomizedGroups.entries()) {
-      await tx
-        .update(groups)
-        .set({
-          presentationOrder: index + 1,
-          updatedAt: new Date()
-        })
-        .where(and(eq(groups.id, group.id), eq(groups.sessionId, parsed.data.sessionId)));
-    }
-  });
-
-  revalidatePath(orderPath(parsed.data.sessionId));
-  revalidatePath(evaluationPath(parsed.data.sessionId));
-  revalidatePath(sessionHubPath(parsed.data.sessionId));
   redirectNotice(parsed.data.sessionId, 'Presentation order randomized.');
 }
 

@@ -10,7 +10,6 @@ function isKnownSessionAdminPath(sessionId: string, path: string) {
   return [
     buildPath(sessionId, '/students'),
     buildPath(sessionId, '/groups'),
-    buildPath(sessionId, '/order'),
     buildPath(sessionId, '/evaluation'),
     buildPath(sessionId, '/exports'),
     buildPath(sessionId, '/exports/settings')
@@ -43,6 +42,9 @@ export async function resolveSessionResumePath(sessionId: string): Promise<strin
 
   const sessionRow = sessionRows[0] ?? null;
   const storedPath = sessionRow?.lastAdminPath ?? null;
+  if (storedPath === buildPath(sessionId, '/order')) {
+    return buildPath(sessionId, '/evaluation');
+  }
   if (storedPath && isKnownSessionAdminPath(sessionId, storedPath)) {
     return storedPath;
   }
@@ -80,7 +82,7 @@ export async function resolveSessionResumePath(sessionId: string): Promise<strin
   }
 
   if (sessionRow?.presentationOrderLocked || orderedGroupRows.length > 0 || submissionRows.length > 0) {
-    return buildPath(sessionId, '/order');
+    return buildPath(sessionId, '/evaluation');
   }
 
   if (groupRows.length > 0) {

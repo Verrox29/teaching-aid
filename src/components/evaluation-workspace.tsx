@@ -7,6 +7,7 @@ import { saveSessionInstructionsAction } from '@/app/sessions/actions';
 import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
+import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
@@ -252,6 +253,10 @@ export function EvaluationWorkspaceClient({
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
+  const tabGroupsForRandomization = displayGroups.map((group) => ({
+    groupId: group.groupId,
+    groupName: group.groupName
+  }));
   const selectedGroupTotal = selectedGroup
     ? selectedGroup.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0)
     : 0;
@@ -835,8 +840,9 @@ export function EvaluationWorkspaceClient({
       {selectedGroup ? (
         <>
       <section className="overflow-hidden rounded-[1.75rem] border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] shadow-sm">
-        <div className="flex flex-nowrap items-end gap-1 overflow-x-auto border-b border-[color:var(--app-border)] px-3 pt-3">
-              {displayGroups.map((group) => {
+        <div className="flex items-end gap-3 border-b border-[color:var(--app-border)] px-3 pt-3">
+          <div className="flex min-w-0 flex-1 flex-nowrap items-end gap-1 overflow-x-auto">
+            {displayGroups.map((group) => {
                 const isActive = group.groupId === selectedGroupId;
 
                 return (
@@ -857,6 +863,30 @@ export function EvaluationWorkspaceClient({
                   </button>
                 );
               })}
+          </div>
+
+          <div className="pb-3">
+            <RandomizeOrderButton
+              groups={tabGroupsForRandomization}
+              onRandomized={(randomizedGroups) => {
+                const orderByGroupId = new Map(
+                  randomizedGroups.map((group) => [group.groupId, group.presentationOrder])
+                );
+
+                setGroups((current) =>
+                  current.map((group) =>
+                    orderByGroupId.has(group.groupId)
+                      ? {
+                          ...group,
+                          presentationOrder: orderByGroupId.get(group.groupId) ?? group.presentationOrder
+                        }
+                      : group
+                  )
+                );
+              }}
+              sessionId={sessionId}
+            />
+          </div>
         </div>
 
         <div className="bg-[color:var(--app-surface)] p-4">

@@ -12,7 +12,6 @@ import { AdminShell } from '@/components/admin-shell';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
-import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionOrderPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -50,8 +49,6 @@ export default async function SessionOrderPage({
   }
 
   const session = sessionRows[0];
-  await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/order`);
-
   const groupRows = await db
     .select({
       id: groups.id,
@@ -103,7 +100,6 @@ export default async function SessionOrderPage({
           </Link>
         </>
       }
-      currentStep={3}
       description="Generate presentation order, lock it, and attach one file per group."
       sessionId={sessionId}
       slug={session.slug}
@@ -146,7 +142,10 @@ export default async function SessionOrderPage({
             <>
               <RandomizeOrderButton
                 disabled={currentStepLocked}
-                groupNames={orderedGroups.map((group) => group.name)}
+                groups={orderedGroups.map((group) => ({
+                  groupId: group.id,
+                  groupName: group.name
+                }))}
                 sessionId={sessionId}
               />
               <form action={lockPresentationOrderAction}>

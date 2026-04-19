@@ -44,7 +44,7 @@ const groupedImportFormSchema = z.object({
 
 function redirectWithNotice(sessionId: string, message: string): never {
   const searchParams = new URLSearchParams({ notice: message });
-  redirect(`/sessions/${sessionId}/order?${searchParams.toString()}`);
+  redirect(`/sessions/${sessionId}/evaluation?${searchParams.toString()}`);
 }
 
 export async function importStudentsAction(
@@ -413,13 +413,12 @@ export async function importBoostcampGroupedStudentsAction(
 
   revalidatePath(`/sessions/${sessionId}/students`);
   revalidatePath(`/sessions/${sessionId}/groups`);
-  revalidatePath(`/sessions/${sessionId}/order`);
   revalidatePath(`/sessions/${sessionId}/evaluation`);
   revalidatePath(`/sessions/${sessionId}/exports`);
   revalidatePath('/sessions');
 
   return {
     success: true,
-    message: 'Grouped import applied. Continue with presentation order & upload.'
+    message: 'Grouped import applied. Continue with AI scoring & feedback.'
   };
 }

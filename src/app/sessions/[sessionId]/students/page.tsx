@@ -66,8 +66,8 @@ export default async function SessionStudentsPage({
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
             Groups
           </Link>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/order`}>
-            Order
+          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
+            Evaluation
           </Link>
           <Link className="ui-button ui-button-primary" href="/sessions">
             Sessions list

@@ -57,9 +57,6 @@ export default async function SessionEvaluationPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/order`}>
-            Order
-          </Link>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
             Exports
           </Link>
