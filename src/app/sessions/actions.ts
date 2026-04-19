@@ -89,6 +89,11 @@ function hashAdminAccessCode(accessCode: string) {
   return `scrypt:${salt}:${hash}`;
 }
 
+const sessionInstructionsSchema = z.object({
+  instructions: z.string().trim().optional().default(''),
+  sessionId: z.string().uuid('Invalid session id')
+});
+
 export async function createSessionAction(
   _prevState: CreateSessionFormState,
   formData: FormData
@@ -135,4 +140,41 @@ export async function createSessionAction(
 
   revalidatePath('/sessions');
   redirect('/sessions');
+}
+
+export async function saveSessionInstructionsAction(formData: FormData): Promise<void> {
+  const parsed = sessionInstructionsSchema.safeParse({
+    instructions: String(formData.get('instructions') ?? ''),
+    sessionId: String(formData.get('sessionId') ?? '')
+  });
+
+  if (!parsed.success) {
+    throw new Error('Invalid session brief.');
+  }
+
+  const { sessionId, instructions } = parsed.data;
+  const sessionInstructionText = instructions.trim() || null;
+  const sessionRows = await db
+    .select({
+      slug: sessions.slug
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+  const session = sessionRows[0] ?? null;
+
+  if (!session) {
+    throw new Error('Session not found.');
+  }
+
+  await db
+    .update(sessions)
+    .set({
+      instructions: sessionInstructionText,
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, sessionId));
+
+  revalidatePath(`/sessions/${sessionId}/evaluation`);
+  revalidatePath(`/s/${session.slug}`);
 }

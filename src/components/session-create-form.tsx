@@ -81,19 +81,6 @@ export function SessionCreateForm() {
         <FieldError errors={state.errors.language} />
       </div>
 
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="instruction_text">
-          Instruction Text
-        </label>
-        <textarea
-          className="ui-textarea"
-          defaultValue={state.values.instruction_text}
-          id="instruction_text"
-          name="instruction_text"
-        />
-        <FieldError errors={state.errors.instruction_text} />
-      </div>
-
       <div className="grid gap-6 md:grid-cols-2">
         <div className="grid gap-2">
           <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="default_group_capacity">

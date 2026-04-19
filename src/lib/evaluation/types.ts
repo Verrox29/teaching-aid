@@ -65,6 +65,7 @@ export type EvaluationSessionWorkspace = {
   language: string;
   slug: string;
   title: string;
+  instructions: string | null;
 };
 
 export type EvaluationWorkspace = {

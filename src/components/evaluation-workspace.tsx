@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
+import { saveSessionInstructionsAction } from '@/app/sessions/actions';
 import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
+import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
@@ -46,6 +48,7 @@ type EvaluationWorkspaceClientProps = {
   initialGroupId: string;
   sessionId: string;
   sessionLanguage: string;
+  sessionInstructions: string | null;
 };
 
 type SaveState =
@@ -104,6 +107,37 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function normalizeLabel(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function extractGroupNumber(groupName: string) {
+  const normalized = normalizeLabel(groupName);
+  const patterns = [
+    /\b(?:group|groupe)\s*0*([1-9]\d*)\b/iu,
+    /\bclasse\s*\d+\s*-\s*g\s*0*([1-9]\d*)\b/iu,
+    /\bg\s*0*([1-9]\d*)\b/iu
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (match) {
+      return Number.parseInt(match[1], 10);
+    }
+  }
+
+  return null;
+}
+
+function formatGroupDisplayName(groupName: string, presentationOrder: number | null) {
+  const groupNumber =
+    typeof presentationOrder === 'number' && presentationOrder > 0
+      ? Math.trunc(presentationOrder)
+      : extractGroupNumber(groupName);
+
+  return groupNumber ? `Group ${groupNumber}` : normalizeLabel(groupName) || 'Group';
+}
+
 function initialDraftGroups(groups: SerializableGroup[]) {
   return groups.map((group) => ({
     ...group,
@@ -129,6 +163,7 @@ export function EvaluationWorkspaceClient({
   groups: initialGroups,
   initialGroupId,
   sessionId,
+  sessionInstructions,
   sessionLanguage
 }: EvaluationWorkspaceClientProps) {
   const router = useRouter();
@@ -154,6 +189,7 @@ export function EvaluationWorkspaceClient({
     {}
   );
   const [rosterGroupId, setRosterGroupId] = useState<string | null>(null);
+  const activeFeedbackGroupIdRef = useRef<string | null>(null);
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>(() =>
     Object.fromEntries(
       initialGroups.map((group) => [
@@ -179,22 +215,13 @@ export function EvaluationWorkspaceClient({
   const selectedGroupHasFeedbackInputs = Boolean(
     selectedGroup?.presentationComments.trim() || selectedGroup?.submissionContent?.trim()
   );
-  const selectedGroupChallengeQuestionSkip =
-    selectedGroup && challengeQuestionsSkipped[selectedGroup.groupId]
-      ? challengeQuestionsSkipped[selectedGroup.groupId]
-      : null;
   const selectedGroupHasChallengeQuestions = Boolean(selectedGroup?.aiRecommendedQuestions.length);
-  const selectedGroupHasChallengeQuestionPanel = Boolean(
-    selectedGroup &&
-      (selectedGroupHasChallengeQuestions ||
-        selectedGroupChallengeQuestionSkip ||
-        selectedGroupHasUploadedWork ||
-        selectedGroup.aiStatus === 'generating' ||
-        selectedGroup.aiStatus === 'failed')
-  );
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
+  const selectedGroupDisplayName = selectedGroup
+    ? formatGroupDisplayName(selectedGroup.groupName, selectedGroup.presentationOrder)
+    : null;
   const selectedGroupTotal = selectedGroup
     ? selectedGroup.criteria.reduce((sum, criterion) => sum + (criterion.score ?? 0), 0)
     : 0;
@@ -203,7 +230,13 @@ export function EvaluationWorkspaceClient({
     : 0;
   const previousGroup = selectedIndex > 0 ? groups[selectedIndex - 1] : null;
   const nextGroup = selectedIndex < groups.length - 1 ? groups[selectedIndex + 1] : null;
-  const rosterGroup = rosterGroupId ? groups.find((group) => group.groupId === rosterGroupId) ?? null : null;
+  const displayGroups = groups.map((group) => ({
+    ...group,
+    groupName: formatGroupDisplayName(group.groupName, group.presentationOrder)
+  }));
+  const rosterGroup = rosterGroupId
+    ? displayGroups.find((group) => group.groupId === rosterGroupId) ?? null
+    : null;
 
   function updateUrl(groupId: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -274,7 +307,21 @@ export function EvaluationWorkspaceClient({
 
       if (payload.group) {
         setGroups((current) =>
-          current.map((group) => (group.groupId === groupId ? payload.group : group))
+          current.map((group) => {
+            if (group.groupId !== groupId) {
+              return group;
+            }
+
+            if (activeFeedbackGroupIdRef.current === groupId) {
+              return {
+                ...payload.group,
+                finalFeedback: group.finalFeedback,
+                finalFeedbackSections: group.finalFeedbackSections
+              };
+            }
+
+            return payload.group;
+          })
         );
       }
 
@@ -351,21 +398,6 @@ export function EvaluationWorkspaceClient({
       notesOpen: false
     }));
   }
-
-  useEffect(() => {
-    function onAiWorkflow(event: Event) {
-      const customEvent = event as CustomEvent<{ mode?: 'grading' | 'questions' }>;
-      const mode = customEvent.detail?.mode;
-      if (mode === 'grading' || mode === 'questions') {
-        void runBatchAi(mode);
-      }
-    }
-
-    window.addEventListener('evaluation-ai-workflow', onAiWorkflow as EventListener);
-    return () => {
-      window.removeEventListener('evaluation-ai-workflow', onAiWorkflow as EventListener);
-    };
-  }, [runBatchAi]);
 
   async function regenerateChallengeQuestions(groupId: string) {
     setChallengeQuestionsSkipped((current) => {
@@ -753,17 +785,17 @@ export function EvaluationWorkspaceClient({
               }
               title={
                 <span className="inline-flex flex-wrap items-center gap-2">
-                  <span>{selectedGroup.groupName}</span>
+                  <span>{selectedGroupDisplayName ?? selectedGroup.groupName}</span>
                   <button
                     className="ui-chip ui-chip-accent px-2 py-1 text-[0.7rem]"
                     onClick={() => setRosterGroupId(selectedGroup.groupId)}
                     type="button"
                   >
-                    [Roster]
+                    Roster
                   </button>
                 </span>
               }
-              titleLabel={selectedGroup.groupName}
+              titleLabel={selectedGroupDisplayName ?? selectedGroup.groupName}
               titleClassName="text-2xl font-semibold"
             >
               <div className="grid gap-4">
@@ -784,9 +816,69 @@ export function EvaluationWorkspaceClient({
                       notesOpen: open
                     }))
                   }
-                  title="Teacher notes"
+                  title="AI scoring & feedback"
                   titleClassName="text-lg font-semibold"
                 >
+                  <section className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                    <div className="space-y-1">
+                      <p className="ui-section-title">Activity instructions</p>
+                      <h3 className="text-base font-semibold">Assignment brief</h3>
+                      <p className="text-sm text-[color:var(--app-fg-muted)]">
+                        This brief is used by the AI question and feedback workflow.
+                      </p>
+                    </div>
+                    <form action={saveSessionInstructionsAction} className="grid gap-3">
+                      <input name="sessionId" type="hidden" value={sessionId} />
+                      <label className="grid gap-2 text-sm font-medium">
+                        Assignment brief
+                        <textarea
+                          className="ui-textarea min-h-[140px]"
+                          defaultValue={sessionInstructions ?? ''}
+                          name="instructions"
+                          placeholder="Describe the activity, expectations, and anything the AI should consider."
+                        />
+                      </label>
+                      <div className="flex justify-end">
+                        <button className="ui-button ui-button-secondary" type="submit">
+                          Save brief
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      className="ui-button ui-button-secondary"
+                      disabled={challengeQuestionsBatchState.kind === 'running'}
+                      onClick={() => void runBatchAi('questions')}
+                      type="button"
+                    >
+                      {challengeQuestionsBatchState.kind === 'running'
+                        ? 'Generating all questions...'
+                        : 'Generate all questions'}
+                    </button>
+                    <button
+                      className="ui-button ui-button-primary"
+                      disabled={gradingBatchState.kind === 'running'}
+                      onClick={() => void runBatchAi('grading')}
+                      type="button"
+                    >
+                      {gradingBatchState.kind === 'running'
+                        ? 'Generating all groups feedback...'
+                        : 'Generate all groups feedback'}
+                    </button>
+                  </div>
+                  {challengeQuestionsBatchState.message ? (
+                    <p className="text-sm text-[color:var(--app-fg-muted)]">
+                      {challengeQuestionsBatchState.message}
+                    </p>
+                  ) : null}
+                  {gradingBatchState.message ? (
+                    <p className="text-sm text-[color:var(--app-fg-muted)]">
+                      {gradingBatchState.message}
+                    </p>
+                  ) : null}
+
                   <label className="grid gap-2 text-sm font-medium">
                     Presentation comments
                     <textarea
@@ -799,8 +891,74 @@ export function EvaluationWorkspaceClient({
                       }
                       placeholder="Write the live presentation notes here."
                       value={selectedGroup.presentationComments}
-                    />
-                  </label>
+                      />
+                    </label>
+                  <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="ui-section-title">AI challenge questions</p>
+                      {selectedGroupHasChallengeQuestions ||
+                      selectedGroup.aiStatus === 'generating' ||
+                      (selectedGroupHasUploadedWork && !selectedGroupHasChallengeQuestions) ||
+                      (selectedGroupHasUploadedWork && selectedGroup.aiStatus === 'failed') ? (
+                        <button
+                          className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                          disabled={selectedGroup.aiStatus === 'generating'}
+                          onClick={() => void regenerateChallengeQuestions(selectedGroup.groupId)}
+                          type="button"
+                        >
+                          {selectedGroup.aiStatus === 'generating'
+                            ? 'Generating...'
+                            : selectedGroupHasChallengeQuestions
+                              ? 'Regenerate questions'
+                              : 'Generate questions'}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {selectedGroupHasChallengeQuestions ? (
+                      <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
+                        {selectedGroup.aiRecommendedQuestions.map((question, index) => (
+                          <li
+                            key={`${question}-${index}`}
+                            className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                          >
+                            {question}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : selectedGroup.aiStatus === 'generating' ? (
+                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                        Generating new challenge questions...
+                      </div>
+                    ) : !selectedGroupHasUploadedWork ? (
+                      <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
+                        <p>Please upload the group&apos;s work to enable question recommendation.</p>
+                        <GroupSubmissionDropzone
+                          fileName={selectedGroup.submissionTitle}
+                          groupId={selectedGroup.groupId}
+                          groupName={selectedGroupDisplayName ?? selectedGroup.groupName}
+                          sessionId={sessionId}
+                          submittedAt={selectedGroup.submittedAt}
+                        />
+                      </div>
+                    ) : selectedGroup.aiStatus === 'failed' ? (
+                      <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
+                        Could not generate challenge questions.
+                        {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
+                      </div>
+                    ) : selectedGroupHasUploadedWork ? (
+                      <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
+                        <p>Generate questions from the uploaded work to prepare the oral defense.</p>
+                        <button
+                          className="ui-button ui-button-secondary justify-self-start"
+                          onClick={() => void regenerateChallengeQuestions(selectedGroup.groupId)}
+                          type="button"
+                        >
+                          Generate questions
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
 
                   <label className="grid gap-2 text-sm font-medium">
                     Q&amp;A comments
@@ -816,62 +974,6 @@ export function EvaluationWorkspaceClient({
                       value={selectedGroup.qaComments}
                     />
                   </label>
-
-                  {selectedGroupHasChallengeQuestionPanel ? (
-                    <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="ui-section-title">AI challenge questions</p>
-                        {selectedGroup.aiStatus === 'failed' ||
-                        selectedGroupHasUploadedWork ||
-                        selectedGroupHasChallengeQuestions ? (
-                          <button
-                            className="ui-button ui-button-secondary px-3 py-2 text-sm"
-                            disabled={selectedGroup.aiStatus === 'generating'}
-                            onClick={() => void regenerateChallengeQuestions(selectedGroup.groupId)}
-                            type="button"
-                          >
-                            {selectedGroup.aiStatus === 'generating'
-                              ? 'Regenerating...'
-                              : 'Regenerate questions'}
-                          </button>
-                        ) : null}
-                      </div>
-
-                      {selectedGroupHasChallengeQuestions ? (
-                        <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
-                          {selectedGroup.aiRecommendedQuestions.map((question, index) => (
-                            <li
-                              key={`${question}-${index}`}
-                              className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
-                            >
-                              {question}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : selectedGroup.aiStatus === 'generating' ? (
-                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                          Generating new challenge questions...
-                        </div>
-                      ) : selectedGroup.aiStatus === 'failed' ? (
-                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
-                          Could not generate challenge questions.
-                          {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
-                        </div>
-                      ) : selectedGroupChallengeQuestionSkip ? (
-                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                          Challenge questions unavailable: {selectedGroupChallengeQuestionSkip}
-                        </div>
-                      ) : selectedGroupHasUploadedWork ? (
-                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                          Generate questions from the uploaded work to prepare the oral defense.
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                          No uploaded work is available for challenge questions.
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
 
                   <div className="flex justify-end">
                     <span
@@ -1021,7 +1123,19 @@ export function EvaluationWorkspaceClient({
                       ) : null}
                     </div>
 
-                    <div className="grid gap-4">
+                    <div
+                      className="grid gap-4"
+                      onBlurCapture={(event) => {
+                        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                          return;
+                        }
+
+                        activeFeedbackGroupIdRef.current = null;
+                      }}
+                      onFocusCapture={() => {
+                        activeFeedbackGroupIdRef.current = selectedGroup.groupId;
+                      }}
+                    >
                       {[
                         ['strengths', 'Strengths'],
                         ['development', 'Points for development'],
@@ -1072,7 +1186,7 @@ export function EvaluationWorkspaceClient({
               </span>
             </div>
             <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
-              {groups.map((group, index) => {
+              {displayGroups.map((group, index) => {
                 const isActive = group.groupId === selectedGroupId;
 
                 return (
@@ -1108,7 +1222,7 @@ export function EvaluationWorkspaceClient({
       )}
 
       <EvaluationRosterDialog
-        groups={groups}
+        groups={displayGroups}
         groupId={rosterGroup?.groupId ?? ''}
         groupTotal={selectedGroup ? selectedGroupTotal : null}
         onClose={() => setRosterGroupId(null)}

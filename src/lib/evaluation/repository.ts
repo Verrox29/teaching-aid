@@ -61,6 +61,7 @@ type EvaluationWorkspaceQueryGroup = {
 type EvaluationWorkspaceSessionRow = {
   id: string;
   language: string;
+  instructions: string | null;
   slug: string;
   title: string;
 };
@@ -132,6 +133,7 @@ async function getSessionRecord(sessionId: string): Promise<EvaluationWorkspaceS
   const rows = await db
     .select({
       id: sessions.id,
+      instructions: sessions.instructions,
       language: sessions.language,
       slug: sessions.slug,
       title: sessions.title
@@ -382,7 +384,10 @@ export async function getEvaluationWorkspace(sessionId: string): Promise<Evaluat
       })
     ),
     rubric,
-    session
+    session: {
+      ...session,
+      instructions: session.instructions
+    }
   };
 }
 

@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
-import { AiWorkflowPopover } from '@/components/ai-workflow-popover';
 import { EvaluationWorkspaceClient } from '@/components/evaluation-workspace';
 import { SessionContextPopover } from '@/components/session-context-popover';
 import { db, sessions } from '@/db';
@@ -49,7 +48,6 @@ export default async function SessionEvaluationPage({
 
   const workspace = await getEvaluationWorkspace(sessionId);
   const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
-  const canGenerateQuestions = workspace.groups.some((group) => Boolean(group.submissionId));
   const initialGroupId =
     requestedGroupId && workspace.groups.some((group) => group.groupId === requestedGroupId)
       ? requestedGroupId
@@ -66,7 +64,6 @@ export default async function SessionEvaluationPage({
             Exports
           </Link>
           <SessionContextPopover metadata={metadata} />
-          <AiWorkflowPopover canGenerateQuestions={canGenerateQuestions} />
         </>
       }
       currentStep={4}
@@ -80,6 +77,7 @@ export default async function SessionEvaluationPage({
         groups={JSON.parse(JSON.stringify(workspace.groups))}
         initialGroupId={initialGroupId}
         sessionId={sessionId}
+        sessionInstructions={workspace.session.instructions}
         sessionLanguage={workspace.session.language}
       />
     </AdminShell>
