@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 
 import {
@@ -149,6 +149,36 @@ function TrashCanIcon({ className }: { className?: string }) {
   );
 }
 
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 192 192"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m104.175 90.97-4.252 38.384 38.383-4.252L247.923 15.427V2.497L226.78-18.646h-12.93zm98.164-96.96 31.671 31.67"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="12"
+        transform="translate(-77.923 40.646)"
+      />
+      <path
+        d="m195.656 33.271-52.882 52.882"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit="5"
+        strokeWidth="12"
+        transform="translate(-77.923 40.646)"
+      />
+    </svg>
+  );
+}
+
 function groupSnapshot(group: GroupRecord) {
   return {
     name: group.name.trim(),
@@ -254,6 +284,10 @@ export function SessionGroupsBoard({
     useState<VisibilityActionState>(null);
   const [isIgnoredDrawerOpen, setIsIgnoredDrawerOpen] = useState(false);
   const [localAlert, setLocalAlert] = useState<AlertState | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState('');
+  const editingGroupNameInputRef = useRef<HTMLInputElement | null>(null);
+  const renameBlurActionRef = useRef<'save' | 'cancel' | null>(null);
 
   const initialGroupMetaSnapshots = useMemo(
     () =>
@@ -287,6 +321,15 @@ export function SessionGroupsBoard({
   const hasInvalidGroupCapacity = groups.some(
     (group) => !Number.isFinite(Number(group.capacity)) || Number(group.capacity) < 1
   );
+
+  useEffect(() => {
+    if (!editingGroupId) {
+      return;
+    }
+
+    editingGroupNameInputRef.current?.focus();
+    editingGroupNameInputRef.current?.select();
+  }, [editingGroupId]);
 
   function getStudentFromGroups(sessionStudentId: string) {
     for (const group of groups) {
@@ -692,14 +735,24 @@ export function SessionGroupsBoard({
     );
   }
 
-  async function handleRenameGroup(groupId: string, currentName: string) {
-    const nextName = window.prompt('Rename group', currentName);
-    if (nextName === null) {
-      return;
-    }
+  function startEditingGroup(groupId: string, currentName: string) {
+    renameBlurActionRef.current = null;
+    setEditingGroupId(groupId);
+    setEditingGroupName(currentName);
+  }
 
+  function cancelEditingGroup() {
+    renameBlurActionRef.current = null;
+    setEditingGroupId(null);
+    setEditingGroupName('');
+  }
+
+  async function finishEditingGroup(groupId: string, nextName: string) {
     const trimmedName = nextName.trim();
-    if (!trimmedName || trimmedName === currentName.trim()) {
+    const currentGroup = groups.find((group) => group.id === groupId);
+
+    if (!currentGroup || !trimmedName || trimmedName === currentGroup.name.trim()) {
+      cancelEditingGroup();
       return;
     }
 
@@ -712,8 +765,11 @@ export function SessionGroupsBoard({
           group.id === groupId ? { ...group, name: renamedGroupName } : group
         )
       );
+      cancelEditingGroup();
       setLocalAlert({ kind: 'notice', message: 'Group renamed.' });
     } catch (error) {
+      setEditingGroupName(currentGroup?.name ?? nextName);
+      renameBlurActionRef.current = null;
       setLocalAlert({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Could not rename the group.'
@@ -998,27 +1054,96 @@ export function SessionGroupsBoard({
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => handleGroupDrop(event, group.id)}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3
-                          className="cursor-context-menu text-lg font-semibold"
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            void handleRenameGroup(group.id, group.name);
-                          }}
-                          title="Right-click to rename"
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <div className="group relative shrink-0">
+                        <button
+                          aria-label={`Rename ${group.name}`}
+                          className={`relative flex items-center gap-2 rounded-full border px-3 py-1.5 pr-9 text-sm font-semibold transition ${
+                            dirty
+                              ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
+                              : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
+                          } ${editingGroupId === group.id ? 'pointer-events-none opacity-0' : ''}`}
+                          type="button"
+                          onClick={() => startEditingGroup(group.id, group.name)}
+                          title="Rename group"
                         >
-                          {group.name}
-                        </h3>
-                        <span className={`ui-chip ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}>
-                          <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
-                          {dirty ? 'Unsaved changes' : 'Saved and unchanged'}
-                        </span>
+                          <span className="truncate">{group.name}</span>
+                        </button>
+                        {editingGroupId === group.id ? (
+                          <input
+                            ref={editingGroupNameInputRef}
+                            aria-label={`Rename ${group.name}`}
+                            className={`absolute inset-0 z-30 w-full rounded-full border px-3 py-1.5 pr-9 text-sm font-semibold outline-none ${
+                              dirty
+                                ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
+                                : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
+                            }`}
+                            autoComplete="off"
+                            onBlur={(event) => {
+                              if (renameBlurActionRef.current === 'cancel') {
+                                cancelEditingGroup();
+                                return;
+                              }
+
+                              renameBlurActionRef.current = null;
+                              void finishEditingGroup(group.id, event.currentTarget.value);
+                            }}
+                            onChange={(event) => setEditingGroupName(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Escape') {
+                                event.preventDefault();
+                                renameBlurActionRef.current = 'cancel';
+                                event.currentTarget.blur();
+                                return;
+                              }
+
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                renameBlurActionRef.current = 'save';
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            spellCheck={false}
+                            type="text"
+                            value={editingGroupName}
+                          />
+                        ) : null}
+                        <button
+                          aria-label={`Rename ${group.name}`}
+                          className="absolute right-1 top-1/2 z-30 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
+                          title="Rename group"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            startEditingGroup(group.id, group.name);
+                          }}
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </button>
                       </div>
+
+                      <span className={`ui-chip ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}>
+                        <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
+                        {dirty ? 'Unsaved changes' : 'Saved and unchanged'}
+                      </span>
+
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-1.5 text-sm font-medium text-[color:var(--app-fg-muted)]">
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em]">
+                          Capacity
+                        </span>
+                        <input
+                          className="w-14 border-0 bg-transparent p-0 text-center text-sm font-semibold text-[color:var(--app-fg)] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          min="1"
+                          name="capacity"
+                          onChange={(event) => updateGroupField(group.id, 'capacity', event.target.value)}
+                          type="number"
+                          value={group.capacity}
+                        />
+                      </div>
+
                       <p className="text-sm text-[color:var(--app-fg-muted)]">
-                        Capacity {group.capacity} · {memberCount} member
-                        {memberCount === 1 ? '' : 's'} ·{' '}
+                        {memberCount} member{memberCount === 1 ? '' : 's'} ·{' '}
                         {remainingSeats >= 0
                           ? `${remainingSeats} seat${remainingSeats === 1 ? '' : 's'} left`
                           : `Over capacity by ${Math.abs(remainingSeats)}`}
@@ -1058,32 +1183,6 @@ export function SessionGroupsBoard({
                         </button>
                       </form>
                     </div>
-                  </div>
-
-                  <div className="grid gap-3 rounded-2xl bg-[color:var(--app-surface-muted)] p-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-                    <label className="grid gap-1 text-sm font-medium">
-                      Group name
-                      <input
-                        className="ui-input"
-                        name="name"
-                        onChange={(event) => updateGroupField(group.id, 'name', event.target.value)}
-                        type="text"
-                        value={group.name}
-                      />
-                    </label>
-                    <label className="grid gap-1 text-sm font-medium">
-                      Capacity
-                      <input
-                        className="ui-input"
-                        min="1"
-                        name="capacity"
-                        onChange={(event) =>
-                          updateGroupField(group.id, 'capacity', event.target.value)
-                        }
-                        type="number"
-                        value={group.capacity}
-                      />
-                    </label>
                   </div>
 
                   <div className="grid gap-3">
