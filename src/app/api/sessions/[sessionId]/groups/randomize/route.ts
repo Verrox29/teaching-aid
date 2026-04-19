@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 
 import { db, groupMembers, groups, sessionStudents, sessions } from '@/db';
 
-import { savedGroupsPayloadSchema } from '@/app/sessions/[sessionId]/groups/actions';
+import { savedGroupsPayloadSchema } from '@/app/sessions/[sessionId]/groups/schemas';
 
 const requestSchema = z.object({
   sessionId: z.string().uuid('Invalid session id'),
