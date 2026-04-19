@@ -330,7 +330,6 @@ export function SessionGroupsBoard({
   const [visibilityActionState, setVisibilityActionState] =
     useState<VisibilityActionState>(null);
   const [isIgnoredDrawerOpen, setIsIgnoredDrawerOpen] = useState(false);
-  const [isTopPanelExpanded, setIsTopPanelExpanded] = useState(true);
   const [localAlert, setLocalAlert] = useState<AlertState | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState('');
@@ -369,12 +368,9 @@ export function SessionGroupsBoard({
   const hasInvalidGroupCapacity = groups.some(
     (group) => !Number.isFinite(Number(group.capacity)) || Number(group.capacity) < 1
   );
-  const topActionButtonClass = isTopPanelExpanded
-    ? 'ui-button ui-button-secondary'
-    : 'ui-button ui-button-secondary px-3 py-1.5 text-xs';
-  const topPrimaryActionButtonClass = isTopPanelExpanded
-    ? 'ui-button ui-button-primary'
-    : 'ui-button ui-button-primary px-3 py-1.5 text-xs';
+  const topActionButtonClass = 'ui-button ui-button-secondary px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm';
+  const topPrimaryActionButtonClass =
+    'ui-button ui-button-primary px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm';
 
   useEffect(() => {
     if (!editingGroupId) {
@@ -838,115 +834,108 @@ export function SessionGroupsBoard({
   return (
     <section className="grid gap-6">
       <section className="ui-panel grid gap-4 px-4 py-4 sm:px-5 sm:py-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-4">
+            <div className="space-y-1">
             <p className="ui-section-title">Test groups</p>
             <h2 className="text-lg font-semibold">{sessionTitle} groups</h2>
             <p className="max-w-3xl text-sm text-[color:var(--app-fg-muted)]">
               Default group capacity: {defaultGroupCapacity}. Create new groups at any time, drag
               students between the sidebar and groups, then save the changed cards.
             </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Link className={topActionButtonClass} href={publicPageHref}>
+                Public page
+              </Link>
+
+              {groupSelectionLocked ? (
+                <form action={unlockGroupSelectionAction}>
+                  <input name="sessionId" type="hidden" value={sessionId} />
+                  <button className={topActionButtonClass} type="submit">
+                    Unlock group selection
+                  </button>
+                </form>
+              ) : (
+                <form action={lockGroupSelectionAction}>
+                  <input name="sessionId" type="hidden" value={sessionId} />
+                  <button className={topActionButtonClass} type="submit">
+                    Lock group selection
+                  </button>
+                </form>
+              )}
+
+              <button
+                className={topActionButtonClass}
+                disabled={
+                  isRandomizingStudents ||
+                  hasInvalidGroupCapacity ||
+                  visibilityActionState !== null ||
+                  groups.length === 0 ||
+                  getVisibleStudents().length === 0
+                }
+                type="button"
+                onClick={handleRandomizeEnrollment}
+              >
+                {isRandomizingStudents ? 'Randomizing enrollment...' : 'Randomize enrollment'}
+              </button>
+
+              <form action={createGroupAction}>
+                <input name="sessionId" type="hidden" value={sessionId} />
+                <button className={topActionButtonClass} type="submit">
+                  Create new group
+                </button>
+              </form>
+
+              {groups.length > 0 ? (
+                <form
+                  action={saveGroupsAction}
+                  className="flex items-center gap-2"
+                  onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
+                >
+                  <input name="sessionId" type="hidden" value={sessionId} />
+                  <input name="groupsJson" type="hidden" value={groupsJson} />
+                  <button className={topPrimaryActionButtonClass} type="submit">
+                    Save all groups
+                  </button>
+                </form>
+              ) : null}
+            </div>
           </div>
 
-          <button
-            aria-expanded={isTopPanelExpanded}
-            aria-label={isTopPanelExpanded ? 'Collapse top panel' : 'Expand top panel'}
-            className="ui-button ui-button-secondary shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
-            type="button"
-            onClick={() => setIsTopPanelExpanded((current) => !current)}
-          >
-            {isTopPanelExpanded ? 'Collapse' : 'Expand'}
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link className={topActionButtonClass} href={publicPageHref}>
-            Public page
-          </Link>
-
-          {groupSelectionLocked ? (
-            <form action={unlockGroupSelectionAction}>
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <button className={topActionButtonClass} type="submit">
-                Unlock group selection
-              </button>
-            </form>
-          ) : (
-            <form action={lockGroupSelectionAction}>
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <button className={topActionButtonClass} type="submit">
-                Lock group selection
-              </button>
-            </form>
-          )}
-
-          <button
-            className={topActionButtonClass}
-            disabled={
-              isRandomizingStudents ||
-              hasInvalidGroupCapacity ||
-              visibilityActionState !== null ||
-              groups.length === 0 ||
-              getVisibleStudents().length === 0
-            }
-            type="button"
-            onClick={handleRandomizeEnrollment}
-          >
-            {isRandomizingStudents ? 'Randomizing enrollment...' : 'Randomize enrollment'}
-          </button>
-
-          <form action={createGroupAction}>
-            <input name="sessionId" type="hidden" value={sessionId} />
-            <button className={topActionButtonClass} type="submit">
-              Create new group
-            </button>
-          </form>
-
-          {groups.length > 0 ? (
-            <form
-              action={saveGroupsAction}
-              className="flex items-center gap-2"
-              onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
-            >
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <input name="groupsJson" type="hidden" value={groupsJson} />
-              <button className={topPrimaryActionButtonClass} type="submit">
-                Save all groups
-              </button>
-            </form>
-          ) : null}
-        </div>
-
-        <div className="flex flex-nowrap items-stretch gap-2 overflow-x-auto pb-1">
-          {isTopPanelExpanded ? (
-            <>
-              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
-                <p className="ui-section-title text-[9px] leading-none">Total students</p>
-                <p className="text-lg font-semibold leading-none">{totalStudents}</p>
-              </div>
-              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
-                <p className="ui-section-title text-[9px] leading-none">Assigned</p>
-                <p className="text-lg font-semibold leading-none">{assignedStudents}</p>
-              </div>
-              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
-                <p className="ui-section-title text-[9px] leading-none">Unassigned</p>
-                <p className="text-lg font-semibold leading-none">{unassignedStudents.length}</p>
-              </div>
-              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
-                <p className="ui-section-title text-[9px] leading-none">Created groups</p>
-                <p className="text-lg font-semibold leading-none">{groups.length}</p>
-              </div>
-              <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
-                <p className="ui-section-title text-[9px] leading-none">Seats remaining</p>
-                <p className="text-lg font-semibold leading-none">{totalSeatsRemaining}</p>
-              </div>
-            </>
-          ) : (
-            <div className="ui-card flex w-[118px] min-w-[118px] flex-col justify-between p-2.5">
-              <p className="ui-section-title text-[9px] leading-none">Unassigned</p>
-              <p className="text-lg font-semibold leading-none">{unassignedStudents.length}</p>
+          <div className="grid grid-cols-2 gap-2 lg:w-[300px] lg:min-w-[300px]">
+            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
+                Total students
+              </p>
+              <p className="mt-1 text-lg font-semibold leading-none">{totalStudents}</p>
             </div>
-          )}
+            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
+                Assigned
+              </p>
+              <p className="mt-1 text-lg font-semibold leading-none">{assignedStudents}</p>
+            </div>
+            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
+                Unassigned
+              </p>
+              <p className="mt-1 text-lg font-semibold leading-none">{unassignedStudents.length}</p>
+            </div>
+            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
+                Created groups
+              </p>
+              <p className="mt-1 text-lg font-semibold leading-none">{groups.length}</p>
+            </div>
+            <div className="rounded-lg border border-[color:var(--app-border)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
+                Seats remaining
+              </p>
+              <p className="mt-1 text-lg font-semibold leading-none">{totalSeatsRemaining}</p>
+            </div>
+          </div>
         </div>
       </section>
 
