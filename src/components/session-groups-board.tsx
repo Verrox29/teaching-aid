@@ -187,23 +187,6 @@ function PencilIcon({ className }: { className?: string }) {
   );
 }
 
-function QrIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M4.5 4.5h4v4h-4v-4Zm0 7h4v4h-4v-4Zm7-7h4v4h-4v-4Zm1.25 7.5h1.5v1.5h-1.5v-1.5Zm0 2.75h1.5v1.5h-1.5v-1.5Zm2.75-2.75h1.5v1.5h-1.5v-1.5Zm0 2.75h1.5v1.5h-1.5v-1.5Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 function PublicPageQrModal({
   closeLabel,
   onClose,
@@ -969,8 +952,7 @@ export function SessionGroupsBoard({
                 onClick={() => setPublicQrOpen(true)}
                 type="button"
               >
-                <QrIcon className="h-4 w-4" />
-                {t.showPublicQr}
+                {t.publicPage}
               </button>
 
               {groupSelectionLocked ? (
@@ -1525,7 +1507,7 @@ export function SessionGroupsBoard({
         publicPageLabel={t.publicPage}
         onClose={() => setPublicQrOpen(false)}
         open={publicQrOpen}
-        title={t.scanToEnrolInGroup}
+        title={t.scanToEnrolToAGroup}
         url={publicPageUrl}
       />
     </section>
