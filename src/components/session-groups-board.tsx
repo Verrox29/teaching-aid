@@ -94,6 +94,27 @@ function shuffleValues<T>(values: T[]) {
   return result;
 }
 
+async function renameGroupOnServer(sessionId: string, groupId: string, name: string) {
+  const response = await fetch(`/api/sessions/${sessionId}/groups/${groupId}/rename`, {
+    body: JSON.stringify({
+      sessionId,
+      groupId,
+      name
+    }),
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    method: 'PATCH'
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error ?? 'Could not rename the group.');
+  }
+
+  return typeof payload.name === 'string' ? payload.name : name;
+}
+
 function shuffleStudents(students: StudentRecord[]) {
   return shuffleValues(students);
 }
@@ -671,6 +692,35 @@ export function SessionGroupsBoard({
     );
   }
 
+  async function handleRenameGroup(groupId: string, currentName: string) {
+    const nextName = window.prompt('Rename group', currentName);
+    if (nextName === null) {
+      return;
+    }
+
+    const trimmedName = nextName.trim();
+    if (!trimmedName || trimmedName === currentName.trim()) {
+      return;
+    }
+
+    setLocalAlert(null);
+
+    try {
+      const renamedGroupName = await renameGroupOnServer(sessionId, groupId, trimmedName);
+      setGroups((currentGroups) =>
+        currentGroups.map((group) =>
+          group.id === groupId ? { ...group, name: renamedGroupName } : group
+        )
+      );
+      setLocalAlert({ kind: 'notice', message: 'Group renamed.' });
+    } catch (error) {
+      setLocalAlert({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Could not rename the group.'
+      });
+    }
+  }
+
   const dirtyGroups = groups.filter((group) => isGroupDirty(group));
   const hasDirtyGroups = dirtyGroups.length > 0;
   const highlightErrorSection = alert?.kind === 'error';
@@ -951,7 +1001,16 @@ export function SessionGroupsBoard({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold">{group.name}</h3>
+                        <h3
+                          className="cursor-context-menu text-lg font-semibold"
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            void handleRenameGroup(group.id, group.name);
+                          }}
+                          title="Right-click to rename"
+                        >
+                          {group.name}
+                        </h3>
                         <span className={`ui-chip ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}>
                           <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
                           {dirty ? 'Unsaved changes' : 'Saved and unchanged'}

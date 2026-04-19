@@ -76,6 +76,13 @@ function uniqueBy<T>(values: T[]) {
   return new Set(values).size === values.length;
 }
 
+type GroupUpdateInput = {
+  capacity?: number;
+  groupId: string;
+  name?: string;
+  sessionId: string;
+};
+
 async function getSession(sessionId: string) {
   const matches = await db
     .select({
@@ -175,6 +182,75 @@ async function getNextGroupName(sessionId: string) {
   }, 0);
 
   return `Group ${Math.max(rows.length, highestNumericGroup) + 1}`;
+}
+
+export async function persistGroupUpdate({
+  capacity,
+  groupId,
+  name,
+  sessionId
+}: GroupUpdateInput) {
+  const session = await getSession(sessionId);
+  if (!session) {
+    return { ok: false as const, message: 'Session not found.' };
+  }
+
+  const group = await getGroup(sessionId, groupId);
+  if (!group) {
+    return { ok: false as const, message: 'Group not found.' };
+  }
+
+  const updates: { capacity?: number; name?: string; updatedAt: Date } = {
+    updatedAt: new Date()
+  };
+
+  if (typeof name === 'string') {
+    const normalizedName = normalizeText(name);
+    const duplicateName = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(
+        and(eq(groups.sessionId, sessionId), eq(groups.name, normalizedName), ne(groups.id, groupId))
+      )
+      .limit(1);
+
+    if (duplicateName.length > 0) {
+      return { ok: false as const, message: 'Another group already uses that name.' };
+    }
+
+    updates.name = normalizedName;
+  }
+
+  if (typeof capacity === 'number') {
+    const currentCount = await getGroupMemberCount(groupId);
+    if (capacity < currentCount) {
+      return {
+        ok: false as const,
+        message: 'Capacity cannot be lower than the current member count.'
+      };
+    }
+
+    updates.capacity = capacity;
+  }
+
+  await db
+    .update(groups)
+    .set(updates)
+    .where(and(eq(groups.id, groupId), eq(groups.sessionId, sessionId)));
+
+  revalidatePath(groupsPath(sessionId));
+  revalidatePath(`/sessions/${sessionId}/order`);
+  revalidatePath(`/sessions/${sessionId}/evaluation`);
+  revalidatePath(`/sessions/${sessionId}/exports`);
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath(`/s/${session.slug}`);
+  revalidatePath('/sessions');
+
+  return {
+    ok: true as const,
+    groupId,
+    name: updates.name ?? group.name
+  };
 }
 
 export async function createDefaultGroupsAction(formData: FormData): Promise<never> {
@@ -318,47 +394,50 @@ export async function updateGroupAction(formData: FormData): Promise<never> {
     );
   }
 
-  const group = await getGroup(parsed.data.sessionId, parsed.data.groupId);
-  if (!group) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Group not found.');
+  const result = await persistGroupUpdate({
+    capacity: parsed.data.capacity,
+    groupId: parsed.data.groupId,
+    name: parsed.data.name,
+    sessionId: parsed.data.sessionId
+  });
+
+  if (!result.ok) {
+    redirectWithMessage(parsed.data.sessionId, 'error', result.message);
   }
 
-  const duplicateName = await db
-    .select({ id: groups.id })
-    .from(groups)
-    .where(
-      and(
-        eq(groups.sessionId, parsed.data.sessionId),
-        eq(groups.name, parsed.data.name),
-        ne(groups.id, parsed.data.groupId)
-      )
-    )
-    .limit(1);
+  redirectWithMessage(parsed.data.sessionId, 'notice', 'Group updated.');
+}
 
-  if (duplicateName.length > 0) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Another group already uses that name.');
-  }
+export async function renameGroupAction(formData: FormData): Promise<never> {
+  const parsed = z.object({
+    sessionId: z.string().uuid('Invalid session id'),
+    groupId: z.string().uuid('Invalid group id'),
+    name: z.string().trim().min(1, 'Group name is required')
+  }).safeParse({
+    sessionId: String(formData.get('sessionId') ?? ''),
+    groupId: String(formData.get('groupId') ?? ''),
+    name: String(formData.get('name') ?? '')
+  });
 
-  const currentCount = await getGroupMemberCount(parsed.data.groupId);
-  if (parsed.data.capacity < currentCount) {
+  if (!parsed.success) {
     redirectWithMessage(
-      parsed.data.sessionId,
+      String(formData.get('sessionId') ?? 'invalid'),
       'error',
-      'Capacity cannot be lower than the current member count.'
+      'Please provide a valid group name.'
     );
   }
 
-  await db
-    .update(groups)
-    .set({
-      name: parsed.data.name,
-      capacity: parsed.data.capacity,
-      updatedAt: new Date()
-    })
-    .where(and(eq(groups.id, parsed.data.groupId), eq(groups.sessionId, parsed.data.sessionId)));
+  const result = await persistGroupUpdate({
+    groupId: parsed.data.groupId,
+    name: parsed.data.name,
+    sessionId: parsed.data.sessionId
+  });
 
-  revalidatePath(groupsPath(parsed.data.sessionId));
-  redirectWithMessage(parsed.data.sessionId, 'notice', 'Group updated.');
+  if (!result.ok) {
+    redirectWithMessage(parsed.data.sessionId, 'error', result.message);
+  }
+
+  redirectWithMessage(parsed.data.sessionId, 'notice', 'Group renamed.');
 }
 
 export async function deleteGroupAction(formData: FormData): Promise<never> {

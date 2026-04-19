@@ -109,6 +109,36 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 192 192"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m104.175 90.97-4.252 38.384 38.383-4.252L247.923 15.427V2.497L226.78-18.646h-12.93zm98.164-96.96 31.671 31.67"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="12"
+        transform="translate(-77.923 40.646)"
+      />
+      <path
+        d="m195.656 33.271-52.882 52.882"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit="5"
+        strokeWidth="12"
+        transform="translate(-77.923 40.646)"
+      />
+    </svg>
+  );
+}
+
 function extractGroupNumber(groupName: string) {
   const normalized = groupName.replace(/\s+/g, ' ').trim();
   const patterns = [
@@ -233,13 +263,22 @@ export function EvaluationWorkspaceClient({
       let changed = false;
       const nextGroups = current.map((group) => {
         const incoming = initialGroups.find((entry) => entry.groupId === group.groupId);
-        if (!incoming || incoming.presentationOrder === group.presentationOrder) {
+        if (!incoming) {
+          return group;
+        }
+
+        const needsUpdate =
+          incoming.presentationOrder !== group.presentationOrder ||
+          incoming.groupName !== group.groupName;
+
+        if (!needsUpdate) {
           return group;
         }
 
         changed = true;
         return {
           ...group,
+          groupName: incoming.groupName,
           presentationOrder: incoming.presentationOrder
         };
       });
@@ -249,9 +288,9 @@ export function EvaluationWorkspaceClient({
   }, [initialGroups]);
 
   const tabGroups = sortGroupsByPresentationOrder(groups);
-  const displayGroups = tabGroups.map((group, index) => ({
+  const displayGroups = tabGroups.map((group) => ({
     ...group,
-    groupName: formatGroupDisplayName(group.groupName, index + 1)
+    groupName: group.groupName.trim()
   }));
   const selectedGroup =
     tabGroups.find((group) => group.groupId === selectedGroupId) ?? tabGroups[0] ?? null;
@@ -286,6 +325,46 @@ export function EvaluationWorkspaceClient({
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set('groupId', groupId);
     router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  }
+
+  async function renameGroup(groupId: string, currentName: string) {
+    const nextName = window.prompt('Rename group', currentName);
+    if (nextName === null) {
+      return;
+    }
+
+    const trimmedName = nextName.trim();
+    if (!trimmedName || trimmedName === currentName.trim()) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/groups/${groupId}/rename`, {
+        body: JSON.stringify({
+          sessionId,
+          groupId,
+          name: trimmedName
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'PATCH'
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Could not rename the group.');
+      }
+
+      const renamedGroupName = typeof payload.name === 'string' ? payload.name : trimmedName;
+      setGroups((current) =>
+        current.map((group) =>
+          group.groupId === groupId ? { ...group, groupName: renamedGroupName } : group
+        )
+      );
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Could not rename the group.');
+    }
   }
 
   async function persistPresentationOrder(nextGroupIds: string[]) {
@@ -1036,6 +1115,19 @@ export function EvaluationWorkspaceClient({
             ) : null}
 
             <div className="bg-[color:var(--app-surface)] p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-2xl font-semibold">{selectedGroup.groupName}</h3>
+                <button
+                  aria-label={`Rename ${selectedGroup.groupName}`}
+                  className="inline-flex h-8 w-8 items-center justify-center text-[color:var(--app-fg-muted)] transition hover:text-[color:var(--app-fg)]"
+                  title="Rename group"
+                  type="button"
+                  onClick={() => void renameGroup(selectedGroup.groupId, selectedGroup.groupName)}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
+              </div>
+
               <CollapsiblePanel
                 className="border-0 bg-transparent p-0 shadow-none"
                 actions={
