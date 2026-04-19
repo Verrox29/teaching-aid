@@ -109,6 +109,10 @@ function formatScoreTotal(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+function safeTrim(value: string | null | undefined) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function PencilIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -303,7 +307,7 @@ export function EvaluationWorkspaceClient({
   const tabGroups = sortGroupsByPresentationOrder(groups);
   const displayGroups = tabGroups.map((group) => ({
     ...group,
-    groupName: group.groupName.trim()
+    groupName: safeTrim(group.groupName)
   }));
   const selectedGroup =
     tabGroups.find((group) => group.groupId === selectedGroupId) ?? tabGroups[0] ?? null;
@@ -343,7 +347,7 @@ export function EvaluationWorkspaceClient({
   async function renameGroup(groupId: string, currentName: string) {
     const trimmedName = currentName.trim();
     if (!trimmedName) {
-      return;
+      return '';
     }
 
     try {
@@ -365,11 +369,7 @@ export function EvaluationWorkspaceClient({
       }
 
       const renamedGroupName = typeof payload.name === 'string' ? payload.name : trimmedName;
-      setGroups((current) =>
-        current.map((group) =>
-          group.groupId === groupId ? { ...group, groupName: renamedGroupName } : group
-        )
-      );
+      return renamedGroupName;
     } catch (error) {
       throw error instanceof Error ? error : new Error('Could not rename the group.');
     }
@@ -380,7 +380,7 @@ export function EvaluationWorkspaceClient({
     setSelectedGroupId(groupId);
     updateUrl(groupId);
     setEditingGroupId(groupId);
-    setEditingGroupName(currentName);
+    setEditingGroupName(safeTrim(currentName));
   }
 
   function cancelEditingGroup() {
@@ -390,15 +390,19 @@ export function EvaluationWorkspaceClient({
   }
 
   async function finishEditingGroup(groupId: string, nextName: string) {
-    const trimmedName = nextName.trim();
+    const trimmedName = safeTrim(nextName);
     const currentGroup = groups.find((group) => group.groupId === groupId);
-    if (!currentGroup || !trimmedName || trimmedName === currentGroup.groupName.trim()) {
+    if (!currentGroup || !trimmedName || trimmedName === safeTrim(currentGroup.groupName)) {
       cancelEditingGroup();
       return;
     }
 
     try {
       const renamedGroupName = await renameGroup(groupId, trimmedName);
+      if (!renamedGroupName) {
+        cancelEditingGroup();
+        return;
+      }
       setGroups((current) =>
         current.map((group) =>
           group.groupId === groupId ? { ...group, groupName: renamedGroupName } : group
@@ -406,7 +410,7 @@ export function EvaluationWorkspaceClient({
       );
       cancelEditingGroup();
     } catch (error) {
-      setEditingGroupName(currentGroup?.groupName ?? nextName);
+      setEditingGroupName(safeTrim(currentGroup?.groupName) || trimmedName);
       renameBlurActionRef.current = null;
       console.error(error);
     }

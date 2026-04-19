@@ -67,7 +67,7 @@ export default async function SessionExportSettingsPage({
           </Link>
         </>
       }
-      currentStep={5}
+      currentStep={4}
       description="Manage the active Pairagogie template, mapping, and Branching AI setup."
       sessionId={sessionId}
       slug={session.slug}

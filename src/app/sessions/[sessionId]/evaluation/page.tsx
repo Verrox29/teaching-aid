@@ -63,7 +63,7 @@ export default async function SessionEvaluationPage({
           <SessionContextPopover metadata={metadata} />
         </>
       }
-      currentStep={4}
+      currentStep={3}
       description="Evaluate groups in presentation order, save live notes, and use batch or per-group AI support."
       sessionId={sessionId}
       slug={session.slug}

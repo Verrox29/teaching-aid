@@ -73,7 +73,7 @@ export default async function SessionExportsPage({
           </Link>
         </>
       }
-      currentStep={5}
+      currentStep={4}
       description="Validate the export template, review the active mapping, and download the final files."
       sessionId={sessionId}
       slug={session.slug}
