@@ -208,10 +208,14 @@ function PublicPageQrModal({
   closeLabel,
   onClose,
   open,
+  publicPageLabel,
+  publicPageHref,
   title,
   url
 }: {
   closeLabel: string;
+  publicPageHref: string;
+  publicPageLabel: string;
   onClose: () => void;
   open: boolean;
   title: string;
@@ -251,7 +255,7 @@ function PublicPageQrModal({
           role="dialog"
         >
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-xl font-semibold">{title}</h2>
+            <p className="ui-section-title">{title}</p>
             <button
               className="ui-button ui-button-secondary px-3 py-2 text-sm"
               onClick={onClose}
@@ -265,6 +269,9 @@ function PublicPageQrModal({
             <div className="rounded-2xl bg-white p-4">
               <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
             </div>
+            <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={publicPageHref}>
+              {publicPageLabel}
+            </Link>
             <p className="break-all text-center text-xs text-[color:var(--app-fg-muted)]">{url}</p>
           </div>
         </div>
@@ -951,10 +958,6 @@ export function SessionGroupsBoard({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Link className={topActionButtonClass} href={publicPageHref}>
-                {isFrench ? 'Page publique' : 'Public page'}
-              </Link>
-
               <button
                 aria-expanded={publicQrOpen}
                 aria-haspopup="dialog"
@@ -1515,6 +1518,8 @@ export function SessionGroupsBoard({
 
       <PublicPageQrModal
         closeLabel={closeLabel}
+        publicPageHref={publicPageHref}
+        publicPageLabel={t.publicPage}
         onClose={() => setPublicQrOpen(false)}
         open={publicQrOpen}
         title={t.scanToEnrolInGroup}
