@@ -68,9 +68,6 @@ export default async function SessionExportsPage({
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
             AI scoring
           </Link>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports/settings`}>
-            Settings
-          </Link>
         </>
       }
       currentStep={4}
@@ -207,9 +204,6 @@ export default async function SessionExportsPage({
               Download groups CSV
             </span>
           )}
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports/settings`}>
-            Open settings
-          </Link>
         </div>
       </section>
     </AdminShell>

@@ -19,8 +19,9 @@ import {
 } from '@/lib/exports/defaults';
 import type { PairagogieExportMapping, SessionExportMetadata } from '@/lib/exports/types';
 import { validatePairagogieTemplateBuffer } from '@/lib/exports/validator';
+import { GLOBAL_SETTINGS_PATH } from '@/lib/global-settings-access';
 
-const settingsPath = (sessionId: string) => `/sessions/${sessionId}/exports/settings`;
+const settingsPath = () => GLOBAL_SETTINGS_PATH;
 const exportsPath = (sessionId: string) => `/sessions/${sessionId}/exports`;
 const studentsPath = (sessionId: string) => `/sessions/${sessionId}/students`;
 const evaluationPath = (sessionId: string) => `/sessions/${sessionId}/evaluation`;
@@ -74,9 +75,14 @@ async function syncSessionTitleFromSubject(sessionId: string) {
   return row.slug;
 }
 
-function redirectWithNotice(sessionId: string, kind: 'notice' | 'error', message: string): never {
+function redirectWithNotice(kind: 'notice' | 'error', message: string): never {
   const params = new URLSearchParams({ [kind]: message });
-  redirect(`${settingsPath(sessionId)}?${params.toString()}`);
+  redirect(`${settingsPath()}?${params.toString()}`);
+}
+
+function redirectToStudents(sessionId: string, kind: 'notice' | 'error', message: string): never {
+  const params = new URLSearchParams({ [kind]: message });
+  redirect(`${studentsPath(sessionId)}?${params.toString()}`);
 }
 
 function parseActivateFlag(formData: FormData) {
@@ -170,7 +176,7 @@ export async function saveExportMetadataAction(
   });
 
   if (!parsed.success) {
-    redirectWithNotice(String(formData.get('sessionId') ?? 'invalid'), 'error', 'Invalid export metadata.');
+    redirectToStudents(String(formData.get('sessionId') ?? ''), 'error', 'Invalid export metadata.');
   }
 
   const { sessionId, ...metadata } = parsed.data;
@@ -188,12 +194,11 @@ export async function saveExportMetadataAction(
   revalidatePath('/sessions');
   revalidatePath(studentsPath(sessionId));
   revalidatePath(evaluationPath(sessionId));
-  revalidatePath(settingsPath(sessionId));
   revalidatePath(exportsPath(sessionId));
   if (slug) {
     revalidatePath(`/s/${slug}`);
   }
-  redirectWithNotice(sessionId, 'notice', 'Export metadata saved.');
+  redirectToStudents(sessionId, 'notice', 'Export metadata saved.');
 }
 
 export async function undoExportMetadataAction(formData: FormData): Promise<never> {
@@ -202,26 +207,25 @@ export async function undoExportMetadataAction(formData: FormData): Promise<neve
   });
 
   if (!parsed.success) {
-    redirectWithNotice(String(formData.get('sessionId') ?? 'invalid'), 'error', 'Invalid export metadata.');
+    redirectToStudents(String(formData.get('sessionId') ?? ''), 'error', 'Invalid export metadata.');
   }
 
   const { sessionId } = parsed.data;
   const undone = await undoSessionExportMetadata(sessionId);
 
   if (!undone) {
-    redirectWithNotice(sessionId, 'error', 'Nothing to undo.');
+    redirectToStudents(sessionId, 'error', 'Nothing to undo.');
   }
 
   const slug = await syncSessionTitleFromSubject(sessionId);
   revalidatePath('/sessions');
   revalidatePath(studentsPath(sessionId));
   revalidatePath(evaluationPath(sessionId));
-  revalidatePath(settingsPath(sessionId));
   revalidatePath(exportsPath(sessionId));
   if (slug) {
     revalidatePath(`/s/${slug}`);
   }
-  redirectWithNotice(sessionId, 'notice', 'Export metadata reverted.');
+  redirectToStudents(sessionId, 'notice', 'Export metadata reverted.');
 }
 
 export async function saveExportTemplateAction(
@@ -232,7 +236,7 @@ export async function saveExportTemplateAction(
   const activate = parseActivateFlag(formData);
 
   if (!(file instanceof File) || file.size === 0) {
-    redirectWithNotice(sessionId, 'error', 'Choose a template file to upload.');
+    redirectWithNotice('error', 'Choose a template file to upload.');
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -244,24 +248,18 @@ export async function saveExportTemplateAction(
   const { mapping } = await getActiveExportVersions();
   const validation = validatePairagogieTemplateBuffer(buffer, mapping.mappingJson);
   if (!validation.ok) {
-    redirectWithNotice(
-      sessionId,
-      'error',
-      `Template validation failed: ${validation.issues.map((issue) => issue.message).join(' ')}`
-    );
+    redirectWithNotice('error', `Template validation failed: ${validation.issues.map((issue) => issue.message).join(' ')}`);
   }
 
   if (activate) {
     await activateExportVersions(template.version, mapping.version);
   }
 
-  revalidatePath(settingsPath(sessionId));
-  revalidatePath(exportsPath(sessionId));
-  redirectWithNotice(
-    sessionId,
-    activate ? 'notice' : 'notice',
-    activate ? 'Template uploaded and activated.' : 'Template uploaded as a draft version.'
-  );
+  revalidatePath(settingsPath());
+  if (sessionId) {
+    revalidatePath(exportsPath(sessionId));
+  }
+  redirectWithNotice('notice', activate ? 'Template uploaded and activated.' : 'Template uploaded as a draft version.');
 }
 
 export async function saveExportMappingAction(
@@ -277,11 +275,7 @@ export async function saveExportMappingAction(
     const templateBuffer = Buffer.from(template.contentBase64, 'base64');
     const validation = validatePairagogieTemplateBuffer(templateBuffer, mapping);
     if (!validation.ok) {
-      redirectWithNotice(
-        sessionId,
-        'error',
-        `Mapping validation failed: ${validation.issues.map((issue) => issue.message).join(' ')}`
-      );
+      redirectWithNotice('error', `Mapping validation failed: ${validation.issues.map((issue) => issue.message).join(' ')}`);
     }
 
     const savedMapping = await saveExportMappingVersion({
@@ -293,18 +287,12 @@ export async function saveExportMappingAction(
       await activateExportVersions(template.version, savedMapping.version);
     }
 
-    revalidatePath(settingsPath(sessionId));
-    revalidatePath(exportsPath(sessionId));
-    redirectWithNotice(
-      sessionId,
-      activate ? 'notice' : 'notice',
-      activate ? 'Mapping activated.' : 'Mapping saved as a draft version.'
-    );
+    revalidatePath(settingsPath());
+    if (sessionId) {
+      revalidatePath(exportsPath(sessionId));
+    }
+    redirectWithNotice('notice', activate ? 'Mapping activated.' : 'Mapping saved as a draft version.');
   } catch (error) {
-    redirectWithNotice(
-      sessionId,
-      'error',
-      error instanceof Error ? error.message : 'Invalid mapping text.'
-    );
+    redirectWithNotice('error', error instanceof Error ? error.message : 'Invalid mapping text.');
   }
 }

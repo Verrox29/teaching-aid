@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { db, sessionExportMetadata, sessions } from '@/db';
 import { undoSessionExportMetadata, upsertSessionExportMetadata } from '@/lib/exports/repository';
 import { ensurePairagogieRubric } from '@/lib/evaluation/rubric';
+import { GLOBAL_SETTINGS_PATH } from '@/lib/global-settings-access';
 
 const createSessionSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
@@ -161,7 +162,7 @@ async function getSessionAdminRoutes(sessionId: string) {
     groups: `/sessions/${sessionId}/groups`,
     order: `/sessions/${sessionId}/order`,
     publicPage: `/s/${session.slug}`,
-    settings: `/sessions/${sessionId}/exports/settings`,
+    settings: GLOBAL_SETTINGS_PATH,
     students: `/sessions/${sessionId}/students`
   };
 }

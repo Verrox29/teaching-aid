@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { desc } from 'drizzle-orm';
 
 import { AdminShell } from '@/components/admin-shell';
+import { GlobalSettingsButton } from '@/components/global-settings-button';
 import { db, sessions } from '@/db';
 
 export const dynamic = 'force-dynamic';
@@ -23,9 +24,12 @@ export default async function SessionsPage() {
   return (
     <AdminShell
       actions={
-        <Link className="ui-button ui-button-primary" href="/sessions/new">
-          New session
-        </Link>
+        <>
+          <GlobalSettingsButton />
+          <Link className="ui-button ui-button-primary" href="/sessions/new">
+            New session
+          </Link>
+        </>
       }
       description="Create and manage peer-to-peer sessions."
       title="Sessions"

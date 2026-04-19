@@ -11,8 +11,7 @@ function isKnownSessionAdminPath(sessionId: string, path: string) {
     buildPath(sessionId, '/students'),
     buildPath(sessionId, '/groups'),
     buildPath(sessionId, '/evaluation'),
-    buildPath(sessionId, '/exports'),
-    buildPath(sessionId, '/exports/settings')
+    buildPath(sessionId, '/exports')
   ].includes(path);
 }
 
