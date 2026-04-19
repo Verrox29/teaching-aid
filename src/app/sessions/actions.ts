@@ -179,6 +179,10 @@ export async function createSessionAction(
   }
 
   revalidatePath('/sessions');
+  if (sessionId) {
+    redirect(`/sessions/${sessionId}/students?setup=1`);
+  }
+
   redirect('/sessions');
 }
 

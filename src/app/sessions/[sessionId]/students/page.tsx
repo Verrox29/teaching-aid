@@ -10,18 +10,22 @@ import { recordSessionAdminPath } from '@/lib/session-navigation';
 
 type SessionStudentsPageProps = {
   params: Promise<{ sessionId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export const dynamic = 'force-dynamic';
 
 export default async function SessionStudentsPage({
-  params
+  params,
+  searchParams
 }: SessionStudentsPageProps) {
   const { sessionId } = await params;
+  const search = searchParams ? await searchParams : {};
   const session = await db
     .select({
       id: sessions.id,
       slug: sessions.slug,
+      lastAdminPath: sessions.lastAdminPath,
       title: sessions.title
     })
     .from(sessions)
@@ -58,6 +62,8 @@ export default async function SessionStudentsPage({
       timeZone: 'UTC'
     }).format(student.createdAt)
   }));
+  const shouldAutoOpenImport =
+    String(search.setup ?? '') === '1' || session[0].lastAdminPath === null;
 
   return (
     <AdminShell
@@ -73,15 +79,16 @@ export default async function SessionStudentsPage({
             Sessions list
           </Link>
         </>
-      }
-      currentStep={1}
-      description="Import students first, then confirm Pairagogie session metadata."
+        }
+        currentStep={1}
+      description="Manage Pairagogie session metadata and import students from Boostcamp."
       sessionId={sessionId}
       slug={session[0].slug}
-      subtitle="Student import"
-      title={`${session[0].title} · Student import`}
+      subtitle="Pairagogie & students setup"
+      title={`${session[0].title} · Pairagogie & students setup`}
     >
       <SessionStudentsWorkspace
+        autoOpenImport={shouldAutoOpenImport}
         existingEmails={studentRows.map((student) => student.schoolEmail)}
         metadata={metadata}
         sessionId={sessionId}

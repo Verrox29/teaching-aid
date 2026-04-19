@@ -51,7 +51,12 @@ export async function AdminShell({
                   </div>
                 </div>
 
-                <SessionAdminHeaderControls sessionId={sessionId} slug={slug} state={sessionHeaderState} />
+                <SessionAdminHeaderControls
+                  currentStep={currentStep}
+                  sessionId={sessionId}
+                  slug={slug}
+                  state={sessionHeaderState}
+                />
               </div>
 
               <AdminTimelineNav currentStep={currentStep ?? 1} sessionId={sessionId} slug={slug} />

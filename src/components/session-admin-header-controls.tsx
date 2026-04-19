@@ -11,6 +11,7 @@ import { ThemeToggle } from './theme-toggle';
 type SessionAdminHeaderControlsProps = {
   sessionId: string;
   slug: string;
+  currentStep?: number;
   state: SessionAdminHeaderState;
 };
 
@@ -150,7 +151,7 @@ function ActionModal({
   );
 }
 
-export function SessionAdminHeaderControls({ sessionId, slug, state }: SessionAdminHeaderControlsProps) {
+export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state }: SessionAdminHeaderControlsProps) {
   const [contextOpen, setContextOpen] = useState(false);
   const [contextEditorOpen, setContextEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -358,6 +359,22 @@ export function SessionAdminHeaderControls({ sessionId, slug, state }: SessionAd
               </div>
             </div>
           </div>
+
+          {currentStep === 1 ? (
+            <div className="grid gap-2">
+              <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                <p className="ui-section-title">Pairagogie &amp; students setup</p>
+                <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
+                  Open the floating students setup window from here.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
+                    Open students setup
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">

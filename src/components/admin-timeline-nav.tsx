@@ -13,7 +13,11 @@ type AdminStep = {
 };
 
 const adminSteps: AdminStep[] = [
-  { step: 1, label: 'Pairagogie setup', href: (sessionId, slug) => `/sessions/${sessionId}/students` },
+  {
+    step: 1,
+    label: 'Pairagogie & students setup',
+    href: (sessionId, slug) => `/sessions/${sessionId}/students`
+  },
   { step: 2, label: 'Group creation', href: (sessionId) => `/sessions/${sessionId}/groups` },
   { step: 3, label: 'AI scoring & feedback', href: (sessionId) => `/sessions/${sessionId}/evaluation` },
   { step: 4, label: 'Grille & grades export', href: (sessionId) => `/sessions/${sessionId}/exports` }

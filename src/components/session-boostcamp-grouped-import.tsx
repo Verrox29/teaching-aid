@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 
 import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
+import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
 import {
   parseBoostcampGroupedFile,
   type BoostcampGroupedMetadataSuggestions,
@@ -486,17 +487,7 @@ export function SessionBoostcampGroupedImport({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-        <p className="font-medium text-[color:var(--app-fg)]">How to export from Boostcamp</p>
-        <ol className="mt-2 grid list-decimal gap-1 pl-5">
-          <li>Log in to Boostcamp.</li>
-          <li>Open the course, then the episode where the activities live.</li>
-          <li>Click the gear icon, then Participants.</li>
-          <li>At the bottom, click “select all XX participants”.</li>
-          <li>In the “choisir” dropdown, select CSV separated by commas.</li>
-          <li>Download the file and upload it here.</li>
-        </ol>
-      </div>
+      <BoostcampExportGuide />
 
       <div
         className={`grid gap-3 rounded-2xl border border-dashed px-4 py-4 transition ${

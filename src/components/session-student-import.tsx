@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 
 import { importStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
+import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
 import {
   parseStudentImportFile,
   parseStudentImportText,
@@ -13,7 +14,10 @@ import {
 
 type SessionStudentImportProps = {
   existingEmails: string[];
+  onImportApplied?: () => void;
   sessionId: string;
+  mode?: 'full' | 'file' | 'paste';
+  showBoostcampGuide?: boolean;
 };
 
 type ImportActionState = {
@@ -25,13 +29,17 @@ const initialImportActionState: ImportActionState = {};
 
 export function SessionStudentImport({
   existingEmails,
-  sessionId
+  onImportApplied,
+  mode = 'full',
+  sessionId,
+  showBoostcampGuide = true
 }: SessionStudentImportProps) {
   const [rows, setRows] = useState<StudentImportPreviewRow[]>([]);
   const [pastedText, setPastedText] = useState('');
   const [parseMessage, setParseMessage] = useState<string>();
   const [parseError, setParseError] = useState<string>();
   const [isDragging, setIsDragging] = useState(false);
+  const successHandledRef = useRef(false);
   const [actionState, formAction, isPending] = useActionState(
     importStudentsAction,
     initialImportActionState
@@ -83,6 +91,18 @@ export function SessionStudentImport({
     const result = parseStudentImportText(pastedText, existingEmails);
     await setParsedRowsFromResult(result);
   }
+
+  useEffect(() => {
+    if (actionState.success) {
+      if (!successHandledRef.current) {
+        successHandledRef.current = true;
+        onImportApplied?.();
+      }
+      return;
+    }
+
+    successHandledRef.current = false;
+  }, [actionState.success, onImportApplied]);
 
   async function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -143,56 +163,62 @@ export function SessionStudentImport({
         </p>
       </div>
 
-      <div
-        className={`grid gap-3 rounded-2xl border border-dashed px-4 py-4 transition ${
-          isDragging
-            ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
-            : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)]'
-        }`}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        <div className="space-y-1">
-          <label className="text-sm font-medium" htmlFor="studentFile">
-            File upload
-          </label>
-          <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Drag and drop a `.xlsx` or `.csv` file here, or choose one manually.
-          </p>
-        </div>
-        <input
-          accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          className="ui-input"
-          id="studentFile"
-          name="studentFile"
-          onChange={handleFileChange}
-          type="file"
-        />
-      </div>
+      {showBoostcampGuide ? <BoostcampExportGuide /> : null}
 
-      <div className="grid gap-3">
-        <label className="text-sm font-medium" htmlFor="pastedText">
-          Or paste Boostcamp roster text
-        </label>
-        <textarea
-          className="ui-textarea"
-          id="pastedText"
-          name="pastedText"
-          onChange={(event) => setPastedText(event.target.value)}
-          value={pastedText}
-        />
-        <div className="flex justify-end">
-          <button
-            className="ui-button ui-button-secondary"
-            type="button"
-            onClick={handlePasteParse}
-            disabled={!pastedText.trim()}
-          >
-            Parse pasted text
-          </button>
+      {mode !== 'paste' ? (
+        <div
+          className={`grid gap-3 rounded-2xl border border-dashed px-4 py-4 transition ${
+            isDragging
+              ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
+              : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)]'
+          }`}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="studentFile">
+              File upload
+            </label>
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
+              Drag and drop a `.xlsx` or `.csv` file here, or choose one manually.
+            </p>
+          </div>
+          <input
+            accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="ui-input"
+            id="studentFile"
+            name="studentFile"
+            onChange={handleFileChange}
+            type="file"
+          />
         </div>
-      </div>
+      ) : null}
+
+      {mode !== 'file' ? (
+        <div className="grid gap-3">
+          <label className="text-sm font-medium" htmlFor="pastedText">
+            Or paste Boostcamp roster text
+          </label>
+          <textarea
+            className="ui-textarea"
+            id="pastedText"
+            name="pastedText"
+            onChange={(event) => setPastedText(event.target.value)}
+            value={pastedText}
+          />
+          <div className="flex justify-end">
+            <button
+              className="ui-button ui-button-secondary"
+              type="button"
+              onClick={handlePasteParse}
+              disabled={!pastedText.trim()}
+            >
+              Parse pasted text
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {parseError ? <p className="text-sm text-[color:var(--app-danger)]">{parseError}</p> : null}
       {parseMessage ? <p className="text-sm text-[color:var(--app-fg-muted)]">{parseMessage}</p> : null}
