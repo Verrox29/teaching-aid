@@ -9,18 +9,22 @@ import {
   GLOBAL_SETTINGS_PASSWORD,
   GLOBAL_SETTINGS_PATH
 } from '@/lib/global-settings-access';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 export function GlobalSettingsButton() {
   const router = useRouter();
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).globalSettings;
 
   function handleClick() {
-    const password = window.prompt('Enter the global settings password');
+    const password = window.prompt(t.passwordPrompt);
     if (password === null) {
       return;
     }
 
     if (password.trim() !== GLOBAL_SETTINGS_PASSWORD) {
-      window.alert('Incorrect password.');
+      window.alert(t.wrongPassword);
       return;
     }
 
@@ -30,7 +34,7 @@ export function GlobalSettingsButton() {
 
   return (
     <button className="ui-button ui-button-secondary" onClick={handleClick} type="button">
-      Global settings
+      {t.label}
     </button>
   );
 }

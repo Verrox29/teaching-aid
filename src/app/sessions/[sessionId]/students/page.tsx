@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 import { AdminShell } from '@/components/admin-shell';
 import { SessionStudentsWorkspace } from '@/components/session-students-workspace';
 import { db, sessionStudents, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
+import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
 type SessionStudentsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -20,6 +22,9 @@ export default async function SessionStudentsPage({
   searchParams
 }: SessionStudentsPageProps) {
   const { sessionId } = await params;
+  const cookieStore = await cookies();
+  const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
+  const t = getUiText(uiLanguage).sessionStudents;
   const search = searchParams ? await searchParams : {};
   const session = await db
     .select({
@@ -71,22 +76,22 @@ export default async function SessionStudentsPage({
       actions={
         <>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
-            Groups
+            {t.groupsLink}
           </Link>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
-            Evaluation
+            {t.evaluationLink}
           </Link>
           <Link className="ui-button ui-button-primary" href="/sessions">
-            Sessions list
+            {t.sessionsListLink}
           </Link>
         </>
         }
         currentStep={1}
-      description="Manage Pairagogie session metadata and import students from Boostcamp."
+      description={t.pageSubtitle}
       sessionId={sessionId}
       slug={session[0].slug}
-      subtitle="Pairagogie & students setup"
-      title={`${session[0].title} · Pairagogie & students setup`}
+      subtitle={t.pageTitle}
+      title={`${session[0].title} · ${t.pageTitle}`}
     >
       <SessionStudentsWorkspace
         autoOpenImport={shouldAutoOpenImport}

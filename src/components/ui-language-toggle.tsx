@@ -1,17 +1,20 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 
-type UiLanguage = 'en' | 'fr';
+import {
+  UI_LANGUAGE_COOKIE_MAX_AGE_SECONDS,
+  UI_LANGUAGE_COOKIE_NAME,
+  UI_LANGUAGE_STORAGE_KEY,
+  type UiLanguage
+} from '@/lib/ui-language';
 
 type UiLanguageContextValue = {
   mounted: boolean;
   uiLanguage: UiLanguage;
   setUiLanguage: (language: UiLanguage) => void;
-  toggleUiLanguage: () => void;
 };
-
-const UI_LANGUAGE_STORAGE_KEY = 'teaching-aid-ui-language';
 
 const UiLanguageContext = createContext<UiLanguageContextValue | null>(null);
 
@@ -47,8 +50,7 @@ export function UiLanguageProvider({ children }: Readonly<{ children: ReactNode 
     () => ({
       mounted,
       uiLanguage,
-      setUiLanguage,
-      toggleUiLanguage: () => setUiLanguage((current) => (current === 'fr' ? 'en' : 'fr'))
+      setUiLanguage
     }),
     [mounted, uiLanguage]
   );
@@ -66,58 +68,70 @@ export function useUiLanguage() {
   return value;
 }
 
-function FlagIcon({
-  active,
-  children
-}: {
-  active: boolean;
-  children: ReactNode;
-}) {
-  return <span className={`text-sm transition-opacity ${active ? 'opacity-100' : 'opacity-45'}`}>{children}</span>;
-}
-
 export function UiLanguageToggle() {
-  const { mounted, toggleUiLanguage, uiLanguage } = useUiLanguage();
+  const router = useRouter();
+  const { mounted, setUiLanguage, uiLanguage } = useUiLanguage();
+
+  function applyUiLanguage(nextLanguage: UiLanguage) {
+    setUiLanguage(nextLanguage);
+    window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, nextLanguage);
+    document.cookie = `${UI_LANGUAGE_COOKIE_NAME}=${nextLanguage}; path=/; max-age=${UI_LANGUAGE_COOKIE_MAX_AGE_SECONDS}; samesite=lax`;
+    router.refresh();
+  }
 
   if (!mounted) {
     return (
-      <button aria-hidden="true" className="ui-switch invisible pointer-events-none" disabled type="button">
-        <span className="ui-switch-track relative flex items-center justify-between" aria-hidden style={{ width: '4rem' }}>
-          <span className="absolute inset-y-0 left-3 flex items-center">
-            <FlagIcon active>{'🇫🇷'}</FlagIcon>
-          </span>
-          <span className="ui-switch-thumb absolute left-[0.125rem] top-[0.125rem]" />
-          <span className="absolute inset-y-0 right-3 flex items-center">
-            <FlagIcon active>{'🇬🇧'}</FlagIcon>
-          </span>
+      <div
+        aria-hidden="true"
+        className="inline-flex overflow-hidden rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-1"
+      >
+        <span className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium">
+          <span aria-hidden="true">🇫🇷</span>
+          <span>FR</span>
         </span>
-      </button>
+        <span className="my-1 w-px bg-[color:var(--app-border)]" />
+        <span className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium">
+          <span aria-hidden="true">🇬🇧</span>
+          <span>EN</span>
+        </span>
+      </div>
     );
   }
 
   const isFrench = uiLanguage === 'fr';
 
   return (
-    <button
-      aria-checked={isFrench}
-      aria-label={isFrench ? 'Switch interface to English' : 'Switch interface to French'}
-      className="ui-switch"
-      onClick={toggleUiLanguage}
-      role="switch"
-      type="button"
+    <div
+      aria-label="Interface language"
+      className="inline-flex overflow-hidden rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-1"
+      role="group"
     >
-      <span className="ui-switch-track" aria-hidden>
-        <span className="absolute inset-y-0 left-3 flex items-center">
-          <FlagIcon active={isFrench}>{'🇫🇷'}</FlagIcon>
-        </span>
-        <span
-          className="ui-switch-thumb absolute top-[0.125rem] transition-[left] duration-150 ease-out"
-          style={{ left: isFrench ? '0.75rem' : '2.5rem' }}
-        />
-        <span className="absolute inset-y-0 right-3 flex items-center">
-          <FlagIcon active={!isFrench}>{'🇬🇧'}</FlagIcon>
-        </span>
-      </span>
-    </button>
+      <button
+        aria-pressed={isFrench}
+        className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+          isFrench
+            ? 'bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-sm'
+            : 'text-[color:var(--app-fg-muted)] hover:text-[color:var(--app-fg)]'
+        }`}
+        onClick={() => applyUiLanguage('fr')}
+        type="button"
+      >
+        <span aria-hidden="true">🇫🇷</span>
+        <span>FR</span>
+      </button>
+      <button
+        aria-pressed={!isFrench}
+        className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+          !isFrench
+            ? 'bg-[color:var(--app-surface)] text-[color:var(--app-fg)] shadow-sm'
+            : 'text-[color:var(--app-fg-muted)] hover:text-[color:var(--app-fg)]'
+        }`}
+        onClick={() => applyUiLanguage('en')}
+        type="button"
+      >
+        <span aria-hidden="true">🇬🇧</span>
+        <span>EN</span>
+      </button>
+    </div>
   );
 }

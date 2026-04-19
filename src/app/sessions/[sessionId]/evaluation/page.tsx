@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 import { AdminShell } from '@/components/admin-shell';
 import { EvaluationWorkspaceClient } from '@/components/evaluation-workspace';
@@ -9,6 +10,7 @@ import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
 import { getEvaluationWorkspace } from '@/lib/evaluation/repository';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
+import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
 type SessionEvaluationPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -26,6 +28,9 @@ export default async function SessionEvaluationPage({
   searchParams
 }: SessionEvaluationPageProps) {
   const { sessionId } = await params;
+  const cookieStore = await cookies();
+  const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
+  const t = getUiText(uiLanguage).sessionEvaluation;
   const search = searchParams ? await searchParams : {};
   const requestedGroupId = getSingleValue(search.groupId);
 
@@ -58,16 +63,16 @@ export default async function SessionEvaluationPage({
       actions={
         <>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
-            Exports
+            {t.exports}
           </Link>
           <SessionContextPopover metadata={metadata} />
         </>
       }
       currentStep={3}
-      description="Evaluate groups in presentation order, save live notes, and use batch or per-group AI support."
+      description={t.description}
       sessionId={sessionId}
       slug={session.slug}
-      subtitle="AI scoring & feedback"
+      subtitle={t.subtitle}
       title={session.title}
     >
       <EvaluationWorkspaceClient

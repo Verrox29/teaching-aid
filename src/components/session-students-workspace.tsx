@@ -6,6 +6,8 @@ import { saveExportMetadataAction } from '@/app/sessions/[sessionId]/exports/act
 import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
 import { SessionBoostcampGroupedImport } from '@/components/session-boostcamp-grouped-import';
 import { SessionStudentImport } from '@/components/session-student-import';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type SessionExportMetadata = {
   className: string;
@@ -63,11 +65,15 @@ function XIcon({ className }: { className?: string }) {
 function FloatingModal({
   children,
   onClose,
+  headerLabel,
+  closeLabel,
   open,
   title,
   widthClassName = 'w-[min(56rem,calc(100vw-2rem))]'
 }: {
   children: ReactNode;
+  headerLabel: string;
+  closeLabel: string;
   onClose: () => void;
   open: boolean;
   title: string;
@@ -88,11 +94,11 @@ function FloatingModal({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <p className="ui-section-title">Pairagogie &amp; students setup</p>
+              <p className="ui-section-title">{headerLabel}</p>
               <h2 className="text-xl font-semibold">{title}</h2>
             </div>
             <button
-              aria-label="Close"
+              aria-label={closeLabel}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-sm font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
               onClick={onClose}
               type="button"
@@ -116,6 +122,8 @@ export function SessionStudentsWorkspace({
   sessionId,
   students
 }: SessionStudentsWorkspaceProps) {
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).sessionStudents;
   const [importOpen, setImportOpen] = useState(autoOpenImport);
   const [importMode, setImportMode] = useState<ImportMode>('chooser');
   const [metadataDraft, setMetadataDraft] = useState(metadata);
@@ -202,21 +210,21 @@ export function SessionStudentsWorkspace({
       return (
         <section className="grid gap-4">
           <div className="space-y-1">
-            <h3 className="text-lg font-semibold">Update without groups</h3>
+            <h3 className="text-lg font-semibold">{t.updateWithoutGroups}</h3>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Choose whether to paste roster text or update from CSV.
+              {t.chooseWithGroups}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <button className="ui-button ui-button-secondary" type="button" onClick={() => setImportMode('paste')}>
-              Paste Boostcamp roster text
+              {t.pasteRoster}
             </button>
             <button className="ui-button ui-button-secondary" type="button" onClick={() => setImportMode('csv')}>
-              Update from csv file
+              {t.updateFromCsv}
             </button>
             <button className="ui-button ui-button-ghost" type="button" onClick={() => setImportMode('chooser')}>
-              Back
+              {t.back}
             </button>
           </div>
 
@@ -228,11 +236,9 @@ export function SessionStudentsWorkspace({
     return (
       <section className="grid gap-4">
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold">{hasStudents ? 'Update students' : 'Start students import'}</h3>
+          <h3 className="text-lg font-semibold">{hasStudents ? t.updateStudents : t.startStudentsImport}</h3>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            {hasStudents
-              ? 'Choose whether the incoming file includes groups or only roster data.'
-              : 'Choose how to begin the first import for this session.'}
+            {hasStudents ? t.chooseWithGroups : t.chooseFirstImport}
           </p>
         </div>
 
@@ -240,23 +246,23 @@ export function SessionStudentsWorkspace({
           {hasStudents ? (
             <>
               <button className="ui-button ui-button-primary" type="button" onClick={() => setImportMode('grouped')}>
-                Update with groups
+                {t.updateWithGroups}
               </button>
               <button
                 className="ui-button ui-button-secondary"
                 type="button"
                 onClick={() => setImportMode('update-without-groups')}
               >
-                Update without groups
+                {t.updateWithoutGroups}
               </button>
             </>
           ) : (
             <>
               <button className="ui-button ui-button-secondary" type="button" onClick={() => setImportMode('scratch')}>
-                No. Start from scratch
+                {t.startFromScratch}
               </button>
               <button className="ui-button ui-button-primary" type="button" onClick={() => setImportMode('grouped')}>
-                Yes. I&apos;ll upload the csv file
+                {t.uploadCsv}
               </button>
             </>
           )}
@@ -322,14 +328,14 @@ export function SessionStudentsWorkspace({
       <section className="ui-panel grid gap-5 p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="ui-section-title">Pairagogie &amp; students setup</p>
-            <h2 className="text-xl font-semibold">Pairagogie session metadata</h2>
+            <p className="ui-section-title">{t.pageTitle}</p>
+            <h2 className="text-xl font-semibold">{t.metadataTitle}</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Save the session details used by exports.
+              {t.metadataDescription}
             </p>
             {metadataSuggestions.className || metadataSuggestions.programme ? (
               <p className="text-xs text-[color:var(--app-fg-muted)]">
-                Suggested from imported Boostcamp data.
+                {t.suggestedFromImport}
               </p>
             ) : null}
           </div>
@@ -339,7 +345,7 @@ export function SessionStudentsWorkspace({
             onClick={() => setImportOpen(true)}
             type="button"
           >
-            Students update/import
+            {t.studentsImportButton}
           </button>
         </div>
 
@@ -347,7 +353,7 @@ export function SessionStudentsWorkspace({
           <input name="sessionId" type="hidden" value={sessionId} />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium">
-              Programme
+              {getUiText(uiLanguage).shared.programme}
               <input
                 className="ui-input"
                 name="programme"
@@ -357,7 +363,7 @@ export function SessionStudentsWorkspace({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Class name
+              {t.className}
               <input
                 className="ui-input"
                 name="className"
@@ -367,7 +373,7 @@ export function SessionStudentsWorkspace({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Subject
+              {getUiText(uiLanguage).sessionAdmin.subject}
               <input
                 className="ui-input"
                 name="subject"
@@ -377,19 +383,19 @@ export function SessionStudentsWorkspace({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Class language
+              {t.classLanguage}
               <select
                 className="ui-select"
                 name="language"
                 onChange={(event) => setLanguageDraft(event.target.value as 'fr' | 'en')}
                 value={languageDraft}
               >
-                <option value="fr">French</option>
-                <option value="en">English</option>
+                <option value="fr">{t.french}</option>
+                <option value="en">{t.english}</option>
               </select>
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Professor name
+              {getUiText(uiLanguage).sessionAdmin.professor}
               <input
                 className="ui-input"
                 name="professorName"
@@ -399,7 +405,7 @@ export function SessionStudentsWorkspace({
               />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Presentation date
+              {getUiText(uiLanguage).sessionAdmin.presentationDate}
               <input
                 className="ui-input"
                 name="sessionDate"
@@ -410,7 +416,7 @@ export function SessionStudentsWorkspace({
             </label>
 
             <label className="grid gap-2 text-sm font-medium">
-              Intake
+              {getUiText(uiLanguage).sessionAdmin.intake}
               <select
                 className="ui-select"
                 name="season"
@@ -419,7 +425,7 @@ export function SessionStudentsWorkspace({
                 required
               >
                 <option disabled value="">
-                  Choose intake
+                  {uiLanguage === 'fr' ? 'Choisir la promotion' : 'Choose intake'}
                 </option>
                 <option value="Fall">Fall intake</option>
                 <option value="Spring">Spring intake</option>
@@ -427,20 +433,20 @@ export function SessionStudentsWorkspace({
             </label>
           </div>
 
-          <div className="flex justify-end">
-            <button className="ui-button ui-button-primary" type="submit">
-              Save Pairagogie &amp; students setup
-            </button>
-          </div>
-        </form>
+        <div className="flex justify-end">
+          <button className="ui-button ui-button-primary" type="submit">
+            {t.saveSetup}
+          </button>
+        </div>
+      </form>
       </section>
 
       <section className="grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold">Imported students</h2>
+            <h2 className="text-xl font-semibold">{t.importedStudents}</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Students already saved in this session roster.
+              {t.rosterDescription}
             </p>
           </div>
         </div>
@@ -449,17 +455,17 @@ export function SessionStudentsWorkspace({
           <table className="min-w-full divide-y divide-[color:var(--app-border)] text-sm">
             <thead className="text-left text-[color:var(--app-fg-muted)]">
               <tr>
-                <th className="px-4 py-3 font-medium">First name</th>
-                <th className="px-4 py-3 font-medium">Last name</th>
-                <th className="px-4 py-3 font-medium">School email</th>
-                <th className="px-4 py-3 font-medium">Imported at</th>
+                <th className="px-4 py-3 font-medium">{t.firstName}</th>
+                <th className="px-4 py-3 font-medium">{t.lastName}</th>
+                <th className="px-4 py-3 font-medium">{t.schoolEmail}</th>
+                <th className="px-4 py-3 font-medium">{t.importedAt}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--app-border)] bg-[color:var(--app-surface)]">
               {students.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={4}>
-                    No students imported yet.
+                    {t.noStudents}
                   </td>
                 </tr>
               ) : (
@@ -477,7 +483,13 @@ export function SessionStudentsWorkspace({
         </div>
       </section>
 
-      <FloatingModal onClose={closeImport} open={importOpen} title="Pairagogie & students setup">
+      <FloatingModal
+        closeLabel={uiLanguage === 'fr' ? 'Fermer' : 'Close'}
+        headerLabel={t.pairagogieStudentsSetup}
+        onClose={closeImport}
+        open={importOpen}
+        title={t.setupModalTitle}
+      >
         <div className="grid gap-5">
           {renderImportBody()}
         </div>

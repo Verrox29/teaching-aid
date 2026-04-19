@@ -4,6 +4,8 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { uploadGroupSubmissionAction } from '@/app/sessions/[sessionId]/order/actions';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES, GROUP_SUBMISSION_MAX_FILE_SIZE_MB } from '@/lib/group-submission';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type GroupSubmissionDropzoneProps = {
   fileName?: string | null;
@@ -23,6 +25,8 @@ export function GroupSubmissionDropzone({
   const inputId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).groupSubmission;
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -30,7 +34,9 @@ export function GroupSubmissionDropzone({
 
   function rejectFile(fileName: string) {
     setSelectedFileName(null);
-    setErrorMessage(`File "${fileName}" is too large. Max file size ${GROUP_SUBMISSION_MAX_FILE_SIZE_MB} MB.`);
+    setErrorMessage(
+      `File "${fileName}" is too large. ${t.maxFileSize.replace('{size}', String(GROUP_SUBMISSION_MAX_FILE_SIZE_MB))}`
+    );
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -126,11 +132,11 @@ export function GroupSubmissionDropzone({
       <input name="groupId" type="hidden" value={groupId} />
 
       <div className="grid gap-2 text-[color:var(--app-fg-muted)]">
-        <p className="font-medium text-[color:var(--app-fg)]">Upload group work</p>
-        <p>Drop a file here or click to choose one for {groupName}.</p>
-        <p className="mt-1">Max file size {GROUP_SUBMISSION_MAX_FILE_SIZE_MB} MB.</p>
+        <p className="font-medium text-[color:var(--app-fg)]">{t.uploadGroupWork}</p>
+        <p>{t.dropOrClick.replace('{groupName}', groupName)}</p>
+        <p className="mt-1">{t.maxFileSize.replace('{size}', String(GROUP_SUBMISSION_MAX_FILE_SIZE_MB))}</p>
         <p>
-          If your file is larger, you can compress it first using a free tool like{' '}
+          {t.compressFirst}{' '}
           <a
             className="font-medium text-[color:var(--app-accent-strong)] underline decoration-[color:var(--app-accent)] decoration-2 underline-offset-2 hover:text-[color:var(--app-accent)]"
             href="https://www.ilovepdf.com/fr/compresser_pdf"
@@ -138,16 +144,16 @@ export function GroupSubmissionDropzone({
             target="_blank"
             onClick={(event) => event.stopPropagation()}
           >
-            iLovePDF
+          iLovePDF
           </a>
           .
         </p>
-        {submittedAt ? <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">Uploaded on {submittedAt}</p> : null}
+        {submittedAt ? <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">{t.uploadedOn.replace('{date}', submittedAt)}</p> : null}
       </div>
 
       <div className="grid gap-1">
-        <span className="font-medium">{selectedFileName ?? fileName ?? 'Drop a file or click to choose'}</span>
-        <span className="text-[color:var(--app-fg-muted)]">One file per group. Drag and drop is supported.</span>
+        <span className="font-medium">{selectedFileName ?? fileName ?? t.dropOrChoose}</span>
+        <span className="text-[color:var(--app-fg-muted)]">{t.oneFilePerGroup}</span>
       </div>
 
       <input
@@ -164,7 +170,9 @@ export function GroupSubmissionDropzone({
       />
 
       {selectedFileName ? (
-        <p className="text-xs text-[color:var(--app-fg-muted)]">Selected file: {selectedFileName}</p>
+        <p className="text-xs text-[color:var(--app-fg-muted)]">
+          {t.selectedFile}: {selectedFileName}
+        </p>
       ) : null}
 
       {errorMessage ? (
@@ -179,7 +187,7 @@ export function GroupSubmissionDropzone({
           type="submit"
           onClick={(event) => event.stopPropagation()}
         >
-          Upload file
+          {t.uploadButton}
         </button>
       </div>
     </form>

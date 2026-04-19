@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 
 import { createDefaultGroupsAction } from './actions';
@@ -9,6 +10,7 @@ import { SessionGroupsBoard } from '@/components/session-groups-board';
 import { db, sessions } from '@/db';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
 import { getSessionGroupBoardSnapshot } from '@/lib/session-group-board';
+import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
 type SessionGroupsPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -26,6 +28,9 @@ export default async function SessionGroupsPage({
   searchParams
 }: SessionGroupsPageProps) {
   const { sessionId } = await params;
+  const cookieStore = await cookies();
+  const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
+  const t = getUiText(uiLanguage).sessionGroups;
   const search = searchParams ? await searchParams : {};
   const notice = getSingleValue(search.notice);
   const error = getSingleValue(search.error);
@@ -67,30 +72,29 @@ export default async function SessionGroupsPage({
       actions={
         <>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
-            Resume
+            {t.resume}
           </Link>
           <Link className="ui-button ui-button-secondary" href={`/s/${session.slug}`}>
-            Public page
+            {t.publicPage}
           </Link>
           <Link className="ui-button ui-button-primary" href="/sessions">
-            Sessions list
+            {t.sessionsList}
           </Link>
         </>
       }
       currentStep={2}
-      description="Create, rename, resize, and manage session groups."
+      description={t.description}
       sessionId={sessionId}
       slug={session.slug}
-      subtitle="Group creation"
+      subtitle={t.subtitle}
       title={session.title}
     >
       {boardSnapshot.groups.length === 0 ? (
         <section className="ui-panel p-6">
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold">Create default groups</h2>
+            <h2 className="text-xl font-semibold">{t.createDefaultGroups}</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              No groups exist yet. Create {session.groupCount} groups using the session default
-              capacity to start assigning students.
+              {t.noGroupsYet} {t.createGroupsHelp.replace('{count}', String(session.groupCount))}
             </p>
           </div>
 
@@ -100,7 +104,7 @@ export default async function SessionGroupsPage({
               className="ui-button ui-button-primary"
               type="submit"
             >
-              Create default groups
+              {t.createDefaultGroupsButton}
             </button>
           </form>
         </section>

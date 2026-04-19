@@ -1,6 +1,8 @@
 'use client';
 
 import { useTheme } from '@/components/theme-provider';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 function MoonIcon({ className }: { className?: string }) {
   return (
@@ -24,6 +26,8 @@ function SunIcon({ className }: { className?: string }) {
 
 export function ThemeToggle() {
   const { mounted, resolvedTheme, toggleTheme } = useTheme();
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).theme;
 
   if (!mounted) {
     return (
@@ -47,7 +51,7 @@ export function ThemeToggle() {
   return (
     <button
       aria-checked={isDark}
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={isDark ? t.light : t.dark}
       className="ui-switch"
       role="switch"
       onClick={toggleTheme}

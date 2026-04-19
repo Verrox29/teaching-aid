@@ -8,7 +8,9 @@ import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
+import { getUiText } from '@/lib/ui-language';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -222,6 +224,9 @@ export function EvaluationWorkspaceClient({
   sessionLanguage
 }: EvaluationWorkspaceClientProps) {
   const router = useRouter();
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).evaluationWorkspace;
+  const isFrench = uiLanguage === 'fr';
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [groups, setGroups] = useState<GroupDraft[]>(() => initialDraftGroups(initialGroups));
@@ -991,8 +996,8 @@ export function EvaluationWorkspaceClient({
               type="button"
             >
               {challengeQuestionsBatchState.kind === 'running'
-                ? 'Generating all questions...'
-                : 'Generate all questions'}
+                ? t.generatingAllQuestions
+                : t.generateAllQuestions}
             </button>
             <button
               className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
@@ -1001,29 +1006,29 @@ export function EvaluationWorkspaceClient({
               type="button"
             >
               {gradingBatchState.kind === 'running'
-                ? 'Generating all groups feedback...'
-                : 'Generate all groups feedback'}
+                ? t.generatingAllFeedback
+                : t.generateAllFeedback}
             </button>
           </div>
         }
         className="mb-1"
-        description="Keep the assignment brief and AI batch actions in one place for the whole workspace."
-        title="Activity instructions"
+        description={t.briefUsedByAi}
+        title={t.activityInstructions}
         titleClassName="text-2xl font-semibold"
       >
         <section className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            This brief is used by the AI question and feedback workflow.
+            {t.briefUsedByAi}
           </p>
           <form action={saveSessionInstructionsAction} className="grid gap-3">
             <input name="sessionId" type="hidden" value={sessionId} />
             <label className="grid gap-2 text-sm font-medium">
-              Assignment brief
+              {t.assignmentBrief}
               <textarea
                 className="ui-textarea min-h-[140px]"
                 defaultValue={sessionInstructions ?? ''}
                 name="instructions"
-                placeholder="Describe the activity, expectations, and anything the AI should consider."
+                placeholder={t.describeActivity}
               />
             </label>
             <div className="flex justify-end">
@@ -1031,7 +1036,7 @@ export function EvaluationWorkspaceClient({
                 className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                 type="submit"
               >
-                Save brief
+                {t.saveBrief}
               </button>
             </div>
           </form>
@@ -1564,7 +1569,7 @@ export function EvaluationWorkspaceClient({
         </>
       ) : (
         <section className="ui-panel p-6">
-          <h2 className="text-lg font-semibold">No groups available</h2>
+          <h2 className="text-lg font-semibold">{t.noGroupsAvailable}</h2>
           <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
             Create or assign groups before using the evaluation workspace.
           </p>

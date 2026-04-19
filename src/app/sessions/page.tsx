@@ -4,10 +4,15 @@ import { desc } from 'drizzle-orm';
 import { AdminShell } from '@/components/admin-shell';
 import { GlobalSettingsButton } from '@/components/global-settings-button';
 import { db, sessions } from '@/db';
+import { cookies } from 'next/headers';
+import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SessionsPage() {
+  const cookieStore = await cookies();
+  const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
+  const t = getUiText(uiLanguage).sessionsHub;
   const sessionList = await db
     .select({
       id: sessions.id,
@@ -27,32 +32,32 @@ export default async function SessionsPage() {
         <>
           <GlobalSettingsButton />
           <Link className="ui-button ui-button-primary" href="/sessions/new">
-            New session
+            {t.newSession}
           </Link>
         </>
       }
-      description="Create and manage peer-to-peer sessions."
-      title="Sessions"
-      subtitle="Teacher admin"
+      description={t.description}
+      title={t.title}
+      subtitle={t.subtitle}
     >
       <section className="ui-card overflow-hidden">
         <table className="min-w-full divide-y divide-[color:var(--app-border)] text-sm">
           <thead className="text-left text-[color:var(--app-fg-muted)]">
             <tr>
-              <th className="px-4 py-3 font-medium">Title</th>
-              <th className="px-4 py-3 font-medium">Language</th>
-              <th className="px-4 py-3 font-medium">Slug</th>
-              <th className="px-4 py-3 font-medium">Group lock</th>
-              <th className="px-4 py-3 font-medium">Order lock</th>
-              <th className="px-4 py-3 font-medium">Created</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+              <th className="px-4 py-3 font-medium">{t.columns.title}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.language}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.slug}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.groupLock}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.orderLock}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.created}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[color:var(--app-border)]">
             {sessionList.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={7}>
-                  No sessions yet. Create the first one to get started.
+                  {t.empty}
                 </td>
               </tr>
             ) : (
@@ -69,14 +74,14 @@ export default async function SessionsPage() {
                     <span
                       className={`ui-chip ${session.groupSelectionLocked ? 'ui-chip-warning' : 'ui-chip-success'}`}
                     >
-                      {session.groupSelectionLocked ? 'Locked' : 'Open'}
+                      {session.groupSelectionLocked ? t.locked : t.open}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <span
                       className={`ui-chip ${session.presentationOrderLocked ? 'ui-chip-warning' : 'ui-chip-success'}`}
                     >
-                      {session.presentationOrderLocked ? 'Locked' : 'Open'}
+                      {session.presentationOrderLocked ? t.locked : t.open}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -90,28 +95,28 @@ export default async function SessionsPage() {
                       className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
                       href={`/sessions/${session.id}`}
                     >
-                      Resume
+                      {t.resume}
                     </Link>
                     <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
                     <Link
                       className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
                       href={`/s/${session.slug}`}
                     >
-                      Public
+                      {t.public}
                     </Link>
                     <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
                     <Link
                       className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
                       href={`/sessions/${session.id}/students`}
                     >
-                      Setup
+                      {t.setup}
                     </Link>
                     <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
                     <Link
                       className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
                       href={`/sessions/${session.id}/groups`}
                     >
-                      Groups
+                      {t.groups}
                     </Link>
                   </td>
                 </tr>

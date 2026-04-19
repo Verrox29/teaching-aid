@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 import { movePresentationOrderAction } from './actions';
 
@@ -8,6 +9,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
+import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
 type SessionOrderPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -25,6 +27,9 @@ export default async function SessionOrderPage({
   searchParams
 }: SessionOrderPageProps) {
   const { sessionId } = await params;
+  const cookieStore = await cookies();
+  const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
+  const t = getUiText(uiLanguage).sessionOrder;
   const search = searchParams ? await searchParams : {};
   const notice = getSingleValue(search.notice);
   const error = getSingleValue(search.error);
@@ -87,17 +92,17 @@ export default async function SessionOrderPage({
       actions={
         <>
           <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
-            Groups
+            {t.groups}
           </Link>
           <Link className="ui-button ui-button-secondary" href="/sessions">
-            Sessions list
+            {t.sessionsList}
           </Link>
         </>
       }
-      description="Generate presentation order and attach one file per group."
+      description={t.description}
       sessionId={sessionId}
       slug={session.slug}
-      subtitle="Presentation order & upload"
+      subtitle={t.subtitle}
       title={session.title}
     >
       {notice || error ? (
@@ -114,11 +119,9 @@ export default async function SessionOrderPage({
 
       <section className="ui-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Presentation order controls</h2>
+          <h2 className="text-lg font-semibold">{t.presentationOrderControls}</h2>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            {orderReady
-              ? 'Use the buttons to move groups or randomize the order.'
-              : 'Generate a random order or move groups manually to set the sequence.'}
+            {orderReady ? t.useButtonsToMove : t.generateOrder}
           </p>
         </div>
 
@@ -136,15 +139,14 @@ export default async function SessionOrderPage({
       {orderedGroups.length === 0 ? (
         <section className="ui-panel p-6">
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold">No groups yet</h2>
+            <h2 className="text-xl font-semibold">{t.noGroupsYet}</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Create groups first, then come back here to assign presentation order and upload
-              files.
+              {t.createGroupsFirst}
             </p>
           </div>
           <div className="mt-4">
             <Link className="ui-button ui-button-primary" href={`/sessions/${sessionId}/groups`}>
-              Go to groups
+              {t.goToGroups}
             </Link>
           </div>
         </section>
@@ -160,15 +162,15 @@ export default async function SessionOrderPage({
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="ui-chip">Order {index + 1}</span>
+                      <span className="ui-chip">{t.order} {index + 1}</span>
                       {group.presentationOrder === null ? (
-                        <span className="ui-chip">Not locked in yet</span>
+                        <span className="ui-chip">{t.notLocked}</span>
                       ) : null}
                     </div>
                     <h3 className="text-lg font-semibold">{group.name}</h3>
                     <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      Capacity {group.capacity}.{' '}
-                      {submission ? `Uploaded file: ${submission.fileName}` : 'No file uploaded yet.'}
+                      {t.capacity} {group.capacity}.{' '}
+                      {submission ? `${t.uploadedFile}: ${submission.fileName}` : t.noFileUploaded}
                     </p>
                   </div>
 
@@ -182,7 +184,7 @@ export default async function SessionOrderPage({
                         disabled={isFirst}
                         type="submit"
                       >
-                        Move up
+                        {t.moveUp}
                       </button>
                     </form>
                     <form action={movePresentationOrderAction}>
@@ -194,7 +196,7 @@ export default async function SessionOrderPage({
                         disabled={isLast}
                         type="submit"
                       >
-                        Move down
+                        {t.moveDown}
                       </button>
                     </form>
                   </div>

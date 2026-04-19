@@ -5,6 +5,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { saveSessionContextAction, saveSessionInstructionsAction, undoSessionContextAction, undoSessionInstructionsAction } from '@/app/sessions/actions';
 import type { SessionAdminHeaderState } from '@/lib/session-admin-state';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 import { ThemeToggle } from './theme-toggle';
 import { UiLanguageToggle } from './ui-language-toggle';
@@ -106,6 +108,7 @@ function SunIcon({ className }: { className?: string }) {
 
 function ActionModal({
   children,
+  headerLabel = 'Teacher admin',
   headerActions,
   onClose,
   open,
@@ -113,6 +116,7 @@ function ActionModal({
   widthClassName = 'w-[min(44rem,calc(100vw-2rem))]'
 }: {
   children: ReactNode;
+  headerLabel?: string;
   headerActions?: ReactNode;
   onClose: () => void;
   open: boolean;
@@ -134,7 +138,7 @@ function ActionModal({
         >
           <div className="flex items-center justify-between gap-3">
             <div className="space-y-1">
-              <p className="ui-section-title">Teacher admin</p>
+              <p className="ui-section-title">{headerLabel}</p>
               <h2 className="text-xl font-semibold">{title}</h2>
             </div>
             <div className="flex items-center gap-2">
@@ -162,6 +166,9 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
   const [contextEditorOpen, setContextEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsEditorOpen, setSettingsEditorOpen] = useState(false);
+  const { uiLanguage } = useUiLanguage();
+  const shared = getUiText(uiLanguage).shared;
+  const t = getUiText(uiLanguage).sessionAdmin;
 
   const assignmentBriefPreview = state.assignmentBrief.trim();
 
@@ -201,10 +208,10 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
         <div className="flex flex-wrap items-center gap-2">
           <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href="/sessions">
             <ArrowLeftIcon className="h-4 w-4" />
-            Back to sessions list
+            {shared.backToSessionsList}
           </Link>
           <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/s/${slug}`}>
-            Public Enrolment page
+            {shared.publicEnrolmentPage}
           </Link>
         </div>
 
@@ -212,7 +219,7 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
           <button
             aria-haspopup="dialog"
             aria-expanded={settingsOpen}
-            aria-label="Settings"
+            aria-label={t.settings}
             className="ui-button ui-button-ghost h-9 w-9 px-0"
             onClick={() => setSettingsOpen(true)}
             type="button"
@@ -223,7 +230,7 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
         </div>
       </div>
 
-      <ActionModal onClose={() => setContextOpen(false)} open={contextOpen} title="Session context">
+      <ActionModal headerLabel={shared.teacherAdmin} onClose={() => setContextOpen(false)} open={contextOpen} title={t.sessionContext}>
         <section className="grid gap-4">
           <div className="grid gap-2 sm:grid-cols-2">
             {[
@@ -239,7 +246,7 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
                 className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm"
               >
                 <p className="ui-section-title">{label}</p>
-                <p className="mt-1 font-medium leading-5">{value || 'Not set'}</p>
+                <p className="mt-1 font-medium leading-5">{value || getUiText(uiLanguage).shared.notSet}</p>
               </div>
             ))}
           </div>
@@ -254,13 +261,13 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
               type="button"
             >
               <PencilIcon className="h-4 w-4" />
-              Edit
+              {t.edit}
             </button>
             {state.canUndoSessionContext ? (
               <form action={undoSessionContextAction}>
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <button className="ui-button ui-button-secondary px-3 py-2 text-sm" type="submit">
-                  Undo
+                  {t.undo}
                 </button>
               </form>
             ) : null}
@@ -269,47 +276,48 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
       </ActionModal>
 
       <ActionModal
+        headerLabel={shared.teacherAdmin}
         onClose={() => setContextEditorOpen(false)}
         open={contextEditorOpen}
-        title="Edit session context"
+        title={t.editSessionContext}
         widthClassName="w-[min(52rem,calc(100vw-2rem))]"
       >
         <form action={saveSessionContextAction} className="grid gap-4">
           <input name="sessionId" type="hidden" value={sessionId} />
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-2 text-sm font-medium">
-              Class
+              {t.class}
               <input className="ui-input" defaultValue={state.sessionContext.className} name="className" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Programme
+              {shared.programme}
               <input className="ui-input" defaultValue={state.sessionContext.programme} name="programme" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Subject
+              {t.subject}
               <input className="ui-input" defaultValue={state.sessionContext.subject} name="subject" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Intake
+              {t.intake}
               <select className="ui-select" defaultValue={state.sessionContext.season} name="season">
-                <option value="">Not set</option>
+                <option value="">{getUiText(uiLanguage).shared.notSet}</option>
                 <option value="Fall">Fall intake</option>
                 <option value="Spring">Spring intake</option>
               </select>
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Professor
+              {t.professor}
               <input className="ui-input" defaultValue={state.sessionContext.professorName} name="professorName" />
             </label>
             <label className="grid gap-2 text-sm font-medium">
-              Presentation date
+              {t.presentationDate}
               <input className="ui-input" defaultValue={state.sessionContext.sessionDate} name="sessionDate" type="date" />
             </label>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm text-[color:var(--app-fg-muted)]">
-              Changes save immediately across the session.
+              {t.changesSavedAcrossSession}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {state.canUndoSessionContext ? (
@@ -318,11 +326,11 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
                   formAction={undoSessionContextAction}
                   type="submit"
                 >
-                  Undo
+                  {t.undo}
                 </button>
               ) : null}
               <button className="ui-button ui-button-primary px-3 py-2 text-sm" type="submit">
-                Save context
+                {t.saveContext}
               </button>
             </div>
           </div>
@@ -330,29 +338,30 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
       </ActionModal>
 
       <ActionModal
+        headerLabel={shared.teacherAdmin}
         headerActions={<UiLanguageToggle />}
         onClose={() => setSettingsOpen(false)}
         open={settingsOpen}
-        title="Settings"
+        title={t.settings}
       >
         <section className="grid gap-5">
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1.5">
-                  <p className="ui-section-title">Session context</p>
+                  <p className="ui-section-title">{t.sessionContextSummary}</p>
                   <div className="grid gap-1 text-sm text-[color:var(--app-fg-muted)]">
                     <p>
-                      <span className="font-medium text-[color:var(--app-fg)]">Class:</span>{' '}
-                      {state.sessionContext.className || 'Not set'}
+                      <span className="font-medium text-[color:var(--app-fg)]">{t.class}:</span>{' '}
+                  {state.sessionContext.className || shared.notSet}
                     </p>
                     <p>
-                      <span className="font-medium text-[color:var(--app-fg)]">Programme:</span>{' '}
-                      {state.sessionContext.programme || 'Not set'}
+                      <span className="font-medium text-[color:var(--app-fg)]">{shared.programme}:</span>{' '}
+                      {state.sessionContext.programme || shared.notSet}
                     </p>
                     <p>
-                      <span className="font-medium text-[color:var(--app-fg)]">Date:</span>{' '}
-                      {state.sessionContext.sessionDate || 'Not set'}
+                      <span className="font-medium text-[color:var(--app-fg)]">{shared.date}:</span>{' '}
+                      {state.sessionContext.sessionDate || shared.notSet}
                     </p>
                   </div>
                 </div>
@@ -365,7 +374,7 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
                   type="button"
                 >
                   <PencilIcon className="h-4 w-4" />
-                  Edit
+                  {t.edit}
                 </button>
               </div>
             </div>
@@ -374,13 +383,13 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
           {currentStep === 1 ? (
             <div className="grid gap-2">
               <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                <p className="ui-section-title">Pairagogie &amp; students setup</p>
+                <p className="ui-section-title">{t.pairagogieSetup}</p>
                 <p className="mt-2 text-sm text-[color:var(--app-fg-muted)]">
-                  Open the floating students setup window from here.
+                  {t.openStudentsSetup}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
-                    Open students setup
+                    {t.openStudentsSetup}
                   </Link>
                 </div>
               </div>
@@ -389,30 +398,30 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
 
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-              <p className="ui-section-title">Assignment brief</p>
+              <p className="ui-section-title">{t.assignmentBriefSummary}</p>
               <p className="mt-2 max-h-24 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-[color:var(--app-fg-muted)]">
-                {assignmentBriefPreview || 'No assignment brief yet.'}
+                {assignmentBriefPreview || t.noAssignmentBrief}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              className="ui-button ui-button-secondary px-3 py-2 text-sm"
-              onClick={() => {
-                setSettingsOpen(false);
-                setSettingsEditorOpen(true);
-              }}
-              type="button"
-            >
-              <PencilIcon className="h-4 w-4" />
-              Edit
-            </button>
+              <button
+                className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setSettingsEditorOpen(true);
+                }}
+                type="button"
+              >
+                <PencilIcon className="h-4 w-4" />
+                {t.edit}
+              </button>
             {state.canUndoAssignmentBrief ? (
               <form action={undoSessionInstructionsAction}>
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <button className="ui-button ui-button-secondary px-3 py-2 text-sm" type="submit">
-                  Undo
+                  {t.undo}
                 </button>
               </form>
             ) : null}
@@ -421,26 +430,27 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
       </ActionModal>
 
       <ActionModal
+        headerLabel={shared.teacherAdmin}
         onClose={() => setSettingsEditorOpen(false)}
         open={settingsEditorOpen}
-        title="Edit assignment brief"
+        title={t.editAssignmentBrief}
         widthClassName="w-[min(58rem,calc(100vw-2rem))]"
       >
         <form action={saveSessionInstructionsAction} className="grid gap-4">
           <input name="sessionId" type="hidden" value={sessionId} />
           <label className="grid gap-2 text-sm font-medium">
-            Assignment brief
+            {t.assignmentBrief}
             <textarea
               className="ui-textarea min-h-[18rem]"
               defaultValue={state.assignmentBrief}
               name="instructions"
-              placeholder="Describe the activity, expectations, and anything the AI should consider."
+              placeholder={t.assignmentBriefPlaceholder}
             />
           </label>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm text-[color:var(--app-fg-muted)]">
-              Changes save immediately across the session.
+              {t.changesSavedAcrossSession}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {state.canUndoAssignmentBrief ? (
@@ -449,11 +459,11 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
                   formAction={undoSessionInstructionsAction}
                   type="submit"
                 >
-                  Undo
+                  {t.undo}
                 </button>
               ) : null}
               <button className="ui-button ui-button-primary px-3 py-2 text-sm" type="submit">
-                Save brief
+                {t.saveBrief}
               </button>
             </div>
           </div>

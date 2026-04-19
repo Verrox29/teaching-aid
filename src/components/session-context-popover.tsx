@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type SessionContextPopoverProps = {
   metadata: {
@@ -36,13 +38,15 @@ function ChevronIcon({ className }: { className?: string }) {
 export function SessionContextPopover({ metadata }: SessionContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).contextPopover;
   const metadataEntries = [
-    ['Programme', metadata.programme],
-    ['Class', metadata.className],
-    ['Subject', metadata.subject],
-    ['Season', metadata.season],
-    ['Professor', metadata.professorName],
-    ['Presentation date', metadata.sessionDate]
+    [getUiText(uiLanguage).shared.programme, metadata.programme],
+    [getUiText(uiLanguage).sessionAdmin.class, metadata.className],
+    [getUiText(uiLanguage).sessionAdmin.subject, metadata.subject],
+    [getUiText(uiLanguage).sessionAdmin.intake, metadata.season],
+    [getUiText(uiLanguage).sessionAdmin.professor, metadata.professorName],
+    [getUiText(uiLanguage).sessionAdmin.presentationDate, metadata.sessionDate]
   ] as const;
 
   useEffect(() => {
@@ -68,7 +72,7 @@ export function SessionContextPopover({ metadata }: SessionContextPopoverProps) 
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        Session context
+        {t.label}
         <ChevronIcon className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -87,15 +91,15 @@ export function SessionContextPopover({ metadata }: SessionContextPopoverProps) 
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <p className="ui-section-title">Session context</p>
-                  <h2 className="text-xl font-semibold">Metadata</h2>
+                  <p className="ui-section-title">{t.label}</p>
+                  <h2 className="text-xl font-semibold">{t.metadata}</h2>
                 </div>
                 <button
                   className="ui-button ui-button-secondary px-3 py-2 text-sm"
                   onClick={() => setOpen(false)}
                   type="button"
                 >
-                  Close
+                  {t.close}
                 </button>
               </div>
 
@@ -106,7 +110,7 @@ export function SessionContextPopover({ metadata }: SessionContextPopoverProps) 
                     className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm"
                   >
                     <p className="ui-section-title">{label}</p>
-                    <p className="mt-1 font-medium leading-5">{value || 'Not set'}</p>
+                    <p className="mt-1 font-medium leading-5">{value || getUiText(uiLanguage).shared.notSet}</p>
                   </div>
                 ))}
               </div>

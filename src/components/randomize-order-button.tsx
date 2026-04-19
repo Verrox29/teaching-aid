@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type PresentationOrderGroup = {
   groupId: string;
@@ -31,6 +33,8 @@ export function RandomizeOrderButton({
   sessionId
 }: RandomizeOrderButtonProps) {
   const router = useRouter();
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).randomizeOrder;
   const intervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -63,7 +67,7 @@ export function RandomizeOrderButton({
 
   async function persistRandomizedOrder() {
     setIsSaving(true);
-    setStatus('Saving the final order...');
+    setStatus(t.saving);
 
     try {
       const response = await fetch(`/api/sessions/${sessionId}/order/randomize`, {
@@ -76,21 +80,21 @@ export function RandomizeOrderButton({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not randomize the presentation order.');
+        throw new Error(payload.error ?? t.saving);
       }
 
       setPreviewGroups(payload.groups.map((group: { groupId: string; groupName: string }) => ({
         groupId: group.groupId,
         groupName: group.groupName
       })));
-      setStatus('Presentation order saved. You can close this window.');
+      setStatus(t.saved);
       onRandomized?.(payload.groups);
 
       if (!onRandomized) {
         router.refresh();
       }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not randomize the presentation order.');
+      setError(saveError instanceof Error ? saveError.message : t.saving);
       setStatus('');
     } finally {
       setIsSaving(false);
@@ -104,7 +108,7 @@ export function RandomizeOrderButton({
     }
 
     setError('');
-    setStatus('Shuffling the presentation order...');
+    setStatus(t.shuffling);
     setIsOpen(true);
     setIsRandomizing(true);
     setPreviewGroups(shuffle(groups));
@@ -142,7 +146,7 @@ export function RandomizeOrderButton({
         onClick={startRandomization}
         type="button"
       >
-        {isRandomizing || isSaving ? 'Randomizing order...' : 'Randomize order'}
+        {isRandomizing || isSaving ? t.randomizingOrder : t.button}
       </button>
 
       {isOpen ? (
@@ -159,8 +163,8 @@ export function RandomizeOrderButton({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <p className="ui-section-title">Presentation order</p>
-                  <h2 className="text-xl font-semibold">Randomizing groups</h2>
+                  <p className="ui-section-title">{t.presentationOrder}</p>
+                  <h2 className="text-xl font-semibold">{t.randomizingGroups}</h2>
                 </div>
                 <button
                   className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
@@ -168,18 +172,18 @@ export function RandomizeOrderButton({
                   onClick={closeModal}
                   type="button"
                 >
-                  Close
+                  {t.close}
                 </button>
               </div>
 
               <div className="mt-4 grid gap-4">
                 <p className="text-sm text-[color:var(--app-fg-muted)]">
-                  The order is being shuffled and saved. Keep this window open until the animation finishes.
+                  {t.shuffling}
                 </p>
 
                 <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
                   <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="font-medium">{status || 'Working...'}</span>
+                    <span className="font-medium">{status || t.working}</span>
                     {error ? <span className="text-[color:var(--app-danger)]">{error}</span> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">

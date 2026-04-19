@@ -11,6 +11,8 @@ import {
   saveGroupsAction,
   unlockGroupSelectionAction
 } from '@/app/sessions/[sessionId]/groups/actions';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type StudentRecord = {
   id: string;
@@ -312,6 +314,8 @@ export function SessionGroupsBoard({
   sessionTitle,
   unassignedStudents: initialUnassignedStudents
 }: SessionGroupsBoardProps) {
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).sessionGroups;
   const [groups, setGroups] = useState<GroupRecord[]>(() => copyGroups(initialGroups));
   const [unassignedStudents, setUnassignedStudents] = useState<StudentRecord[]>(() =>
     sortStudentsStable(initialUnassignedStudents)
@@ -830,6 +834,7 @@ export function SessionGroupsBoard({
   const dirtyGroups = groups.filter((group) => isGroupDirty(group));
   const hasDirtyGroups = dirtyGroups.length > 0;
   const highlightErrorSection = alert?.kind === 'error';
+  const isFrench = uiLanguage === 'fr';
 
   return (
     <section className="grid gap-6">
@@ -837,31 +842,34 @@ export function SessionGroupsBoard({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-4">
             <div className="space-y-1">
-            <p className="ui-section-title">Test groups</p>
-            <h2 className="text-lg font-semibold">{sessionTitle} groups</h2>
-            <p className="max-w-3xl text-sm text-[color:var(--app-fg-muted)]">
-              Default group capacity: {defaultGroupCapacity}. Create new groups at any time, drag
-              students between the sidebar and groups, then save the changed cards.
-            </p>
+              <p className="ui-section-title">{t.testGroups}</p>
+              <h2 className="text-lg font-semibold">
+                {sessionTitle} {isFrench ? 'groupes' : 'groups'}
+              </h2>
+              <p className="max-w-3xl text-sm text-[color:var(--app-fg-muted)]">
+                {isFrench
+                  ? `Capacité par défaut des groupes : ${defaultGroupCapacity}. Créez de nouveaux groupes à tout moment, glissez les étudiants entre la barre latérale et les groupes, puis enregistrez les cartes modifiées.`
+                  : `Default group capacity: ${defaultGroupCapacity}. Create new groups at any time, drag students between the sidebar and groups, then save the changed cards.`}
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <Link className={topActionButtonClass} href={publicPageHref}>
-                Public page
+                {isFrench ? 'Page publique' : 'Public page'}
               </Link>
 
               {groupSelectionLocked ? (
                 <form action={unlockGroupSelectionAction}>
                   <input name="sessionId" type="hidden" value={sessionId} />
                   <button className={topActionButtonClass} type="submit">
-                    Unlock group selection
+                    {isFrench ? 'Déverrouiller les groupes' : 'Unlock group selection'}
                   </button>
                 </form>
               ) : (
                 <form action={lockGroupSelectionAction}>
                   <input name="sessionId" type="hidden" value={sessionId} />
                   <button className={topActionButtonClass} type="submit">
-                    Lock group selection
+                    {isFrench ? 'Verrouiller les groupes' : 'Lock group selection'}
                   </button>
                 </form>
               )}
@@ -878,13 +886,19 @@ export function SessionGroupsBoard({
                 type="button"
                 onClick={handleRandomizeEnrollment}
               >
-                {isRandomizingStudents ? 'Randomizing enrollment...' : 'Randomize enrollment'}
+                {isRandomizingStudents
+                  ? isFrench
+                    ? 'Randomisation des inscriptions...'
+                    : 'Randomizing enrollment...'
+                  : isFrench
+                    ? 'Randomiser les inscriptions'
+                    : 'Randomize enrollment'}
               </button>
 
               <form action={createGroupAction}>
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <button className={topActionButtonClass} type="submit">
-                  Create new group
+                  {isFrench ? 'Créer un nouveau groupe' : 'Create new group'}
                 </button>
               </form>
 
@@ -897,7 +911,7 @@ export function SessionGroupsBoard({
                   <input name="sessionId" type="hidden" value={sessionId} />
                   <input name="groupsJson" type="hidden" value={groupsJson} />
                   <button className={topPrimaryActionButtonClass} type="submit">
-                    Save all groups
+                    {isFrench ? 'Enregistrer tous les groupes' : 'Save all groups'}
                   </button>
                 </form>
               ) : null}
@@ -907,31 +921,31 @@ export function SessionGroupsBoard({
           <div className="grid grid-cols-3 gap-1.5 lg:w-[320px] lg:min-w-[320px]">
             <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
-                Total students
+                {isFrench ? 'Étudiants totaux' : 'Total students'}
               </p>
               <p className="mt-1 text-base font-semibold leading-none">{totalStudents}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
-                Assigned
+                {isFrench ? 'Attribués' : 'Assigned'}
               </p>
               <p className="mt-1 text-base font-semibold leading-none">{assignedStudents}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
-                Unassigned
+                {isFrench ? 'Non attribués' : 'Unassigned'}
               </p>
               <p className="mt-1 text-base font-semibold leading-none">{unassignedStudents.length}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
-                Created groups
+                {isFrench ? 'Groupes créés' : 'Created groups'}
               </p>
               <p className="mt-1 text-base font-semibold leading-none">{groups.length}</p>
             </div>
             <div className="rounded-lg border border-[color:var(--app-border)] px-2.5 py-2">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--app-fg-muted)]">
-                Seats remaining
+                {isFrench ? 'Places restantes' : 'Seats remaining'}
               </p>
               <p className="mt-1 text-base font-semibold leading-none">{totalSeatsRemaining}</p>
             </div>
@@ -951,7 +965,7 @@ export function SessionGroupsBoard({
             <span>{alert.message}</span>
             {alert.kind === 'error' ? (
               <a className="ui-button ui-button-secondary px-3 py-1.5 text-xs" href="#error-targets">
-                Go to error(s)
+                {isFrench ? 'Aller aux erreurs' : 'Go to error(s)'}
               </a>
             ) : null}
           </div>
@@ -976,18 +990,18 @@ export function SessionGroupsBoard({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <h3 className="text-lg font-semibold">Unassigned students</h3>
+                <h3 className="text-lg font-semibold">{t.unassignedStudents}</h3>
                 <p className="text-sm text-[color:var(--app-fg-muted)]">
-                  Drag a student card here to remove them from a group.
+                  {t.dragToRemove}
                 </p>
               </div>
 
               <button
                 aria-expanded={isIgnoredDrawerOpen}
-                aria-label="Show ignored students"
+                aria-label={t.showIgnoredStudents}
                 className="relative inline-flex h-9 w-9 items-center justify-center text-[color:var(--app-fg-muted)] transition hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={visibilityActionState !== null || isRandomizingStudents}
-                title="Show ignored students"
+                title={t.showIgnoredStudents}
                 type="button"
                 onClick={() => setIsIgnoredDrawerOpen((current) => !current)}
               >
@@ -1002,7 +1016,7 @@ export function SessionGroupsBoard({
 
             {unassignedStudents.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
-                All students are assigned to groups.
+                {t.allStudentsAssigned}
               </div>
             ) : (
               <div className="grid gap-3">
@@ -1037,7 +1051,7 @@ export function SessionGroupsBoard({
                           onChange={(event) => handleDestinationChange(student.id, null, event)}
                         >
                           <option disabled hidden value="">
-                            Move student to...
+                            {t.moveStudentTo}
                           </option>
                           {groups.map((group) => (
                             <option key={group.id} value={group.id}>
@@ -1051,11 +1065,11 @@ export function SessionGroupsBoard({
                           type="button"
                           onClick={() => handleIgnoreStudent(student.id, null)}
                         >
-                          Ignore
+                          {t.ignore}
                         </button>
                       </div>
                     ) : (
-                      <p className="mt-3 text-sm text-[color:var(--app-fg-muted)]">Create groups first to assign.</p>
+                      <p className="mt-3 text-sm text-[color:var(--app-fg-muted)]">{t.createGroupsFirstToAssign}</p>
                     )}
                   </article>
                 ))}
@@ -1066,16 +1080,16 @@ export function SessionGroupsBoard({
               <div className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="space-y-1">
-                    <h4 className="text-sm font-semibold">Ignored users</h4>
+                    <h4 className="text-sm font-semibold">{t.ignoredUsers}</h4>
                     <p className="text-xs text-[color:var(--app-fg-muted)]">
-                      Restored users return to the unassigned list.
+                      {t.restoredUsersReturn}
                     </p>
                   </div>
                 </div>
 
                 {ignoredStudents.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
-                    No ignored users.
+                    {t.noIgnoredUsers}
                   </div>
                 ) : (
                   <div className="grid gap-3">
@@ -1100,7 +1114,7 @@ export function SessionGroupsBoard({
                             type="button"
                             onClick={() => handleRestoreStudent(student.id)}
                           >
-                            Restore
+                            {isFrench ? 'Restaurer' : 'Restore'}
                           </button>
                         </div>
                       </article>
@@ -1114,9 +1128,11 @@ export function SessionGroupsBoard({
 
         <section className="grid gap-4">
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold">Groups</h2>
+            <h2 className="text-xl font-semibold">{t.groupsTitle}</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Edit group names and capacities, then drag students into the right place.
+              {isFrench
+                ? 'Modifiez les noms et capacités des groupes, puis glissez les étudiants au bon endroit.'
+                : 'Edit group names and capacities, then drag students into the right place.'}
             </p>
           </div>
 
@@ -1144,7 +1160,7 @@ export function SessionGroupsBoard({
                     <div className="flex min-w-0 flex-nowrap items-center gap-2">
                       <div className="group relative shrink-0">
                         <button
-                          aria-label={`Rename ${group.name}`}
+                          aria-label={isFrench ? `Renommer ${group.name}` : `Rename ${group.name}`}
                           className={`relative flex items-center gap-2 rounded-full border px-2 py-1 pr-7 text-sm font-semibold transition ${
                             dirty
                               ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
@@ -1152,14 +1168,14 @@ export function SessionGroupsBoard({
                           } ${editingGroupId === group.id ? 'pointer-events-none opacity-0' : ''}`}
                           type="button"
                           onClick={() => startEditingGroup(group.id, group.name)}
-                          title="Rename group"
+                          title={isFrench ? 'Renommer le groupe' : 'Rename group'}
                         >
                           <span className="truncate">{group.name}</span>
                         </button>
                         {editingGroupId === group.id ? (
                           <input
                             ref={editingGroupNameInputRef}
-                            aria-label={`Rename ${group.name}`}
+                            aria-label={isFrench ? `Renommer ${group.name}` : `Rename ${group.name}`}
                             className={`absolute inset-0 z-30 w-full rounded-full border px-2 py-1 pr-7 text-sm font-semibold outline-none ${
                               dirty
                                 ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
@@ -1196,9 +1212,9 @@ export function SessionGroupsBoard({
                           />
                         ) : null}
                         <button
-                          aria-label={`Rename ${group.name}`}
+                          aria-label={isFrench ? `Renommer ${group.name}` : `Rename ${group.name}`}
                           className="absolute right-1 top-1/2 z-30 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
-                          title="Rename group"
+                          title={isFrench ? 'Renommer le groupe' : 'Rename group'}
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
@@ -1213,16 +1229,22 @@ export function SessionGroupsBoard({
                         className={`ui-chip px-2 py-0.5 text-[11px] ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}
                       >
                         <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
-                        {dirty ? 'Unsaved changes' : 'Saved and unchanged'}
+                        {dirty
+                          ? isFrench
+                            ? 'Modifications non enregistrées'
+                            : 'Unsaved changes'
+                          : isFrench
+                            ? 'Enregistré et inchangé'
+                            : 'Saved and unchanged'}
                       </span>
 
                       <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-1.5 py-0.5 text-[color:var(--app-fg-muted)]">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
-                          Cap
+                          {t.cap}
                         </span>
                         <div className="inline-flex items-center gap-0.5 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-1 py-0.5">
                           <button
-                            aria-label={`Decrease capacity for ${group.name}`}
+                            aria-label={isFrench ? `Réduire la capacité de ${group.name}` : `Decrease capacity for ${group.name}`}
                             className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={capacity <= 1}
                             type="button"
@@ -1234,7 +1256,7 @@ export function SessionGroupsBoard({
                             {capacity}
                           </span>
                           <button
-                            aria-label={`Increase capacity for ${group.name}`}
+                            aria-label={isFrench ? `Augmenter la capacité de ${group.name}` : `Increase capacity for ${group.name}`}
                             className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)]"
                             type="button"
                             onClick={() => updateGroupField(group.id, 'capacity', String(capacity + 1))}
@@ -1255,7 +1277,7 @@ export function SessionGroupsBoard({
                         <input name="groupsJson" type="hidden" value={groupsJson} />
                         <input name="sourceGroupId" type="hidden" value={group.id} />
                         <button className="ui-button ui-button-secondary px-3 py-1.5 text-sm" type="submit">
-                          {dirty ? 'Update and save' : 'Save group'}
+                          {dirty ? t.updateAndSave : t.saveGroup}
                         </button>
                       </form>
 
@@ -1264,7 +1286,9 @@ export function SessionGroupsBoard({
                         onSubmit={(event) => {
                           if (
                             !window.confirm(
-                              `Delete ${group.name}? This removes the group and its memberships.`
+                              isFrench
+                                ? `Supprimer ${group.name} ? Cela supprimera le groupe et ses membres.`
+                                : `Delete ${group.name}? This removes the group and its memberships.`
                             )
                           ) {
                             event.preventDefault();
@@ -1274,25 +1298,32 @@ export function SessionGroupsBoard({
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="groupId" type="hidden" value={group.id} />
                         <button className="ui-button ui-button-danger px-3 py-1.5 text-sm" type="submit">
-                          Delete group
+                          {t.deleteGroup}
                         </button>
                       </form>
                     </div>
                   </div>
 
                   <p className="text-sm text-[color:var(--app-fg-muted)]">
-                    {memberCount} member{memberCount === 1 ? '' : 's'} ·{' '}
-                    {remainingSeats >= 0
-                      ? `${remainingSeats} seat${remainingSeats === 1 ? '' : 's'} left`
-                      : `Over capacity by ${Math.abs(remainingSeats)}`}
+                    {isFrench
+                      ? `${memberCount} étudiant${memberCount === 1 ? '' : 's'} · ${
+                          remainingSeats >= 0
+                            ? `${remainingSeats} place${remainingSeats === 1 ? '' : 's'} restante${remainingSeats === 1 ? '' : 's'}`
+                            : `Dépassé de ${Math.abs(remainingSeats)}`
+                        }`
+                      : `${memberCount} member${memberCount === 1 ? '' : 's'} · ${
+                          remainingSeats >= 0
+                            ? `${remainingSeats} seat${remainingSeats === 1 ? '' : 's'} left`
+                            : `Over capacity by ${Math.abs(remainingSeats)}`
+                        }`}
                   </p>
 
                   <div className="grid gap-3">
-                    <div className="text-sm font-medium">Members</div>
+                    <div className="text-sm font-medium">{t.members}</div>
 
                     {group.members.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-[color:var(--app-border)] px-4 py-3 text-sm text-[color:var(--app-fg-muted)]">
-                        No students in this group yet.
+                        {t.noStudentsInGroup}
                       </div>
                     ) : (
                       <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)]">
@@ -1319,7 +1350,7 @@ export function SessionGroupsBoard({
 
                             <div className="flex flex-nowrap items-center gap-2 self-center sm:justify-end">
                               <select
-                                aria-label={`Move ${member.firstName} ${member.lastName} to a group`}
+                                aria-label={isFrench ? `Déplacer ${member.firstName} ${member.lastName} vers un groupe` : `Move ${member.firstName} ${member.lastName} to a group`}
                                 className="ui-select w-[10.5rem] shrink-0"
                                 defaultValue=""
                                 disabled={visibilityActionState !== null || isRandomizingStudents}
@@ -1328,7 +1359,7 @@ export function SessionGroupsBoard({
                                 }
                               >
                                 <option disabled hidden value="">
-                                  Move student to...
+                                  {t.moveStudentTo}
                                 </option>
                                 {groups
                                   .filter((destinationGroup) => destinationGroup.id !== group.id)
@@ -1344,7 +1375,7 @@ export function SessionGroupsBoard({
                                 type="button"
                                 onClick={() => handleRemoveClick(member.id, group.id)}
                               >
-                                Remove
+                                {t.remove}
                               </button>
                             </div>
                           </div>
@@ -1359,13 +1390,15 @@ export function SessionGroupsBoard({
 
           {groups.length === 0 ? (
             <div className="ui-panel p-6 text-sm text-[color:var(--app-fg-muted)]">
-              Create default groups to begin managing memberships.
+              {t.createDefaultGroupsToBeginManagingMemberships}
             </div>
           ) : null}
 
           {hasDirtyGroups ? (
             <div className="ui-chip ui-chip-warning px-4 py-3 text-sm">
-              {dirtyGroups.length} group{dirtyGroups.length === 1 ? '' : 's'} have unsaved changes.
+              {isFrench
+                ? `${dirtyGroups.length} groupe${dirtyGroups.length === 1 ? '' : 's'} ${t.haveUnsavedChanges}`
+                : `${dirtyGroups.length} group${dirtyGroups.length === 1 ? '' : 's'} ${t.haveUnsavedChanges}`}
             </div>
           ) : null}
         </section>

@@ -5,6 +5,8 @@ import type { ChangeEvent, DragEvent } from 'react';
 
 import { importStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
 import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
+import { getUiText } from '@/lib/ui-language';
+import { useUiLanguage } from '@/components/ui-language-toggle';
 import {
   parseStudentImportFile,
   parseStudentImportText,
@@ -34,6 +36,8 @@ export function SessionStudentImport({
   sessionId,
   showBoostcampGuide = true
 }: SessionStudentImportProps) {
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage).sessionStudents;
   const [rows, setRows] = useState<StudentImportPreviewRow[]>([]);
   const [pastedText, setPastedText] = useState('');
   const [parseMessage, setParseMessage] = useState<string>();
@@ -70,7 +74,7 @@ export function SessionStudentImport({
     } catch {
       setRows([]);
       setParseMessage(undefined);
-      setParseError('Unable to read the selected file.');
+      setParseError(uiLanguage === 'fr' ? 'Impossible de lire le fichier sélectionné.' : 'Unable to read the selected file.');
     }
   }
 
@@ -156,10 +160,11 @@ export function SessionStudentImport({
   return (
     <section className="ui-panel grid gap-4 p-6">
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold">Import students</h2>
+        <h2 className="text-xl font-semibold">{t.importStudents}</h2>
         <p className="text-sm text-[color:var(--app-fg-muted)]">
-          Upload a Boostcamp `.xlsx` file, paste roster text, or use a CSV with first name, last
-          name, school email, and optional user ID columns.
+          {uiLanguage === 'fr'
+            ? 'Téléversez un fichier Boostcamp `.xlsx`, collez le texte de la liste, ou utilisez un CSV avec prénom, nom, email scolaire et éventuellement l’ID utilisateur.'
+            : 'Upload a Boostcamp `.xlsx` file, paste roster text, or use a CSV with first name, last name, school email, and optional user ID columns.'}
         </p>
       </div>
 
@@ -178,10 +183,10 @@ export function SessionStudentImport({
         >
           <div className="space-y-1">
             <label className="text-sm font-medium" htmlFor="studentFile">
-              File upload
+              {t.fileUpload}
             </label>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              Drag and drop a `.xlsx` or `.csv` file here, or choose one manually.
+              {t.dragFileHere}
             </p>
           </div>
           <input
@@ -198,7 +203,7 @@ export function SessionStudentImport({
       {mode !== 'file' ? (
         <div className="grid gap-3">
           <label className="text-sm font-medium" htmlFor="pastedText">
-            Or paste Boostcamp roster text
+            {t.pasteRosterText}
           </label>
           <textarea
             className="ui-textarea"
@@ -214,7 +219,7 @@ export function SessionStudentImport({
               onClick={handlePasteParse}
               disabled={!pastedText.trim()}
             >
-              Parse pasted text
+              {t.parsePastedText}
             </button>
           </div>
         </div>
@@ -247,12 +252,12 @@ export function SessionStudentImport({
             <table className="min-w-full divide-y divide-[color:var(--app-border)] text-sm">
               <thead className="text-left text-[color:var(--app-fg-muted)]">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Row</th>
-                  <th className="px-3 py-2 font-medium">User ID</th>
-                  <th className="px-3 py-2 font-medium">First name</th>
-                  <th className="px-3 py-2 font-medium">Last name</th>
-                  <th className="px-3 py-2 font-medium">School email</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">{t.row}</th>
+                  <th className="px-3 py-2 font-medium">{t.userId}</th>
+                  <th className="px-3 py-2 font-medium">{uiLanguage === 'fr' ? 'Prénom' : 'First name'}</th>
+                  <th className="px-3 py-2 font-medium">{uiLanguage === 'fr' ? 'Nom' : 'Last name'}</th>
+                  <th className="px-3 py-2 font-medium">{uiLanguage === 'fr' ? 'Email scolaire' : 'School email'}</th>
+                  <th className="px-3 py-2 font-medium">{t.status}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--app-border)] bg-[color:var(--app-surface)]">
@@ -325,12 +330,12 @@ export function SessionStudentImport({
             <p className="text-sm text-[color:var(--app-fg-muted)]">
               {validRows.length} of {rows.length} row{rows.length > 1 ? 's' : ''} ready to import.
             </p>
-            <button
+              <button
               className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isPending || rows.length === 0 || hasInvalidRows}
               type="submit"
             >
-              {isPending ? 'Importing...' : 'Import valid rows'}
+              {isPending ? t.importing : t.importValidRows}
             </button>
           </div>
         </form>
