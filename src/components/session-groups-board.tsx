@@ -1035,20 +1035,20 @@ export function SessionGroupsBoard({
                         No students in this group yet.
                       </div>
                     ) : (
-                      <div className="overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
+                      <div className="overflow-hidden border border-[color:var(--app-border)] bg-[color:var(--app-surface)]">
                         {group.members.map((member) => (
                           <div
                             key={member.id}
-                            className={`grid cursor-grab gap-3 border-b border-[color:var(--app-border)] px-4 py-3 transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
+                            className={`grid cursor-grab gap-3 border-b border-[color:var(--app-border)] px-3 py-2 transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
                               alert?.kind === 'error' && alert.studentId === member.id
                                 ? 'bg-[color:var(--app-danger)]/5 ring-1 ring-[color:var(--app-danger)]/12'
-                                : 'bg-[color:var(--app-surface-muted)]'
+                                : 'bg-[color:var(--app-surface)]'
                             }`}
                             draggable
                             onDragEnd={handleDragEnd}
                             onDragStart={(event) => handleDragStart(event, member.id, group.id)}
                           >
-                            <div className="min-w-0">
+                            <div className="min-w-0 self-center">
                               <div className="truncate text-sm font-medium">
                                 {member.firstName} {member.lastName}
                               </div>
@@ -1057,7 +1057,7 @@ export function SessionGroupsBoard({
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                            <div className="flex flex-wrap items-center gap-2 self-center sm:justify-end">
                               <select
                                 aria-label={`Move ${member.firstName} ${member.lastName} to a group`}
                                 className="ui-select min-w-[12rem]"
@@ -1085,15 +1085,6 @@ export function SessionGroupsBoard({
                                 onClick={() => handleRemoveClick(member.id, group.id)}
                               >
                                 Remove
-                              </button>
-
-                              <button
-                                className="ui-button ui-button-secondary px-3 py-2 text-sm"
-                                disabled={visibilityActionState !== null || isRandomizingStudents}
-                                type="button"
-                                onClick={() => handleIgnoreStudent(member.id, group.id)}
-                              >
-                                Ignore
                               </button>
                             </div>
                           </div>
