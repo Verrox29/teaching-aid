@@ -2,11 +2,7 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
-import {
-  createDefaultGroupsAction,
-  lockGroupSelectionAction,
-  unlockGroupSelectionAction
-} from './actions';
+import { createDefaultGroupsAction } from './actions';
 
 import { AdminShell } from '@/components/admin-shell';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
@@ -56,17 +52,6 @@ export default async function SessionGroupsPage({
   const session = sessionRows[0];
   await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/groups`);
   const boardSnapshot = await getSessionGroupBoardSnapshot(sessionId);
-  const totalStudents =
-    boardSnapshot.groups.reduce((count, group) => count + group.members.length, 0) +
-    boardSnapshot.unassignedStudents.length;
-  const assignedStudents = boardSnapshot.groups.reduce(
-    (count, group) => count + group.members.length,
-    0
-  );
-  const totalSeatsRemaining = boardSnapshot.groups.reduce(
-    (count, group) => count + Math.max(0, group.capacity - group.members.length),
-    0
-  );
   const boardRevision = JSON.stringify({
     groups: boardSnapshot.groups.map((group) => ({
       id: group.id,
@@ -99,60 +84,6 @@ export default async function SessionGroupsPage({
       subtitle="Group creation"
       title={session.title}
     >
-      <section className="ui-panel grid gap-5 px-4 py-4 sm:px-5 sm:py-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Group selection</h2>
-            <p className="text-sm text-[color:var(--app-fg-muted)]">
-              {session.groupSelectionLocked
-                ? 'Students can view the public page, but cannot join or switch groups.'
-                : 'Students can join or switch groups on the public page.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {session.groupSelectionLocked ? (
-              <form action={unlockGroupSelectionAction}>
-                <input name="sessionId" type="hidden" value={sessionId} />
-                <button className="ui-button ui-button-secondary" type="submit">
-                  Unlock group selection
-                </button>
-              </form>
-            ) : (
-              <form action={lockGroupSelectionAction}>
-                <input name="sessionId" type="hidden" value={sessionId} />
-                <button className="ui-button ui-button-secondary" type="submit">
-                  Lock group selection
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="ui-card p-4">
-            <p className="ui-section-title">Total students</p>
-            <p className="mt-2 text-3xl font-semibold">{totalStudents}</p>
-          </div>
-          <div className="ui-card p-4">
-            <p className="ui-section-title">Assigned</p>
-            <p className="mt-2 text-3xl font-semibold">{assignedStudents}</p>
-          </div>
-          <div className="ui-card p-4">
-            <p className="ui-section-title">Unassigned</p>
-            <p className="mt-2 text-3xl font-semibold">{boardSnapshot.unassignedStudents.length}</p>
-          </div>
-          <div className="ui-card p-4">
-            <p className="ui-section-title">Created groups</p>
-            <p className="mt-2 text-3xl font-semibold">{boardSnapshot.groups.length}</p>
-          </div>
-          <div className="ui-card p-4">
-            <p className="ui-section-title">Seats remaining</p>
-            <p className="mt-2 text-3xl font-semibold">{totalSeatsRemaining}</p>
-          </div>
-        </div>
-      </section>
-
       {boardSnapshot.groups.length === 0 ? (
         <section className="ui-panel p-6">
           <div className="space-y-2">
@@ -186,6 +117,8 @@ export default async function SessionGroupsPage({
         notice={notice}
         sessionId={sessionId}
         sessionTitle={session.title}
+        publicPageHref={`/s/${session.slug}`}
+        groupSelectionLocked={session.groupSelectionLocked}
         unassignedStudents={boardSnapshot.unassignedStudents}
       />
     </AdminShell>

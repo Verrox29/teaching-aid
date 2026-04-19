@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
+import Link from 'next/link';
 
 import {
   createGroupAction,
   deleteGroupAction,
-  saveGroupsAction
+  lockGroupSelectionAction,
+  saveGroupsAction,
+  unlockGroupSelectionAction
 } from '@/app/sessions/[sessionId]/groups/actions';
 
 type StudentRecord = {
@@ -37,7 +40,9 @@ type SessionGroupsBoardProps = {
   errorStudentId?: string;
   groups: InitialGroupRecord[];
   ignoredStudents: StudentRecord[];
+  groupSelectionLocked: boolean;
   notice?: string;
+  publicPageHref: string;
   sessionId: string;
   sessionTitle: string;
   unassignedStudents: StudentRecord[];
@@ -179,26 +184,6 @@ function PencilIcon({ className }: { className?: string }) {
   );
 }
 
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="m6 9 6 6 6-6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
 function ChevronUpIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -210,6 +195,26 @@ function ChevronUpIcon({ className }: { className?: string }) {
     >
       <path
         d="m18 15-6-6-6 6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function ChevronDownSmallIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6 10 6 6 6-6"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -300,7 +305,9 @@ export function SessionGroupsBoard({
   errorStudentId,
   groups: initialGroups,
   ignoredStudents: initialIgnoredStudents,
+  groupSelectionLocked,
   notice,
+  publicPageHref,
   sessionId,
   sessionTitle,
   unassignedStudents: initialUnassignedStudents
@@ -323,6 +330,7 @@ export function SessionGroupsBoard({
   const [visibilityActionState, setVisibilityActionState] =
     useState<VisibilityActionState>(null);
   const [isIgnoredDrawerOpen, setIsIgnoredDrawerOpen] = useState(false);
+  const [isTopPanelExpanded, setIsTopPanelExpanded] = useState(true);
   const [localAlert, setLocalAlert] = useState<AlertState | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState('');
@@ -351,9 +359,22 @@ export function SessionGroupsBoard({
     studentId: errorStudentId
   } : null);
 
+  const totalStudents =
+    groups.reduce((count, group) => count + group.members.length, 0) + unassignedStudents.length;
+  const assignedStudents = groups.reduce((count, group) => count + group.members.length, 0);
+  const totalSeatsRemaining = groups.reduce(
+    (count, group) => count + Math.max(0, Number(group.capacity) - group.members.length),
+    0
+  );
   const hasInvalidGroupCapacity = groups.some(
     (group) => !Number.isFinite(Number(group.capacity)) || Number(group.capacity) < 1
   );
+  const topActionButtonClass = isTopPanelExpanded
+    ? 'ui-button ui-button-secondary'
+    : 'ui-button ui-button-secondary px-3 py-1.5 text-xs';
+  const topPrimaryActionButtonClass = isTopPanelExpanded
+    ? 'ui-button ui-button-primary'
+    : 'ui-button ui-button-primary px-3 py-1.5 text-xs';
 
   useEffect(() => {
     if (!editingGroupId) {
@@ -816,6 +837,119 @@ export function SessionGroupsBoard({
 
   return (
     <section className="grid gap-6">
+      <section className="ui-panel grid gap-4 px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="ui-section-title">Test groups</p>
+            <h2 className="text-lg font-semibold">{sessionTitle} groups</h2>
+            <p className="max-w-3xl text-sm text-[color:var(--app-fg-muted)]">
+              Default group capacity: {defaultGroupCapacity}. Create new groups at any time, drag
+              students between the sidebar and groups, then save the changed cards.
+            </p>
+          </div>
+
+          <button
+            aria-expanded={isTopPanelExpanded}
+            aria-label={isTopPanelExpanded ? 'Collapse top panel' : 'Expand top panel'}
+            className="ui-button ui-button-secondary shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
+            type="button"
+            onClick={() => setIsTopPanelExpanded((current) => !current)}
+          >
+            {isTopPanelExpanded ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link className={topActionButtonClass} href={publicPageHref}>
+            Public page
+          </Link>
+
+          {groupSelectionLocked ? (
+            <form action={unlockGroupSelectionAction}>
+              <input name="sessionId" type="hidden" value={sessionId} />
+              <button className={topActionButtonClass} type="submit">
+                Unlock group selection
+              </button>
+            </form>
+          ) : (
+            <form action={lockGroupSelectionAction}>
+              <input name="sessionId" type="hidden" value={sessionId} />
+              <button className={topActionButtonClass} type="submit">
+                Lock group selection
+              </button>
+            </form>
+          )}
+
+          <button
+            className={topActionButtonClass}
+            disabled={
+              isRandomizingStudents ||
+              hasInvalidGroupCapacity ||
+              visibilityActionState !== null ||
+              groups.length === 0 ||
+              getVisibleStudents().length === 0
+            }
+            type="button"
+            onClick={handleRandomizeEnrollment}
+          >
+            {isRandomizingStudents ? 'Randomizing enrollment...' : 'Randomize enrollment'}
+          </button>
+
+          <form action={createGroupAction}>
+            <input name="sessionId" type="hidden" value={sessionId} />
+            <button className={topActionButtonClass} type="submit">
+              Create new group
+            </button>
+          </form>
+
+          {groups.length > 0 ? (
+            <form
+              action={saveGroupsAction}
+              className="flex items-center gap-2"
+              onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
+            >
+              <input name="sessionId" type="hidden" value={sessionId} />
+              <input name="groupsJson" type="hidden" value={groupsJson} />
+              <button className={topPrimaryActionButtonClass} type="submit">
+                Save all groups
+              </button>
+            </form>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {isTopPanelExpanded ? (
+            <>
+              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
+                <p className="ui-section-title text-[10px]">Total students</p>
+                <p className="text-2xl font-semibold">{totalStudents}</p>
+              </div>
+              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
+                <p className="ui-section-title text-[10px]">Assigned</p>
+                <p className="text-2xl font-semibold">{assignedStudents}</p>
+              </div>
+              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
+                <p className="ui-section-title text-[10px]">Unassigned</p>
+                <p className="text-2xl font-semibold">{unassignedStudents.length}</p>
+              </div>
+              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
+                <p className="ui-section-title text-[10px]">Created groups</p>
+                <p className="text-2xl font-semibold">{groups.length}</p>
+              </div>
+              <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3">
+                <p className="ui-section-title text-[10px]">Seats remaining</p>
+                <p className="text-2xl font-semibold">{totalSeatsRemaining}</p>
+              </div>
+            </>
+          ) : (
+            <div className="ui-card flex aspect-[1.08] min-h-[104px] flex-col justify-between p-3 sm:col-span-2 xl:col-span-1">
+              <p className="ui-section-title text-[10px]">Unassigned</p>
+              <p className="text-2xl font-semibold">{unassignedStudents.length}</p>
+            </div>
+          )}
+        </div>
+      </section>
+
       {alert ? (
         <div
           className={`rounded-2xl border px-4 py-3 text-sm ${
@@ -834,54 +968,6 @@ export function SessionGroupsBoard({
           </div>
         </div>
       ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3 ui-panel px-4 py-3">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">{sessionTitle} groups</h2>
-          <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Default group capacity: {defaultGroupCapacity}. Create new groups at any time, drag
-            students between the sidebar and groups, then save the changed cards.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={
-              isRandomizingStudents ||
-              hasInvalidGroupCapacity ||
-              visibilityActionState !== null ||
-              groups.length === 0 ||
-              getVisibleStudents().length === 0
-            }
-            type="button"
-            onClick={handleRandomizeEnrollment}
-          >
-            {isRandomizingStudents ? 'Randomizing enrollment...' : 'Randomize enrollment'}
-          </button>
-
-          <form action={createGroupAction}>
-            <input name="sessionId" type="hidden" value={sessionId} />
-            <button className="ui-button ui-button-secondary" type="submit">
-              Create new group
-            </button>
-          </form>
-
-          {groups.length > 0 ? (
-            <form
-              action={saveGroupsAction}
-              className="flex items-center gap-2"
-              onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
-            >
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <input name="groupsJson" type="hidden" value={groupsJson} />
-              <button className="ui-button ui-button-primary" type="submit">
-                Save all groups
-              </button>
-            </form>
-          ) : null}
-        </div>
-      </div>
 
       <div
         id="error-targets"
@@ -1047,20 +1133,20 @@ export function SessionGroupsBoard({
 
           <div className="grid gap-4">
             {groups.map((group) => {
-          const memberCount = group.members.length;
-          const remainingSeats = Number(group.capacity) - memberCount;
-          const dirty = isGroupDirty(group);
-          const capacity = Math.max(1, Number(group.capacity) || 1);
+              const memberCount = group.members.length;
+              const remainingSeats = Number(group.capacity) - memberCount;
+              const dirty = isGroupDirty(group);
+              const capacity = Math.max(1, Number(group.capacity) || 1);
 
-          return (
-            <article
-              key={group.id}
-              className={`grid gap-4 rounded-2xl border p-5 transition ${
+              return (
+                <article
+                  key={group.id}
+                  className={`grid gap-4 rounded-2xl border p-5 transition ${
                     alert?.kind === 'error' && alert.groupId === group.id
                       ? 'border-[color:var(--app-danger)]/25 ring-1 ring-[color:var(--app-danger)]/12'
                       : dirty
                         ? 'border-[color:var(--app-warning)]/30 ring-1 ring-[color:var(--app-warning)]/12'
-                : 'border-[color:var(--app-border)] bg-[color:var(--app-surface)]'
+                        : 'border-[color:var(--app-border)] bg-[color:var(--app-surface)]'
                   }`}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => handleGroupDrop(event, group.id)}
@@ -1070,7 +1156,7 @@ export function SessionGroupsBoard({
                       <div className="group relative shrink-0">
                         <button
                           aria-label={`Rename ${group.name}`}
-                          className={`relative flex items-center gap-2 rounded-full border px-2.5 py-1.5 pr-8 text-sm font-semibold transition ${
+                          className={`relative flex items-center gap-2 rounded-full border px-2 py-1 pr-7 text-sm font-semibold transition ${
                             dirty
                               ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
                               : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
@@ -1085,7 +1171,7 @@ export function SessionGroupsBoard({
                           <input
                             ref={editingGroupNameInputRef}
                             aria-label={`Rename ${group.name}`}
-                            className={`absolute inset-0 z-30 w-full rounded-full border px-2.5 py-1.5 pr-8 text-sm font-semibold outline-none ${
+                            className={`absolute inset-0 z-30 w-full rounded-full border px-2 py-1 pr-7 text-sm font-semibold outline-none ${
                               dirty
                                 ? 'border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/8 text-[color:var(--app-fg)]'
                                 : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg)]'
@@ -1122,7 +1208,7 @@ export function SessionGroupsBoard({
                         ) : null}
                         <button
                           aria-label={`Rename ${group.name}`}
-                          className="absolute right-1 top-1/2 z-30 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
+                          className="absolute right-1 top-1/2 z-30 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] opacity-70 transition hover:text-[color:var(--app-fg)] hover:opacity-100"
                           title="Rename group"
                           type="button"
                           onClick={(event) => {
@@ -1130,41 +1216,41 @@ export function SessionGroupsBoard({
                             startEditingGroup(group.id, group.name);
                           }}
                         >
-                          <PencilIcon className="h-3.5 w-3.5" />
+                          <PencilIcon className="h-3 w-3" />
                         </button>
                       </div>
 
                       <span
-                        className={`ui-chip px-2.5 py-1 text-xs ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}
+                        className={`ui-chip px-2 py-0.5 text-[11px] ${dirty ? 'ui-chip-warning' : 'ui-chip-success'}`}
                       >
                         <span aria-hidden>{dirty ? '⚠' : '✓'}</span>
                         {dirty ? 'Unsaved changes' : 'Saved and unchanged'}
                       </span>
 
-                      <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-2 py-1 text-[color:var(--app-fg-muted)]">
+                      <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-1.5 py-0.5 text-[color:var(--app-fg-muted)]">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
-                          Capacity
+                          Cap
                         </span>
-                        <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-1 py-0.5">
+                        <div className="inline-flex items-center gap-0.5 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-1 py-0.5">
                           <button
                             aria-label={`Decrease capacity for ${group.name}`}
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={capacity <= 1}
                             type="button"
                             onClick={() => updateGroupField(group.id, 'capacity', String(capacity - 1))}
                           >
-                            <ChevronDownIcon className="h-3 w-3" />
+                            <ChevronDownSmallIcon className="h-2.5 w-2.5" />
                           </button>
-                          <span className="min-w-5 text-center text-sm font-semibold text-[color:var(--app-fg)]">
+                          <span className="min-w-4 text-center text-xs font-semibold leading-none text-[color:var(--app-fg)]">
                             {capacity}
                           </span>
                           <button
                             aria-label={`Increase capacity for ${group.name}`}
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)]"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-muted)] hover:text-[color:var(--app-fg)]"
                             type="button"
                             onClick={() => updateGroupField(group.id, 'capacity', String(capacity + 1))}
                           >
-                            <ChevronUpIcon className="h-3 w-3" />
+                            <ChevronUpIcon className="h-2.5 w-2.5" />
                           </button>
                         </div>
                       </div>
