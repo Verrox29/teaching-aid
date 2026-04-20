@@ -6,7 +6,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 
 ## Current Teacher/Admin Timeline
 
-1. Pairagogie & students setup: session metadata lives here, `Subject` drives the session title, class language is stored on the session, and student import/update happens from the Step 1 setup flow and the shared Settings flow.
+1. Pairagogie & students setup: session metadata lives here, `Subject` drives the session title, class language is stored on the session, intake/season is edited from the Step 1 header and mirrored in the shared Settings session-context window, and student import/update happens from the Step 1 setup flow and the shared Settings flow.
 2. Group creation: the groups page handles group creation, resize, lock/unlock, public enrolment access, ignore/restore, and membership changes.
 3. AI scoring & feedback: the live evaluation workspace keeps presentation order visible, reads the shared session-wide student-work submissions, autosaves teacher notes, and uses per-group and batch AI support alongside manual scoring.
 4. Grille & grades export: exports stay template-driven, the shared export/admin settings live in the sessions hub rather than inside a session page, the hub also exposes the session-wide student-work upload entry point and retention visibility, and `/sessions` resumes into the last meaningful admin step/page.
@@ -45,7 +45,7 @@ The presentation order & upload page still exists as the detailed group-level up
   - cloned group sheets from `Fiche éval group 1`
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
-- Step 1 is Pairagogie & students setup: session metadata stays there, `Subject` drives the session title, class language is stored on the session, and student import/update opens in the floating setup modal from the session page
+- Step 1 is Pairagogie & students setup: session metadata stays there, `Subject` drives the session title, class language is stored on the session, intake/season remains a shared session context field exposed in Step 1 and the shared Settings flow, and student import/update opens in the floating setup modal from the session page
 - Step 2 is Group creation: groups are managed on the groups page, including resize, lock/unlock, public enrolment access, ignore/restore, and membership changes
 - Step 3 is AI scoring & feedback: the evaluation workspace handles teacher scoring, notes, roster adjustments, batch AI support, per-group feedback workflows, and keeps presentation order visible during live review
 - Step 4 is Grille & grades export: exports stay template-driven, use the current Pairagogie mapping layer, and the shared export/admin settings live in the sessions hub behind a password gate rather than inside a session page
@@ -74,6 +74,7 @@ The presentation order & upload page still exists as the detailed group-level up
 - Shared admin header stays centralized across session admin pages and keeps only the top-level session controls plus the timeline bar
 - The shared admin header is the persistent top bar for session admin pages
 - Session context is edited from the shared Settings flow, and assignment brief editing also lives there
+- The Step 1 header and the shared Settings session-context window both expose the same session intake/season field
 - Teacher admin floating windows use a small modal stack so nested windows show a Back button while top-level windows opened from the page/header do not
 - In the shared Settings flow, Pairagogie & students setup opens the students setup window, while Session context opens the edit-session-context window directly
 - Global export/admin settings live in the sessions hub behind a password gate; session pages no longer surface that settings experience
