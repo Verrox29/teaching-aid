@@ -273,6 +273,10 @@ export function SessionAdminHeaderControls({
                       {state.sessionContext.programme || shared.notSet}
                     </p>
                     <p>
+                      <span className="font-medium text-[color:var(--app-fg)]">{t.intake}:</span>{' '}
+                      {state.sessionContext.season || shared.notSet}
+                    </p>
+                    <p>
                       <span className="font-medium text-[color:var(--app-fg)]">{shared.date}:</span>{' '}
                       {state.sessionContext.sessionDate || shared.notSet}
                     </p>
