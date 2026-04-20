@@ -46,6 +46,8 @@ export const BRANCHING_AI_PROMPT_DEFAULTS: Record<
       'Use the uploaded work and presentation content as the main source of truth for this specific group.',
       'Avoid trivia, generic comprehension checks, or broad topic-survey questions unless they are directly grounded in what this group actually presented.',
       'Ask about what they wrote, built, chose, or explained, so a student has to defend the submitted work itself.',
+      'Each question should name or clearly paraphrase at least one concrete detail from the presentation or submission, such as a slide number, quoted phrase, statistic, chart, example, method, or stated action.',
+      'If the presentation includes a specific line, claim, or slide, use that as the anchor for the question.',
       'If the session language is French, write the questions in clear French and address the presenting group directly with "vous".',
       'Do not use indirect wording such as "ce groupe" or long copied fragments from the submission.',
       'Make each regeneration feel fresh by varying which angle is emphasized.',

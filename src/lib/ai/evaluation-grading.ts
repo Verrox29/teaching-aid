@@ -639,7 +639,11 @@ function normalizeChallengeQuestionText(value: string, language: 'en' | 'fr') {
     return null;
   }
 
-  if (/[0-9]/.test(normalized)) {
+  if (!/[A-Za-zÀ-ÿ]/.test(normalized)) {
+    return null;
+  }
+
+  if (normalized.split(/\s+/g).filter(Boolean).length < 3) {
     return null;
   }
 
@@ -724,6 +728,7 @@ function buildChallengeQuestionRuntimeScaffold(renderedPrompt: string, input: Ev
     '- Anchor every question in the specific presentation/work submitted by this group, not just the broad topic.',
     '- Ask what the students must defend about what they actually presented, wrote, built, or chose.',
     '- Avoid generic topic-survey questions unless they are directly grounded in the submitted work.',
+    '- Prefer a concrete anchor from the presentation or submission, such as a slide number, quoted phrase, statistic, chart, example, method, or stated action.',
     '- Address the presenting group directly with "vous" when the session language is French.',
     '- Do not use indirect wording such as "ce groupe" or copy long fragments from the submission.',
     '- Keep each question concise, natural, and easy to say aloud.',
@@ -1011,6 +1016,7 @@ export async function generateBranchingAiChallengeQuestions(
       'Return 2 or 3 concise oral-defense questions.',
       'Anchor every question in the specific presentation/work submitted by this group.',
       'Do not drift into generic overview questions about the broad topic unless they are directly tied to the submitted work.',
+      'Each question should reference at least one concrete detail from the presentation or submission, such as a slide number, quoted phrase, statistic, chart, example, method, or stated action.',
       'Address the presenting group directly with "vous" when the session language is French.',
       'Do not use indirect wording such as "ce groupe".',
       'Avoid long copied fragments from the submission.',

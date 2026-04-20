@@ -343,6 +343,43 @@ function isHumanReadablePhrase(value: string) {
   return weirdCharacters / Math.max(1, line.length) <= 0.2;
 }
 
+function isHumanReadableChallengePhrase(value: string) {
+  const line = value.replace(/\s+/g, ' ').trim();
+  if (!line) {
+    return false;
+  }
+
+  if (/[\\^_`~<>[\]{}|]/.test(line)) {
+    return false;
+  }
+
+  const words = stripDiacritics(line)
+    .toLowerCase()
+    .split(/[^a-z]+/g)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  if (words.length < 2) {
+    return false;
+  }
+
+  if (words.some((word) => word.length > 18)) {
+    return false;
+  }
+
+  const meaningfulWords = words.filter((word) => word.length >= 3);
+  if (meaningfulWords.length < 2) {
+    return false;
+  }
+
+  if (!meaningfulWords.every(looksLikeNaturalWord)) {
+    return false;
+  }
+
+  const weirdCharacters = (line.match(/[^A-Za-z0-9À-ÿ\s.,;:!?'"()\-–—/&%+]/g) ?? []).length;
+  return weirdCharacters / Math.max(1, line.length) <= 0.2;
+}
+
 function safeTopicPhrase(value: string | null | undefined, language: EvaluationLanguage) {
   const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
   if (!normalized || !isHumanReadablePhrase(normalized)) {
@@ -380,24 +417,78 @@ function isSafeQuestionAnchor(value: string | null | undefined) {
     return false;
   }
 
-  if (/[0-9]/.test(normalized)) {
-    return false;
-  }
-
   if (/(.)\1{4,}/.test(normalized)) {
     return false;
   }
 
-  if (!isHumanReadablePhrase(normalized)) {
+  if (!isHumanReadableChallengePhrase(normalized)) {
     return false;
   }
 
-  const stripped = stripDiacritics(normalized).toLowerCase();
-  if (!/[aeiouy]/.test(stripped)) {
+  if (!/[A-Za-zÀ-ÿ]/.test(normalized)) {
+    return false;
+  }
+
+  if (tokenizeWords(normalized).length < 3) {
     return false;
   }
 
   return true;
+}
+
+function extractConcreteChallengeAnchors(
+  text: string,
+  language: EvaluationLanguage
+) {
+  const anchors: string[] = [];
+  const fragments = [
+    ...splitSentences(text),
+    ...text
+      .replace(/\r/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+  ];
+
+  for (const fragment of fragments) {
+    const quotedMatches = [...fragment.matchAll(/[“"«](.{8,140}?)[”"»]/g)];
+
+    for (const match of quotedMatches) {
+      const quote = match[1]?.trim() ?? '';
+      if (!quote) {
+        continue;
+      }
+
+      const focusedQuote = trimQuestionFocus(quote, language);
+      if (isSafeQuestionAnchor(focusedQuote) && !anchors.includes(focusedQuote)) {
+        anchors.push(focusedQuote);
+      }
+    }
+  }
+
+  for (const fragment of fragments) {
+    if (!/(slide|diapo|page|section|partie)\s*\d*/i.test(fragment)) {
+      continue;
+    }
+
+    const focusedFragment = trimQuestionFocus(fragment, language);
+    if (isSafeQuestionAnchor(focusedFragment) && !anchors.includes(focusedFragment)) {
+      anchors.push(focusedFragment);
+    }
+  }
+
+  for (const fragment of fragments) {
+    if (tokenizeWords(fragment).length < 4) {
+      continue;
+    }
+
+    const focusedFragment = trimQuestionFocus(fragment, language);
+    if (isSafeQuestionAnchor(focusedFragment) && !anchors.includes(focusedFragment)) {
+      anchors.push(focusedFragment);
+    }
+  }
+
+  return anchors;
 }
 
 function pickSafeAnchor(
@@ -415,16 +506,19 @@ function pickSafeAnchor(
 
 function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, language: EvaluationLanguage) {
   const content = input.submissionText?.trim() ?? '';
+  const concreteAnchors = extractConcreteChallengeAnchors(content, language);
   const sentences = splitSentences(content);
   const meaningfulSentences = sentences
     .filter((sentence) => tokenizeWords(sentence).length >= 6)
     .map((sentence) => trimQuestionFocus(sentence, language))
-    .filter(isHumanReadablePhrase)
+    .filter(isSafeQuestionAnchor)
     .filter(Boolean);
-  const teacherSentences = splitSentences(input.teacherComments?.trim() ?? '')
+  const teacherContent = input.teacherComments?.trim() ?? '';
+  const teacherConcreteAnchors = extractConcreteChallengeAnchors(teacherContent, language);
+  const teacherSentences = splitSentences(teacherContent)
     .filter((sentence) => tokenizeWords(sentence).length >= 4)
     .map((sentence) => trimQuestionFocus(sentence, language))
-    .filter(isHumanReadablePhrase)
+    .filter(isSafeQuestionAnchor)
     .filter(Boolean);
   const fallbackTopic =
     safeTopicPhrase(input.subject, language) ||
@@ -432,12 +526,14 @@ function extractSubmissionAnchors(input: EvaluationChallengeQuestionInput, langu
     safeTopicPhrase(input.teacherComments, language) ||
     (language === 'fr' ? 'la présentation' : 'the presentation');
 
-  const primaryAnchor = meaningfulSentences[0] ?? fallbackTopic;
+  const primaryAnchor = concreteAnchors[0] ?? meaningfulSentences[0] ?? fallbackTopic;
   const secondaryAnchor =
+    concreteAnchors.find((sentence) => sentence !== primaryAnchor) ??
     meaningfulSentences.find((sentence) => sentence !== primaryAnchor) ??
+    teacherConcreteAnchors[0] ??
     teacherSentences[0] ??
     fallbackTopic;
-  const critiqueAnchor = teacherSentences[0] ?? fallbackTopic;
+  const critiqueAnchor = teacherConcreteAnchors[0] ?? teacherSentences[0] ?? fallbackTopic;
 
   return {
     primaryAnchor,
