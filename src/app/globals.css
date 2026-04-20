@@ -111,7 +111,7 @@ a {
     font-weight: 650;
     letter-spacing: -0.035em;
     text-transform: uppercase;
-    color: color-mix(in srgb, var(--app-fg) 84%, var(--app-fg-muted) 16%);
+    color: var(--app-fg-muted);
   }
 
   .ui-page-copy {
