@@ -88,7 +88,7 @@ const UI_TEXT = {
       class: 'Class',
       subject: 'Subject',
       intake: 'Intake',
-      season: 'Season',
+      season: 'Intake',
       professor: 'Professor',
       presentationDate: 'Presentation date',
       pairagogieSetup: 'Pairagogie & students setup',
