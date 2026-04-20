@@ -243,7 +243,6 @@ function PublicPageQrModal({
             <div className="space-y-1">
               <p className="ui-section-title">{title}</p>
               <h2 className="text-xl font-semibold">{title}</h2>
-              <p className="text-sm text-[color:var(--app-fg-muted)]">{subtitle}</p>
             </div>
             <button
               className="ui-button ui-button-secondary px-3 py-2 text-sm"
@@ -259,8 +258,8 @@ function PublicPageQrModal({
               <div className="rounded-2xl bg-white p-4">
                 <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
               </div>
-              <figcaption className="max-w-[16rem] text-center text-sm font-medium leading-5 text-[color:var(--app-fg-muted)]">
-                {title}
+              <figcaption className="max-w-[16rem] text-center text-sm leading-5 text-[color:var(--app-fg-muted)]">
+                {subtitle}
               </figcaption>
             </figure>
             <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={publicPageHref}>
