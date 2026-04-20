@@ -204,33 +204,31 @@ export function SessionAdminHeaderControls({
             </div>
           </div>
 
-          {currentStep === 1 ? (
-            <div className="grid gap-2">
-              <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="ui-section-title">{t.pairagogieSetup}</p>
-                    <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      Import students, refresh the roster, and keep the setup current.
-                    </p>
-                  </div>
-                  <Link
-                    className="ui-button ui-button-secondary px-3 py-2 text-sm"
-                    href={`/sessions/${sessionId}/students?setup=1`}
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                    {t.edit}
-                  </Link>
+          <div className="grid gap-2">
+            <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="ui-section-title">{t.pairagogieSetup}</p>
+                  <p className="text-sm text-[color:var(--app-fg-muted)]">
+                    Import students, refresh the roster, and keep the setup current.
+                  </p>
                 </div>
+                <Link
+                  className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                  href={`/sessions/${sessionId}/students?setup=1`}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  {t.edit}
+                </Link>
+              </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
-                    {t.openStudentsSetup}
-                  </Link>
-                </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
+                  {t.openStudentsSetup}
+                </Link>
               </div>
             </div>
-          ) : null}
+          </div>
 
           <div className="grid gap-2">
             <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
