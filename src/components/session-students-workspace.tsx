@@ -321,30 +321,37 @@ export function SessionStudentsWorkspace({
   return (
     <div className="grid gap-6">
       <section className="ui-panel grid gap-5 p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="ui-section-title">{t.pageTitle}</p>
-              <h2 className="text-xl font-semibold">{t.metadataTitle}</h2>
-              <p className="text-sm text-[color:var(--app-fg-muted)]">
-                {t.metadataDescription}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="ui-section-title">{t.pageTitle}</p>
+            <h2 className="text-xl font-semibold">{t.metadataTitle}</h2>
+            <p className="text-sm text-[color:var(--app-fg-muted)]">
+              {t.metadataDescription}
+            </p>
+            {metadataSuggestions.className || metadataSuggestions.programme ? (
+              <p className="text-xs text-[color:var(--app-fg-muted)]">
+                {t.suggestedFromImport}
               </p>
-              <p className="text-sm text-[color:var(--app-fg-muted)]">
-                <span className="font-medium text-[color:var(--app-fg)]">
-                  {getUiText(uiLanguage).sessionAdmin.intake}:
-                </span>{' '}
-                {metadataDraft.season || shared.notSet}
-              </p>
-              {metadataSuggestions.className || metadataSuggestions.programme ? (
-                <p className="text-xs text-[color:var(--app-fg-muted)]">
-                  {t.suggestedFromImport}
-                </p>
-              ) : null}
-            </div>
+            ) : null}
           </div>
+          <label className="grid gap-2 text-sm font-medium sm:min-w-[18rem] sm:max-w-[22rem]">
+            <span>{getUiText(uiLanguage).sessionAdmin.intake}</span>
+            <select
+              className="ui-select"
+              form="session-students-metadata-form"
+              name="season"
+              onChange={(event) => updateMetadataField('season', event.target.value)}
+              value={metadataDraft.season}
+            >
+              <option value="">{shared.notSet}</option>
+              <option value="Fall">Fall intake</option>
+              <option value="Spring">Spring intake</option>
+            </select>
+          </label>
+        </div>
 
-        <form action={saveExportMetadataAction} className="grid gap-4">
+        <form action={saveExportMetadataAction} className="grid gap-4" id="session-students-metadata-form">
           <input name="sessionId" type="hidden" value={sessionId} />
-          <input name="season" type="hidden" value={metadataDraft.season} readOnly />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium">
               {getUiText(uiLanguage).shared.programme}
