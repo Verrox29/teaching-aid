@@ -335,17 +335,16 @@ export function SessionStudentsWorkspace({
             ) : null}
           </div>
           <label className="grid gap-2 text-sm font-medium sm:min-w-[18rem] sm:max-w-[22rem]">
-            <span>{getUiText(uiLanguage).sessionAdmin.intake}</span>
+            <span>{getUiText(uiLanguage).sessionAdmin.season}</span>
             <select
               className="ui-select"
               form="session-students-metadata-form"
               name="season"
               onChange={(event) => updateMetadataField('season', event.target.value)}
-              value={metadataDraft.season}
+              value={metadataDraft.season || 'Fall'}
             >
-              <option value="">{shared.notSet}</option>
-              <option value="Fall">Fall intake</option>
-              <option value="Spring">Spring intake</option>
+              <option value="Fall">Fall</option>
+              <option value="Spring">Spring</option>
             </select>
           </label>
         </div>

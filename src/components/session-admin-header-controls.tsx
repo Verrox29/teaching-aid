@@ -443,7 +443,13 @@ export function SessionAdminHeaderControls({
               {t.subject}
               <input className="ui-input" defaultValue={state.sessionContext.subject} name="subject" />
             </label>
-            <input name="season" type="hidden" value={state.sessionContext.season} readOnly />
+            <label className="grid gap-2 text-sm font-medium">
+              {t.season}
+              <select className="ui-select" defaultValue={state.sessionContext.season || 'Fall'} name="season">
+                <option value="Fall">Fall</option>
+                <option value="Spring">Spring</option>
+              </select>
+            </label>
             <label className="grid gap-2 text-sm font-medium">
               {t.professor}
               <input className="ui-input" defaultValue={state.sessionContext.professorName} name="professorName" />
