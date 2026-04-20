@@ -87,9 +87,17 @@ export function GroupStudentWorkUploadAction({
   const [open, setOpen] = useState(false);
   const { uiLanguage } = useUiLanguage();
   const t = getUiText(uiLanguage).groupSubmission;
+  const hasUploadedFile = Boolean(fileName?.trim());
 
   return (
-    <>
+    <div className="flex flex-col items-center gap-1">
+      {hasUploadedFile ? (
+        <span className="ui-chip ui-chip-success inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium">
+          <span aria-hidden="true">✓</span>
+          Uploaded
+        </span>
+      ) : null}
+
       <button
         aria-label={t.uploadGroupWork}
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-soft)] hover:text-[color:var(--app-fg)]"
@@ -111,6 +119,6 @@ export function GroupStudentWorkUploadAction({
           submittedAt={submittedAt}
         />
       ) : null}
-    </>
+    </div>
   );
 }
