@@ -29,8 +29,11 @@ export function AdminTimelineNav({
   slug
 }: AdminTimelineNavProps) {
   return (
-    <nav aria-label="Admin timeline" className="ui-panel overflow-hidden p-1.5">
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+    <nav
+      aria-label="Admin timeline"
+      className="overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-1"
+    >
+      <div className="flex gap-1 overflow-x-auto pb-0.5">
         {adminSteps.map((step) => {
           const href = step.href(sessionId, slug);
           const isActive = step.step === currentStep;
