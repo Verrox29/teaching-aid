@@ -492,7 +492,7 @@ const UI_TEXT = {
       close: 'Fermer',
       class: 'Classe',
       subject: 'Sujet',
-      intake: 'Promotion',
+      intake: 'Rentrée',
       professor: 'Professeur',
       presentationDate: 'Date de présentation',
       pairagogieSetup: 'Pairagogie & étudiants',

@@ -337,6 +337,7 @@ export function SessionStudentsWorkspace({
 
         <form action={saveExportMetadataAction} className="grid gap-4">
           <input name="sessionId" type="hidden" value={sessionId} />
+          <input name="season" type="hidden" value={metadataDraft.season} readOnly />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium">
               {getUiText(uiLanguage).shared.programme}
@@ -401,37 +402,17 @@ export function SessionStudentsWorkspace({
               />
             </label>
           </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <label className="grid gap-2 text-sm font-medium sm:min-w-[18rem] sm:max-w-[22rem]">
-              {getUiText(uiLanguage).sessionAdmin.intake}
-              <select
-                className="ui-select"
-                name="season"
-                onChange={(event) => updateMetadataField('season', event.target.value)}
-                value={metadataDraft.season}
-                required
-              >
-                <option disabled value="">
-                  {uiLanguage === 'fr' ? 'Choisir la promotion' : 'Choose intake'}
-                </option>
-                <option value="Fall">Fall intake</option>
-                <option value="Spring">Spring intake</option>
-              </select>
-            </label>
-
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <button
-                className="ui-button ui-button-secondary"
-                onClick={() => setImportOpen(true)}
-                type="button"
-              >
-                {t.studentsImportButton}
-              </button>
-              <button className="ui-button ui-button-primary" type="submit">
-                {t.saveSetup}
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              className="ui-button ui-button-secondary"
+              onClick={() => setImportOpen(true)}
+              type="button"
+            >
+              {t.studentsImportButton}
+            </button>
+            <button className="ui-button ui-button-primary" type="submit">
+              {t.saveSetup}
+            </button>
           </div>
         </form>
       </section>
