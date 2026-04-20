@@ -13,6 +13,8 @@ import {
   unlockGroupSelectionAction
 } from '@/app/sessions/[sessionId]/groups/actions';
 import { AppModal, AppPendingFormBridge, useInteractionFeedback } from '@/components/app-interaction-feedback';
+import { GroupStudentWorkUploadAction } from '@/components/group-student-work-upload-action';
+import { SessionUploadStudentsWorkAction } from '@/components/session-upload-students-work-action';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
 
@@ -49,6 +51,11 @@ type SessionGroupsBoardProps = {
   publicPageHref: string;
   sessionId: string;
   sessionTitle: string;
+  studentWorkSubmissions: Array<{
+    fileName: string | null;
+    groupId: string;
+    submittedAt: string | null;
+  }>;
   unassignedStudents: StudentRecord[];
 };
 
@@ -378,11 +385,13 @@ export function SessionGroupsBoard({
   publicPageHref,
   sessionId,
   sessionTitle,
+  studentWorkSubmissions,
   unassignedStudents: initialUnassignedStudents
 }: SessionGroupsBoardProps) {
   const { uiLanguage } = useUiLanguage();
   const { runPending } = useInteractionFeedback();
   const t = getUiText(uiLanguage).sessionGroups;
+  const groupsPath = `/sessions/${sessionId}/groups`;
   const [groups, setGroups] = useState<GroupRecord[]>(() => copyGroups(initialGroups));
   const [unassignedStudents, setUnassignedStudents] = useState<StudentRecord[]>(() =>
     sortStudentsStable(initialUnassignedStudents)
@@ -421,6 +430,20 @@ export function SessionGroupsBoard({
         ])
       ),
     [initialGroups]
+  );
+  const studentWorkSubmissionByGroupId = useMemo(
+    () => new Map(studentWorkSubmissions.map((submission) => [submission.groupId, submission])),
+    [studentWorkSubmissions]
+  );
+  const studentWorkGroups = useMemo(
+    () =>
+      groups.map((group) => ({
+        fileName: studentWorkSubmissionByGroupId.get(group.id)?.fileName ?? null,
+        groupId: group.id,
+        groupName: group.name,
+        submittedAt: studentWorkSubmissionByGroupId.get(group.id)?.submittedAt ?? null
+      })),
+    [groups, studentWorkSubmissionByGroupId]
   );
 
   const groupsJson = useMemo(() => saveAllPayload(groups), [groups]);
@@ -996,6 +1019,14 @@ export function SessionGroupsBoard({
                 </button>
               </form>
 
+              <SessionUploadStudentsWorkAction
+                groups={studentWorkGroups}
+                triggerClassName={topActionButtonClass}
+                returnTo={groupsPath}
+                sessionId={sessionId}
+                sessionTitle={sessionTitle}
+              />
+
               {groups.length > 0 ? (
                 <form
                   action={saveGroupsAction}
@@ -1363,6 +1394,15 @@ export function SessionGroupsBoard({
                     </div>
 
                     <div className="flex flex-nowrap items-center gap-2">
+                      <GroupStudentWorkUploadAction
+                        fileName={studentWorkSubmissionByGroupId.get(group.id)?.fileName ?? null}
+                        groupId={group.id}
+                        groupName={group.name}
+                        returnTo={groupsPath}
+                        sessionId={sessionId}
+                        submittedAt={studentWorkSubmissionByGroupId.get(group.id)?.submittedAt ?? null}
+                      />
+
                       <form
                         action={saveGroupsAction}
                         className="flex items-center gap-2"

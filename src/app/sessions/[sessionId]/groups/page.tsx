@@ -8,7 +8,8 @@ import { createDefaultGroupsAction } from './actions';
 import { AdminShell } from '@/components/admin-shell';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
-import { db, sessions } from '@/db';
+import { db, sessions, submissions } from '@/db';
+import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
 import { getSessionGroupBoardSnapshot } from '@/lib/session-group-board';
 import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
@@ -38,6 +39,8 @@ export default async function SessionGroupsPage({
   const errorStudentId = getSingleValue(search.errorStudentId);
   const errorGroupId = getSingleValue(search.errorGroupId);
 
+  await cleanupExpiredSubmissions();
+
   const sessionRows = await db
     .select({
       id: sessions.id,
@@ -57,7 +60,17 @@ export default async function SessionGroupsPage({
 
   const session = sessionRows[0];
   await recordSessionAdminPath(sessionId, `/sessions/${sessionId}/groups`);
-  const boardSnapshot = await getSessionGroupBoardSnapshot(sessionId);
+  const [boardSnapshot, submissionRows] = await Promise.all([
+    getSessionGroupBoardSnapshot(sessionId),
+    db
+      .select({
+        fileName: submissions.title,
+        groupId: submissions.groupId,
+        submittedAt: submissions.submittedAt
+      })
+      .from(submissions)
+      .where(eq(submissions.sessionId, sessionId))
+  ]);
   const boardRevision = JSON.stringify({
     groups: boardSnapshot.groups.map((group) => ({
       id: group.id,
@@ -138,6 +151,11 @@ export default async function SessionGroupsPage({
         notice={notice}
         sessionId={sessionId}
         sessionTitle={session.title}
+        studentWorkSubmissions={submissionRows.map((submission) => ({
+          fileName: submission.fileName,
+          groupId: submission.groupId,
+          submittedAt: submission.submittedAt ? submission.submittedAt.toISOString() : null
+        }))}
         publicPageHref={`/s/${session.slug}`}
         groupSelectionLocked={session.groupSelectionLocked}
         unassignedStudents={boardSnapshot.unassignedStudents}

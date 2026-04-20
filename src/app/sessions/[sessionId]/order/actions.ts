@@ -10,6 +10,7 @@ import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES } from '@/lib/group-submission';
 import { getOrderedGroups, randomizePresentationOrder } from './presentation-order';
 
 const orderPath = (sessionId: string) => `/sessions/${sessionId}/order`;
+const groupsPath = (sessionId: string) => `/sessions/${sessionId}/groups`;
 const evaluationPath = (sessionId: string) => `/sessions/${sessionId}/evaluation`;
 const sessionHubPath = (sessionId: string) => `/sessions/${sessionId}`;
 
@@ -63,6 +64,44 @@ function resolveSubmissionReturnPath(sessionId: string, returnTo: string | undef
   }
 
   return returnTo === '/sessions' || returnTo.startsWith(`/sessions/${sessionId}`) ? returnTo : fallback;
+}
+
+function redirectSubmissionMessage(
+  sessionId: string,
+  returnTo: string | undefined,
+  kind: 'notice' | 'error',
+  message: string
+): never {
+  const params = new URLSearchParams({ [kind]: message });
+  redirect(`${resolveSubmissionReturnPath(sessionId, returnTo)}?${params.toString()}`);
+}
+
+async function persistGroupSubmission(input: {
+  file: File;
+  groupId: string;
+  sessionId: string;
+}) {
+  const existingSubmission = await db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(and(eq(submissions.sessionId, input.sessionId), eq(submissions.groupId, input.groupId)))
+    .limit(1);
+
+  const content = Buffer.from(await input.file.arrayBuffer()).toString('base64');
+
+  await db.transaction(async (tx) => {
+    if (existingSubmission.length > 0) {
+      await tx.delete(submissions).where(eq(submissions.id, existingSubmission[0].id));
+    }
+
+    await tx.insert(submissions).values({
+      sessionId: input.sessionId,
+      groupId: input.groupId,
+      title: input.file.name,
+      content,
+      submittedAt: new Date()
+    });
+  });
 }
 
 export async function randomizePresentationOrderAction(formData: FormData): Promise<never> {
@@ -165,47 +204,134 @@ export async function uploadGroupSubmissionAction(formData: FormData): Promise<n
 
   const group = groupRows[0] ?? null;
   if (!group) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Group not found.');
+    redirectSubmissionMessage(parsed.data.sessionId, parsed.data.returnTo, 'error', 'Group not found.');
   }
 
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
-    redirectWithMessage(parsed.data.sessionId, 'error', 'Please choose a file to upload.');
+    redirectSubmissionMessage(
+      parsed.data.sessionId,
+      parsed.data.returnTo,
+      'error',
+      'Please choose a file to upload.'
+    );
   }
 
   if (file.size > GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES) {
-    redirectWithMessage(
+    redirectSubmissionMessage(
       parsed.data.sessionId,
+      parsed.data.returnTo,
       'error',
       `File is too large. Max file size is ${GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`
     );
   }
 
-  const existingSubmission = await db
-    .select({ id: submissions.id })
-    .from(submissions)
-    .where(and(eq(submissions.sessionId, parsed.data.sessionId), eq(submissions.groupId, group.id)))
-    .limit(1);
-
-  const content = Buffer.from(await file.arrayBuffer()).toString('base64');
-
-  await db.transaction(async (tx) => {
-    if (existingSubmission.length > 0) {
-      await tx.delete(submissions).where(eq(submissions.id, existingSubmission[0].id));
-    }
-
-    await tx.insert(submissions).values({
-      sessionId: parsed.data.sessionId,
-      groupId: group.id,
-      title: file.name,
-      content,
-      submittedAt: new Date()
-    });
+  await persistGroupSubmission({
+    file,
+    groupId: group.id,
+    sessionId: parsed.data.sessionId
   });
 
   revalidatePath(orderPath(parsed.data.sessionId));
+  revalidatePath(groupsPath(parsed.data.sessionId));
   revalidatePath(sessionHubPath(parsed.data.sessionId));
   const returnPath = resolveSubmissionReturnPath(parsed.data.sessionId, parsed.data.returnTo);
   const params = new URLSearchParams({ notice: `${file.name} uploaded for ${group.name}.` });
   redirect(`${returnPath}?${params.toString()}`);
+}
+
+export async function uploadSelectedGroupSubmissionsAction(formData: FormData): Promise<never> {
+  const parsed = z
+    .object({
+      sessionId: z.string().uuid('Invalid session id'),
+      returnTo: z.string().optional()
+    })
+    .safeParse({
+      sessionId: String(formData.get('sessionId') ?? ''),
+      returnTo: String(formData.get('returnTo') ?? '') || undefined
+    });
+
+  if (!parsed.success) {
+    redirectWithMessage(String(formData.get('sessionId') ?? 'invalid'), 'error', 'Invalid session id.');
+  }
+
+  const session = await getSession(parsed.data.sessionId);
+  if (!session) {
+    redirectSubmissionMessage(parsed.data.sessionId, parsed.data.returnTo, 'error', 'Session not found.');
+  }
+
+  const groupIds = [...new Set(formData.getAll('groupId').map((value) => String(value)).filter(Boolean))];
+  if (groupIds.length === 0) {
+    redirectSubmissionMessage(parsed.data.sessionId, parsed.data.returnTo, 'error', 'Group not found.');
+  }
+
+  const groupRows = await db
+    .select({
+      id: groups.id,
+      name: groups.name
+    })
+    .from(groups)
+    .where(and(eq(groups.sessionId, parsed.data.sessionId), inArray(groups.id, groupIds)));
+
+  if (groupRows.length !== groupIds.length) {
+    redirectSubmissionMessage(parsed.data.sessionId, parsed.data.returnTo, 'error', 'Group not found.');
+  }
+
+  const groupById = new Map(groupRows.map((group) => [group.id, group]));
+  const uploads: Array<{ file: File; groupId: string; groupName: string }> = [];
+
+  for (const groupId of groupIds) {
+    const file = formData.get(`file:${groupId}`);
+    if (!(file instanceof File) || file.size === 0) {
+      continue;
+    }
+
+    if (file.size > GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES) {
+      redirectSubmissionMessage(
+        parsed.data.sessionId,
+        parsed.data.returnTo,
+        'error',
+        `File is too large. Max file size is ${GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`
+      );
+    }
+
+    const group = groupById.get(groupId);
+    if (!group) {
+      redirectSubmissionMessage(parsed.data.sessionId, parsed.data.returnTo, 'error', 'Group not found.');
+    }
+
+    uploads.push({
+      file,
+      groupId,
+      groupName: group.name
+    });
+  }
+
+  if (uploads.length === 0) {
+    redirectSubmissionMessage(
+      parsed.data.sessionId,
+      parsed.data.returnTo,
+      'error',
+      'Please choose at least one file to upload.'
+    );
+  }
+
+  for (const upload of uploads) {
+    await persistGroupSubmission({
+      file: upload.file,
+      groupId: upload.groupId,
+      sessionId: parsed.data.sessionId
+    });
+  }
+
+  revalidatePath(orderPath(parsed.data.sessionId));
+  revalidatePath(groupsPath(parsed.data.sessionId));
+  revalidatePath(sessionHubPath(parsed.data.sessionId));
+
+  const notice =
+    uploads.length === 1
+      ? `${uploads[0].file.name} uploaded for ${uploads[0].groupName}.`
+      : `${uploads.length} files uploaded.`;
+
+  redirectSubmissionMessage(parsed.data.sessionId, parsed.data.returnTo, 'notice', notice);
 }
