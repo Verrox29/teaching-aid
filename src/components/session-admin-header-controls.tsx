@@ -7,12 +7,14 @@ import { saveSessionContextAction, saveSessionInstructionsAction, undoSessionCon
 import type { SessionAdminHeaderState } from '@/lib/session-admin-state';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
+import { SessionDeleteAction } from '@/components/session-delete-action';
 
 import { ThemeToggle } from './theme-toggle';
 import { UiLanguageToggle } from './ui-language-toggle';
 
 type SessionAdminHeaderControlsProps = {
   sessionId: string;
+  sessionTitle: string;
   slug: string;
   currentStep?: number;
   state: SessionAdminHeaderState;
@@ -178,7 +180,13 @@ function ActionModal({
   );
 }
 
-export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state }: SessionAdminHeaderControlsProps) {
+export function SessionAdminHeaderControls({
+  sessionId,
+  sessionTitle,
+  slug,
+  currentStep,
+  state
+}: SessionAdminHeaderControlsProps) {
   type FloatingModal = 'settings' | 'editSessionContext' | 'editAssignmentBrief';
 
   const [modalStack, setModalStack] = useState<FloatingModal[]>([]);
@@ -350,6 +358,20 @@ export function SessionAdminHeaderControls({ sessionId, slug, currentStep, state
                     </button>
                   </form>
                 ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="rounded-2xl border border-[color:var(--app-danger)]/20 bg-[color:var(--app-danger)]/8 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="ui-section-title text-[color:var(--app-danger)]">{shared.deleteSession}</p>
+                  <p className="text-sm text-[color:var(--app-fg-muted)]">
+                    {shared.deleteSessionConfirmBody.replace('{title}', sessionTitle)}
+                  </p>
+                </div>
+                <SessionDeleteAction sessionId={sessionId} sessionTitle={sessionTitle} />
               </div>
             </div>
           </div>

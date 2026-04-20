@@ -31,7 +31,15 @@ const UI_TEXT = {
       publicEnrolmentPage: 'Public Enrolment page',
       programme: 'Programme',
       date: 'Date',
-      notSet: 'Not set'
+      notSet: 'Not set',
+      close: 'Close',
+      cancel: 'Cancel',
+      deleteSession: 'Delete session',
+      deleteSessionConfirmTitle: 'Delete session?',
+      deleteSessionConfirmBody:
+        'This action is intentional and cannot be undone. Deleting "{title}" will remove the session and all dependent data.',
+      deleteSessionConfirmAction: 'Delete session',
+      deletingSession: 'Deleting...'
     },
     sessionsHub: {
       title: 'Sessions',
@@ -404,7 +412,15 @@ const UI_TEXT = {
       publicEnrolmentPage: "Page publique d'inscription",
       programme: 'Programme',
       date: 'Date',
-      notSet: 'Non défini'
+      notSet: 'Non défini',
+      close: 'Fermer',
+      cancel: 'Annuler',
+      deleteSession: 'Supprimer la session',
+      deleteSessionConfirmTitle: 'Supprimer la session ?',
+      deleteSessionConfirmBody:
+        'Cette action est intentionnelle et ne peut pas être annulée. Supprimer "{title}" retirera la session et toutes les données dépendantes.',
+      deleteSessionConfirmAction: 'Supprimer la session',
+      deletingSession: 'Suppression...'
     },
     sessionsHub: {
       title: 'Sessions',

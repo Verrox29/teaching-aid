@@ -3,6 +3,7 @@ import { desc } from 'drizzle-orm';
 
 import { AdminShell } from '@/components/admin-shell';
 import { GlobalSettingsButton } from '@/components/global-settings-button';
+import { SessionDeleteAction } from '@/components/session-delete-action';
 import { db, sessions } from '@/db';
 import { cookies } from 'next/headers';
 import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
@@ -91,33 +92,41 @@ export default async function SessionsPage() {
                     })}
                   </td>
                   <td className="px-4 py-3">
-                    <Link
-                      className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                      href={`/sessions/${session.id}`}
-                    >
-                      {t.resume}
-                    </Link>
-                    <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                    <Link
-                      className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                      href={`/s/${session.slug}`}
-                    >
-                      {t.public}
-                    </Link>
-                    <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                    <Link
-                      className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                      href={`/sessions/${session.id}/students`}
-                    >
-                      {t.setup}
-                    </Link>
-                    <span className="px-2 text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                    <Link
-                      className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                      href={`/sessions/${session.id}/groups`}
-                    >
-                      {t.groups}
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Link
+                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
+                        href={`/sessions/${session.id}`}
+                      >
+                        {t.resume}
+                      </Link>
+                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
+                      <Link
+                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
+                        href={`/s/${session.slug}`}
+                      >
+                        {t.public}
+                      </Link>
+                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
+                      <Link
+                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
+                        href={`/sessions/${session.id}/students`}
+                      >
+                        {t.setup}
+                      </Link>
+                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
+                      <Link
+                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
+                        href={`/sessions/${session.id}/groups`}
+                      >
+                        {t.groups}
+                      </Link>
+                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
+                      <SessionDeleteAction
+                        sessionId={session.id}
+                        sessionTitle={session.title}
+                        triggerClassName="inline-flex items-center gap-1 text-sm font-medium text-[color:var(--app-danger)] underline-offset-4 hover:underline"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))

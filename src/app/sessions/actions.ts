@@ -51,6 +51,10 @@ export type CreateSessionFormState = {
   values: CreateSessionFormValues;
 };
 
+export type DeleteSessionFormState = {
+  error?: string;
+};
+
 function slugify(value: string) {
   const normalized = value
     .normalize('NFKD')
@@ -382,4 +386,43 @@ export async function undoSessionInstructionsAction(formData: FormData): Promise
   revalidatePath(routes.exports);
   revalidatePath(routes.settings);
   revalidatePath(routes.publicPage);
+}
+
+export async function deleteSessionAction(
+  _prevState: DeleteSessionFormState,
+  formData: FormData
+): Promise<DeleteSessionFormState> {
+  const parsed = z
+    .object({
+      sessionId: z.string().uuid('Invalid session id')
+    })
+    .safeParse({
+      sessionId: String(formData.get('sessionId') ?? '')
+    });
+
+  if (!parsed.success) {
+    return {
+      error: 'Invalid session id.'
+    };
+  }
+
+  const { sessionId } = parsed.data;
+  const sessionRows = await db
+    .select({
+      id: sessions.id
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+  const session = sessionRows[0] ?? null;
+
+  if (!session) {
+    return {
+      error: 'Session not found.'
+    };
+  }
+
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
+  revalidatePath('/sessions');
+  redirect('/sessions');
 }

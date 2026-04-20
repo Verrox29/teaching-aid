@@ -245,11 +245,12 @@ function PublicPageQrModal({
               <h2 className="text-xl font-semibold">{title}</h2>
             </div>
             <button
-              className="ui-button ui-button-secondary px-3 py-2 text-sm"
+              aria-label={closeLabel}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-sm font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
               onClick={onClose}
               type="button"
             >
-              {closeLabel}
+              <XIcon className="h-4 w-4" />
             </button>
           </div>
 
@@ -270,6 +271,27 @@ function PublicPageQrModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M5.5 5.5L14.5 14.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M14.5 5.5L5.5 14.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
 

@@ -70,6 +70,7 @@ export async function AdminShell({
                 <SessionAdminHeaderControls
                   currentStep={currentStep}
                   sessionId={sessionId}
+                  sessionTitle={sessionHeaderState.sessionTitle || title}
                   slug={slug}
                   state={sessionHeaderState}
                 />
