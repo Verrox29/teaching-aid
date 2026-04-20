@@ -7,11 +7,11 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 ## Current Teacher/Admin Timeline
 
 1. Pairagogie & students setup: session metadata lives here, `Subject` drives the session title, class language is stored on the session, intake/season is edited from the Step 1 header and mirrored in the shared Settings session-context window, and student import/update happens from the Step 1 setup flow and the shared Settings flow.
-2. Group creation: the groups page handles group creation, resize, lock/unlock, public enrolment access, ignore/restore, and membership changes.
+2. Group creation: the groups page handles group creation, resize, lock/unlock, public enrolment access, ignore/restore, membership changes, and student-work upload entry points.
 3. AI scoring & feedback: the live evaluation workspace keeps presentation order visible, reads the shared session-wide student-work submissions, autosaves teacher notes, and uses per-group and batch AI support alongside manual scoring.
-4. Grille & grades export: exports stay template-driven, Pairagogie uses the shared workbook mapping, the export step exposes the final Excel workbook plus debug preview and CSV downloads, and the sessions hub also exposes the session-wide student-work upload entry point and retention visibility. `/sessions` resumes into the last meaningful admin step/page.
+4. Grille & grades export: exports stay template-driven, Pairagogie uses the shared workbook mapping, the export step exposes the final Excel workbook plus debug preview and CSV downloads, and student-work upload, retention, and download entry points are available from the Groups page and the Sessions hub. `/sessions` resumes into the last meaningful admin step/page.
 
-The presentation order & upload page still exists as the detailed group-level upload workflow, but the same session-wide submission data is also available from the Sessions hub through a modal entry point.
+The presentation order page still exists as the detailed ordering workflow, and the same session-wide submission data is also available from the Groups page and the Sessions hub through modal upload and download entry points.
 
 ## Completed Modules
 
@@ -26,7 +26,8 @@ The presentation order & upload page still exists as the detailed group-level up
 - Branching AI admin settings (Module 1)
 - Export architecture/module has been implemented and validated in Local mode against the real repo files, including a debug export preview for Pairagogie mapping review
 - Session deletion with shared confirmation flow and cascade-backed removal
-- Sessions hub student-work upload entry point with shared per-group modal uploads and 10-day submission retention
+- Sessions hub student-work upload and download entry points with shared per-group modal uploads, 10-day submission retention, and a ZIP download path
+- Sessions hub interactive retention badge and lock badge confirmation flow
 - Shared admin header / shell
 - Shared admin header / shell now owns the top-level session controls, timeline, and session-language badge
 
@@ -46,10 +47,12 @@ The presentation order & upload page still exists as the detailed group-level up
 - Pairagogie export includes a debug preview mode that writes semantic labels into mapped cells while keeping template formulas
 - Pairagogie export dynamically extends the report sheet and group-sheet student area by copying template row styling when the data exceeds the visible base rows
 - Step 1 is Pairagogie & students setup: session metadata stays there, `Subject` drives the session title, class language is stored on the session, intake/season remains a shared session context field exposed in Step 1 and the shared Settings flow, and student import/update opens in the floating setup modal from the session page
-- Step 2 is Group creation: groups are managed on the groups page, including resize, lock/unlock, public enrolment access, ignore/restore, and membership changes
+- Step 2 is Group creation: groups are managed on the groups page, including resize, lock/unlock, public enrolment access, ignore/restore, membership changes, and student-work upload entry points
 - Step 3 is AI scoring & feedback: the evaluation workspace handles teacher scoring, notes, roster adjustments, batch AI support, per-group feedback workflows, and keeps presentation order visible during live review
 - Step 4 is Grille & grades export: exports stay template-driven, use the current Pairagogie mapping layer, and the shared export/admin settings live in the sessions hub behind a password gate rather than inside a session page
 - Session resume from `/sessions` uses the last meaningful admin step/page when available; otherwise it opens Pairagogie & students setup, with evaluation as the fallback once presentation order or uploads already exist
+- Sessions hub student-work visibility is session-wide: the hub shows the latest expiry for current uploads, opens a modal with per-group expiry and per-file downloads, and offers a ZIP archive for downloading all current uploads
+- Sessions hub group selection status is interactive in the hub: the badge opens a confirmation modal before locking or unlocking groups
 - Session/business fields:
   - `programme`
   - `className`
@@ -79,12 +82,13 @@ The presentation order & upload page still exists as the detailed group-level up
 - Teacher admin floating windows use a small modal stack so nested windows show a Back button while top-level windows opened from the page/header do not
 - In the shared Settings flow, Pairagogie & students setup opens the students setup window, while Session context opens the edit-session-context window directly
 - Global export/admin settings live in the sessions hub behind a password gate; session pages no longer surface that settings experience
-- Sessions hub row actions are intentionally limited to student-work upload and session deletion
+- Sessions hub row actions are intentionally limited to student-work upload/download access and session deletion, while the group-lock state is exposed as a clickable hub badge with confirmation
 - Session deletion uses one shared destructive confirmation flow from both the shared Settings modal and the sessions hub, and the backend deletes the session row so the existing cascade relations remove dependent data
 - New-session onboarding starts from Step 1 and auto-opens the students setup modal once, then uses the shared admin controls afterward
 - Session language is stored on the session row and is used by evaluation/AI behavior
-- Student work uploads are session-wide, stored in `submissions`, and reused by the order, evaluation, and export flows
+- Student work uploads are session-wide, stored in `submissions`, surfaced from the Groups page and the Sessions hub, and reused by the order, evaluation, and export flows
 - Student work retention is 10 days from the real upload timestamp when available, with request-time cleanup on the read paths that surface submissions
+- Student work downloads reuse the same `submissions` data path: current uploads are fetched per group, and the hub can bundle all current uploads into a server-generated ZIP archive
 
 ## Known Issues / Items That Still Need Validation
 
