@@ -61,6 +61,8 @@ const UI_TEXT = {
       public: 'Public',
       setup: 'Setup',
       groups: 'Groups',
+      uploadStudentsWork: 'Upload students work',
+      createGroupsFirst: 'Create groups first.',
       noWorkUploaded: 'No work uploaded yet.',
       deletesOn: 'Deletes on {date}'
     },
@@ -464,6 +466,8 @@ const UI_TEXT = {
       public: 'Public',
       setup: 'Setup',
       groups: 'Groupes',
+      uploadStudentsWork: 'Téléverser le travail des étudiants',
+      createGroupsFirst: 'Créez d’abord les groupes.',
       noWorkUploaded: 'Aucun travail téléversé pour le moment.',
       deletesOn: 'Supprimé le {date}'
     },

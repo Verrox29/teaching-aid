@@ -25,7 +25,8 @@ const moveSchema = z.object({
 
 const uploadSchema = z.object({
   sessionId: z.string().uuid('Invalid session id'),
-  groupId: z.string().uuid('Invalid group id')
+  groupId: z.string().uuid('Invalid group id'),
+  returnTo: z.string().optional()
 });
 
 function redirectWithMessage(
@@ -53,6 +54,15 @@ async function getSession(sessionId: string) {
 
 function redirectNotice(sessionId: string, message: string): never {
   redirectWithMessage(sessionId, 'notice', message);
+}
+
+function resolveSubmissionReturnPath(sessionId: string, returnTo: string | undefined) {
+  const fallback = orderPath(sessionId);
+  if (!returnTo) {
+    return fallback;
+  }
+
+  return returnTo === '/sessions' || returnTo.startsWith(`/sessions/${sessionId}`) ? returnTo : fallback;
 }
 
 export async function randomizePresentationOrderAction(formData: FormData): Promise<never> {
@@ -131,7 +141,8 @@ export async function movePresentationOrderAction(formData: FormData): Promise<n
 export async function uploadGroupSubmissionAction(formData: FormData): Promise<never> {
   const parsed = uploadSchema.safeParse({
     sessionId: String(formData.get('sessionId') ?? ''),
-    groupId: String(formData.get('groupId') ?? '')
+    groupId: String(formData.get('groupId') ?? ''),
+    returnTo: String(formData.get('returnTo') ?? '') || undefined
   });
 
   if (!parsed.success) {
@@ -194,5 +205,7 @@ export async function uploadGroupSubmissionAction(formData: FormData): Promise<n
 
   revalidatePath(orderPath(parsed.data.sessionId));
   revalidatePath(sessionHubPath(parsed.data.sessionId));
-  redirectNotice(parsed.data.sessionId, `${file.name} uploaded for ${group.name}.`);
+  const returnPath = resolveSubmissionReturnPath(parsed.data.sessionId, parsed.data.returnTo);
+  const params = new URLSearchParams({ notice: `${file.name} uploaded for ${group.name}.` });
+  redirect(`${returnPath}?${params.toString()}`);
 }

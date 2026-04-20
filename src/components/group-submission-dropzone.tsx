@@ -11,6 +11,7 @@ type GroupSubmissionDropzoneProps = {
   fileName?: string | null;
   groupId: string;
   groupName: string;
+  returnPath?: string;
   sessionId: string;
   submittedAt?: string | null;
 };
@@ -19,6 +20,7 @@ export function GroupSubmissionDropzone({
   fileName,
   groupId,
   groupName,
+  returnPath,
   sessionId,
   submittedAt
 }: GroupSubmissionDropzoneProps) {
@@ -129,6 +131,7 @@ export function GroupSubmissionDropzone({
     >
       <input name="sessionId" type="hidden" value={sessionId} />
       <input name="groupId" type="hidden" value={groupId} />
+      {returnPath ? <input name="returnTo" type="hidden" value={returnPath} /> : null}
 
       <div className="grid gap-2 text-[color:var(--app-fg-muted)]">
         <p className="font-medium text-[color:var(--app-fg)]">{t.uploadGroupWork}</p>
