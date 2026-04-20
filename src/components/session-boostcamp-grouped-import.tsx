@@ -303,7 +303,7 @@ export function SessionBoostcampGroupedImport({
       setSelectedClassNames([]);
       setDecisions({});
       setParseMessage(undefined);
-      setParseError('Please upload a CSV file exported from Boostcamp.');
+      setParseError('Please upload a Boostcamp CSV file.');
       setDebugInfo({
         decodingUsed: 'unknown',
         detectedDelimiter: 'unknown',
@@ -482,8 +482,8 @@ export function SessionBoostcampGroupedImport({
       <div className="space-y-1">
         <h2 className="text-xl font-semibold">Boostcamp grouped import</h2>
         <p className="text-sm text-[color:var(--app-fg-muted)]">
-          Upload the Boostcamp CSV, resolve any unmatched rows, choose the classes to keep, then
-          confirm the groups to create.
+          Upload the Boostcamp CSV file, resolve any unmatched rows, choose the classes to keep,
+          then confirm the groups to create.
         </p>
       </div>
 
@@ -504,7 +504,7 @@ export function SessionBoostcampGroupedImport({
             CSV upload
           </label>
           <p className="text-sm text-[color:var(--app-fg-muted)]">
-            Drag and drop a CSV here, or choose the Boostcamp export manually.
+            Drag and drop a CSV here, or choose the CSV file exported from Boostcamp.
           </p>
         </div>
         <input

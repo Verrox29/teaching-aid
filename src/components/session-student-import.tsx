@@ -162,9 +162,7 @@ export function SessionStudentImport({
       <div className="space-y-1">
         <h2 className="text-xl font-semibold">{t.importStudents}</h2>
         <p className="text-sm text-[color:var(--app-fg-muted)]">
-          {uiLanguage === 'fr'
-            ? 'Téléversez un fichier Boostcamp `.xlsx`, collez le texte de la liste, ou utilisez un CSV avec prénom, nom, email scolaire et éventuellement l’ID utilisateur.'
-            : 'Upload a Boostcamp `.xlsx` file, paste roster text, or use a CSV with first name, last name, school email, and optional user ID columns.'}
+          {t.importHelp}
         </p>
       </div>
 
