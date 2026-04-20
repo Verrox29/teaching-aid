@@ -27,8 +27,7 @@ const UI_TEXT = {
     shared: {
       teacherAdmin: 'Teacher admin',
       sessions: 'Sessions',
-      backToSessionsList: 'Back to sessions list',
-      publicEnrolmentPage: 'Public Enrolment page',
+      backToSessionsHub: 'Back to sessions hub',
       programme: 'Programme',
       date: 'Date',
       notSet: 'Not set',
@@ -429,8 +428,7 @@ const UI_TEXT = {
     shared: {
       teacherAdmin: 'Admin enseignant',
       sessions: 'Sessions',
-      backToSessionsList: 'Retour à la liste des sessions',
-      publicEnrolmentPage: "Page publique d'inscription",
+      backToSessionsHub: 'Retour au hub des sessions',
       programme: 'Programme',
       date: 'Date',
       notSet: 'Non défini',

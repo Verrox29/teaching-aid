@@ -15,7 +15,6 @@ import { UiLanguageToggle } from './ui-language-toggle';
 type SessionAdminHeaderControlsProps = {
   sessionId: string;
   sessionTitle: string;
-  slug: string;
   currentStep?: number;
   state: SessionAdminHeaderState;
 };
@@ -183,7 +182,6 @@ function ActionModal({
 export function SessionAdminHeaderControls({
   sessionId,
   sessionTitle,
-  slug,
   currentStep,
   state
 }: SessionAdminHeaderControlsProps) {
@@ -228,18 +226,12 @@ export function SessionAdminHeaderControls({
 
   return (
     <>
-      <div className="flex w-full flex-wrap items-center justify-between gap-3">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href="/sessions">
             <ArrowLeftIcon className="h-4 w-4" />
-            {shared.backToSessionsList}
+            {shared.backToSessionsHub}
           </Link>
-          <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/s/${slug}`}>
-            {shared.publicEnrolmentPage}
-          </Link>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
           <button
             aria-haspopup="dialog"
             aria-expanded={modalStack.length > 0}

@@ -37,6 +37,9 @@ export async function AdminShell({
   const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
   const t = getUiText(uiLanguage);
   const classBadgeLabel = sessionHeaderState?.sessionContext.className?.trim() || t.shared.notSet;
+  const programmeBadgeLabel = sessionHeaderState?.sessionContext.programme?.trim() || t.shared.notSet;
+  const sessionDateBadgeLabel = sessionHeaderState?.sessionContext.sessionDate?.trim() || t.shared.notSet;
+  const sessionLanguageBadgeLabel = sessionHeaderState?.sessionLanguage === 'fr' ? 'FR' : 'EN';
 
   return (
     <main className="min-h-screen">
@@ -46,23 +49,23 @@ export async function AdminShell({
         >
           {isSessionAdminPage && sessionId && slug && sessionHeaderState ? (
             <div className="grid gap-2.5">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
                 <div className="min-w-0 space-y-1.5">
                   <h1 className="text-[clamp(1.7rem,2.2vw,2.55rem)] font-semibold leading-[0.96] tracking-[-0.04em] text-[color:var(--app-fg)]">
                     {sessionHeaderState.sessionTitle || title}
                   </h1>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="ui-chip ui-chip-accent px-2.5 py-1 text-[11px]">
+                    <span className="ui-chip ui-chip-accent shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px]">
                       {classBadgeLabel}
                     </span>
-                    <span className="ui-chip px-2.5 py-1 text-[11px]">
-                      {t.shared.programme} {sessionHeaderState.sessionContext.programme || t.shared.notSet}
+                    <span className="ui-chip shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px]">
+                      {t.shared.programme} {programmeBadgeLabel}
                     </span>
-                    <span className="ui-chip px-2.5 py-1 text-[11px]">
-                      {t.shared.date} {sessionHeaderState.sessionContext.sessionDate || t.shared.notSet}
+                    <span className="ui-chip shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px]">
+                      {t.shared.date} {sessionDateBadgeLabel}
                     </span>
-                    <span className="ui-chip px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
-                      {sessionHeaderState.sessionLanguage === 'fr' ? 'FR' : 'EN'}
+                    <span className="ui-chip shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                      {sessionLanguageBadgeLabel}
                     </span>
                   </div>
                 </div>
@@ -71,7 +74,6 @@ export async function AdminShell({
                   currentStep={currentStep}
                   sessionId={sessionId}
                   sessionTitle={sessionHeaderState.sessionTitle || title}
-                  slug={slug}
                   state={sessionHeaderState}
                 />
               </div>
