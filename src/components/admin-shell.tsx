@@ -55,7 +55,7 @@ export async function AdminShell({
             <div className="grid gap-2.5">
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
                 <div className="min-w-0 space-y-1.5">
-                  <h1 className="text-[clamp(1.7rem,2.2vw,2.55rem)] font-semibold leading-[0.96] tracking-[-0.04em] text-[color:var(--app-fg)]">
+                  <h1 className="ui-page-title ui-page-title-session">
                     {sessionHeaderState.sessionTitle || title}
                   </h1>
                   <div className="flex flex-wrap items-center gap-1.5">

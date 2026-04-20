@@ -105,6 +105,11 @@ a {
     color: var(--app-fg);
   }
 
+  .ui-page-title-session {
+    font-size: clamp(2.15rem, 2.8vw, 3.2rem);
+    line-height: 0.95;
+  }
+
   .ui-page-copy {
     color: var(--app-fg-muted);
     line-height: 1.6;
