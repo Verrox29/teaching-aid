@@ -487,7 +487,7 @@ export function SessionBoostcampGroupedImport({
         </p>
       </div>
 
-      <BoostcampExportGuide />
+      <BoostcampExportGuide mode="csv" />
 
       <div
         className={`grid gap-3 rounded-2xl border border-dashed px-4 py-4 transition ${

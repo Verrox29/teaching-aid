@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { saveExportMetadataAction } from '@/app/sessions/[sessionId]/exports/actions';
-import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
 import { SessionBoostcampGroupedImport } from '@/components/session-boostcamp-grouped-import';
 import { SessionStudentImport } from '@/components/session-student-import';
 import { getUiText } from '@/lib/ui-language';
@@ -228,7 +227,6 @@ export function SessionStudentsWorkspace({
             </button>
           </div>
 
-          <BoostcampExportGuide />
         </section>
       );
     }
@@ -268,7 +266,6 @@ export function SessionStudentsWorkspace({
           )}
         </div>
 
-        <BoostcampExportGuide />
       </section>
     );
   }
@@ -281,7 +278,6 @@ export function SessionStudentsWorkspace({
           mode="full"
           onImportApplied={handleImportApplied}
           sessionId={sessionId}
-          showBoostcampGuide
         />
       );
     }
@@ -303,7 +299,6 @@ export function SessionStudentsWorkspace({
           mode="paste"
           onImportApplied={handleImportApplied}
           sessionId={sessionId}
-          showBoostcampGuide
         />
       );
     }
@@ -315,7 +310,6 @@ export function SessionStudentsWorkspace({
           mode="file"
           onImportApplied={handleImportApplied}
           sessionId={sessionId}
-          showBoostcampGuide
         />
       );
     }

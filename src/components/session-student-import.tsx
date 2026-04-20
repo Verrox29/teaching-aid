@@ -19,7 +19,6 @@ type SessionStudentImportProps = {
   onImportApplied?: () => void;
   sessionId: string;
   mode?: 'full' | 'file' | 'paste';
-  showBoostcampGuide?: boolean;
 };
 
 type ImportActionState = {
@@ -33,8 +32,7 @@ export function SessionStudentImport({
   existingEmails,
   onImportApplied,
   mode = 'full',
-  sessionId,
-  showBoostcampGuide = true
+  sessionId
 }: SessionStudentImportProps) {
   const { uiLanguage } = useUiLanguage();
   const t = getUiText(uiLanguage).sessionStudents;
@@ -166,7 +164,8 @@ export function SessionStudentImport({
         </p>
       </div>
 
-      {showBoostcampGuide ? <BoostcampExportGuide /> : null}
+      {mode === 'file' ? <BoostcampExportGuide mode="csv" /> : null}
+      {mode === 'paste' ? <BoostcampExportGuide mode="text" /> : null}
 
       {mode !== 'paste' ? (
         <div
