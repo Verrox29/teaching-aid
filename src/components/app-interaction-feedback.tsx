@@ -89,13 +89,20 @@ function PendingOverlay({ entries }: { entries: PendingEntry[] }) {
   const label = entries[entries.length - 1]?.label ?? 'Working...';
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-[color:rgba(17,12,25,0.48)] px-4 py-6 backdrop-blur-[2px]">
-      <div className="mt-2 inline-flex items-center gap-3 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-4 py-2 text-sm font-medium text-[color:var(--app-fg)] shadow-lg">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[color:rgba(17,12,25,0.48)] px-4 backdrop-blur-[2px]">
+      <div
+        aria-live="polite"
+        className="flex flex-col items-center gap-4 rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-7 py-6 text-center text-sm font-medium text-[color:var(--app-fg)] shadow-xl"
+        role="status"
+      >
         <span
           aria-hidden="true"
-          className="h-4 w-4 animate-spin rounded-full border-2 border-[color:var(--app-accent)] border-t-transparent"
+          className="h-12 w-12 animate-spin rounded-full border-[3px] border-[color:var(--app-accent)] border-t-transparent"
         />
-        <span>{label}</span>
+        <div className="space-y-1">
+          <p className="text-base font-semibold">{label}</p>
+          <p className="text-xs font-normal text-[color:var(--app-fg-muted)]">Please wait while the app finishes this action.</p>
+        </div>
       </div>
     </div>,
     document.body

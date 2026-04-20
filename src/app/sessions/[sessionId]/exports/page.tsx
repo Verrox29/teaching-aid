@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
+import { ExportDownloadButton } from '@/components/export-download-button';
 import { db, sessions } from '@/db';
 import {
   getActiveExportVersions,
@@ -165,45 +166,31 @@ export default async function SessionExportsPage({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {exportReady ? (
-            <Link className="ui-button ui-button-primary" href={`/api/sessions/${sessionId}/exports/pairagogie`}>
-              Download Pairagogie Excel
-            </Link>
-          ) : (
-            <span className="ui-button ui-button-primary cursor-not-allowed opacity-50">
-              Download Pairagogie Excel
-            </span>
-          )}
-          {exportReady ? (
-            <Link
-              className="ui-button ui-button-secondary"
-              href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
-            >
-              Download debug preview
-            </Link>
-          ) : (
-            <span className="ui-button ui-button-secondary cursor-not-allowed opacity-50">
-              Download debug preview
-            </span>
-          )}
-          {exportReady ? (
-            <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/grades`}>
-              Download grades CSV
-            </Link>
-          ) : (
-            <span className="ui-button ui-button-secondary cursor-not-allowed opacity-50">
-              Download grades CSV
-            </span>
-          )}
-          {exportReady ? (
-            <Link className="ui-button ui-button-secondary" href={`/api/sessions/${sessionId}/exports/groups`}>
-              Download groups CSV
-            </Link>
-          ) : (
-            <span className="ui-button ui-button-secondary cursor-not-allowed opacity-50">
-              Download groups CSV
-            </span>
-          )}
+          <ExportDownloadButton
+            downloadName={`pairagogie-${session.slug}.xlsx`}
+            disabled={!exportReady}
+            href={`/api/sessions/${sessionId}/exports/pairagogie`}
+            label="Download Pairagogie Excel"
+            variant="primary"
+          />
+          <ExportDownloadButton
+            downloadName={`pairagogie-debug-${session.slug}.xlsx`}
+            disabled={!exportReady}
+            href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
+            label="Download debug preview"
+          />
+          <ExportDownloadButton
+            downloadName={`grades-${session.slug}.csv`}
+            disabled={!exportReady}
+            href={`/api/sessions/${sessionId}/exports/grades`}
+            label="Download grades CSV"
+          />
+          <ExportDownloadButton
+            downloadName={`groups-${session.slug}.csv`}
+            disabled={!exportReady}
+            href={`/api/sessions/${sessionId}/exports/groups`}
+            label="Download groups CSV"
+          />
         </div>
       </section>
     </AdminShell>
