@@ -105,6 +105,15 @@ a {
     color: var(--app-fg);
   }
 
+  .ui-session-admin-title {
+    font-size: clamp(1.35rem, 1.45vw, 1.65rem);
+    line-height: 0.96;
+    font-weight: 650;
+    letter-spacing: -0.035em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--app-fg) 84%, var(--app-fg-muted) 16%);
+  }
+
   .ui-page-copy {
     color: var(--app-fg-muted);
     line-height: 1.6;
