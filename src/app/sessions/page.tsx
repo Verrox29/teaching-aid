@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { AdminShell } from '@/components/admin-shell';
 import { GlobalSettingsButton } from '@/components/global-settings-button';
 import { SessionDeleteAction } from '@/components/session-delete-action';
-import { db, sessions } from '@/db';
+import { db, sessionExportMetadata, sessions } from '@/db';
 import { cookies } from 'next/headers';
 import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
@@ -13,18 +13,23 @@ export const dynamic = 'force-dynamic';
 export default async function SessionsPage() {
   const cookieStore = await cookies();
   const uiLanguage = getUiLanguageFromCookieValue(cookieStore.get(UI_LANGUAGE_COOKIE_NAME)?.value);
-  const t = getUiText(uiLanguage).sessionsHub;
+  const uiText = getUiText(uiLanguage);
+  const t = uiText.sessionsHub;
+  const shared = uiText.shared;
+  const sessionAdmin = uiText.sessionAdmin;
   const sessionList = await db
     .select({
+      className: sessionExportMetadata.className,
+      sessionDate: sessionExportMetadata.sessionDate,
       id: sessions.id,
       title: sessions.title,
       language: sessions.language,
-      slug: sessions.slug,
       groupSelectionLocked: sessions.groupSelectionLocked,
       presentationOrderLocked: sessions.presentationOrderLocked,
       createdAt: sessions.createdAt
     })
     .from(sessions)
+    .leftJoin(sessionExportMetadata, eq(sessionExportMetadata.sessionId, sessions.id))
     .orderBy(desc(sessions.createdAt));
 
   return (
@@ -46,8 +51,9 @@ export default async function SessionsPage() {
           <thead className="text-left text-[color:var(--app-fg-muted)]">
             <tr>
               <th className="px-4 py-3 font-medium">{t.columns.title}</th>
+              <th className="px-4 py-3 font-medium">{sessionAdmin.class}</th>
+              <th className="px-4 py-3 font-medium">{shared.date}</th>
               <th className="px-4 py-3 font-medium">{t.columns.language}</th>
-              <th className="px-4 py-3 font-medium">{t.columns.slug}</th>
               <th className="px-4 py-3 font-medium">{t.columns.groupLock}</th>
               <th className="px-4 py-3 font-medium">{t.columns.orderLock}</th>
               <th className="px-4 py-3 font-medium">{t.columns.created}</th>
@@ -57,20 +63,28 @@ export default async function SessionsPage() {
           <tbody className="divide-y divide-[color:var(--app-border)]">
             {sessionList.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={7}>
+                <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={8}>
                   {t.empty}
                 </td>
               </tr>
             ) : (
               sessionList.map((session) => (
                 <tr key={session.id} className="text-[color:var(--app-fg)]">
-                  <td className="px-4 py-3 font-medium">{session.title}</td>
-                  <td className="px-4 py-3">{session.language}</td>
-                  <td className="px-4 py-3">
-                    <code className="rounded-full bg-[color:var(--app-surface-muted)] px-2.5 py-1 text-xs text-[color:var(--app-fg-muted)]">
-                      {session.slug}
-                    </code>
+                  <td className="px-4 py-3 font-medium">
+                    <Link
+                      className="font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
+                      href={`/sessions/${session.id}`}
+                    >
+                      {session.title}
+                    </Link>
                   </td>
+                  <td className="px-4 py-3">
+                    {session.className?.trim() || shared.notSet}
+                  </td>
+                  <td className="px-4 py-3">
+                    {session.sessionDate?.trim() || shared.notSet}
+                  </td>
+                  <td className="px-4 py-3">{session.language}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`ui-chip ${session.groupSelectionLocked ? 'ui-chip-warning' : 'ui-chip-success'}`}
@@ -92,41 +106,11 @@ export default async function SessionsPage() {
                     })}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <Link
-                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                        href={`/sessions/${session.id}`}
-                      >
-                        {t.resume}
-                      </Link>
-                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                      <Link
-                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                        href={`/s/${session.slug}`}
-                      >
-                        {t.public}
-                      </Link>
-                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                      <Link
-                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                        href={`/sessions/${session.id}/students`}
-                      >
-                        {t.setup}
-                      </Link>
-                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                      <Link
-                        className="text-sm font-medium text-[color:var(--app-accent-strong)] underline-offset-4 hover:underline"
-                        href={`/sessions/${session.id}/groups`}
-                      >
-                        {t.groups}
-                      </Link>
-                      <span className="text-[color:var(--app-fg-muted)] opacity-50">·</span>
-                      <SessionDeleteAction
-                        sessionId={session.id}
-                        sessionTitle={session.title}
-                        triggerClassName="inline-flex items-center gap-1 text-sm font-medium text-[color:var(--app-danger)] underline-offset-4 hover:underline"
-                      />
-                    </div>
+                    <SessionDeleteAction
+                      sessionId={session.id}
+                      sessionTitle={session.title}
+                      triggerClassName="inline-flex items-center gap-1 text-sm font-medium text-[color:var(--app-danger)] underline-offset-4 hover:underline"
+                    />
                   </td>
                 </tr>
               ))
