@@ -10,6 +10,7 @@ import {
   sessions,
   submissions
 } from '@/db';
+import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 
 import { parseFeedbackSections } from './engine';
 import { ensurePairagogieRubric } from './rubric';
@@ -334,6 +335,8 @@ function buildGroupWorkspace(params: {
 }
 
 export async function getEvaluationWorkspace(sessionId: string): Promise<EvaluationWorkspace> {
+  await cleanupExpiredSubmissions();
+
   const session = await getSessionRecord(sessionId);
   if (!session) {
     throw new Error('Session not found.');

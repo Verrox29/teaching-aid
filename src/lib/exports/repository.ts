@@ -17,6 +17,7 @@ import {
   sessions,
   submissions
 } from '@/db';
+import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 
 import {
   DEFAULT_EXPORT_MAPPING_VERSION,
@@ -538,6 +539,8 @@ export async function saveExportHistory(params: {
 }
 
 export async function getPairagogieExportContext(sessionId: string): Promise<PairagogieExportContext> {
+  await cleanupExpiredSubmissions();
+
   const sessionRows = await db
     .select({
       id: sessions.id,

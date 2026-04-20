@@ -1,6 +1,7 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 
 import { db, evaluations, groups, sessionStudents, sessions, submissions } from '@/db';
+import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 
 function buildPath(sessionId: string, suffix: string) {
   return `/sessions/${sessionId}${suffix}`;
@@ -30,6 +31,8 @@ export async function recordSessionAdminPath(sessionId: string, path: string): P
 }
 
 export async function resolveSessionResumePath(sessionId: string): Promise<string> {
+  await cleanupExpiredSubmissions();
+
   const sessionRows = await db
     .select({
       lastAdminPath: sessions.lastAdminPath

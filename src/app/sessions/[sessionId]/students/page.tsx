@@ -97,7 +97,7 @@ export default async function SessionStudentsPage({
         autoOpenImport={shouldAutoOpenImport}
         existingEmails={studentRows.map((student) => student.schoolEmail)}
         metadata={metadata}
-        language={session[0].language}
+        language={session[0].language as 'en' | 'fr'}
         sessionId={sessionId}
         students={studentRows}
       />

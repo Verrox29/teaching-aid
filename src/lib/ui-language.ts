@@ -48,9 +48,9 @@ const UI_TEXT = {
       columns: {
         title: 'Title',
         language: 'Language',
-        slug: 'Slug',
         groupLock: 'Group lock',
         orderLock: 'Order lock',
+        studentWork: 'Student work',
         created: 'Created',
         actions: 'Actions'
       },
@@ -60,7 +60,9 @@ const UI_TEXT = {
       resume: 'Resume',
       public: 'Public',
       setup: 'Setup',
-      groups: 'Groups'
+      groups: 'Groups',
+      noWorkUploaded: 'No work uploaded yet.',
+      deletesOn: 'Deletes on {date}'
     },
     globalSettings: {
       label: 'Global settings',
@@ -449,9 +451,9 @@ const UI_TEXT = {
       columns: {
         title: 'Titre',
         language: 'Langue',
-        slug: 'Slug',
         groupLock: 'Verrou groupes',
         orderLock: "Verrou d'ordre",
+        studentWork: 'Travail étudiant',
         created: 'Créée',
         actions: 'Actions'
       },
@@ -461,7 +463,9 @@ const UI_TEXT = {
       resume: 'Reprendre',
       public: 'Public',
       setup: 'Setup',
-      groups: 'Groupes'
+      groups: 'Groupes',
+      noWorkUploaded: 'Aucun travail téléversé pour le moment.',
+      deletesOn: 'Supprimé le {date}'
     },
     globalSettings: {
       label: 'Paramètres globaux',

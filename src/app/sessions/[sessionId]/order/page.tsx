@@ -9,6 +9,7 @@ import { AdminShell } from '@/components/admin-shell';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
+import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
 type SessionOrderPageProps = {
@@ -33,6 +34,8 @@ export default async function SessionOrderPage({
   const search = searchParams ? await searchParams : {};
   const notice = getSingleValue(search.notice);
   const error = getSingleValue(search.error);
+
+  await cleanupExpiredSubmissions();
 
   const sessionRows = await db
     .select({

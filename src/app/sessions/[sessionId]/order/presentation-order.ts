@@ -42,7 +42,7 @@ async function getSession(sessionId: string) {
   return rows[0] ?? null;
 }
 
-async function getOrderedGroups(sessionId: string) {
+export async function getOrderedGroups(sessionId: string) {
   const rows = await db
     .select({
       id: groups.id,

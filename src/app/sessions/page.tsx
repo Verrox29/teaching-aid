@@ -4,9 +4,18 @@ import { desc, eq } from 'drizzle-orm';
 import { AdminShell } from '@/components/admin-shell';
 import { GlobalSettingsButton } from '@/components/global-settings-button';
 import { SessionDeleteAction } from '@/components/session-delete-action';
-import { db, sessionExportMetadata, sessions } from '@/db';
+import { db, sessionExportMetadata, sessions, submissions } from '@/db';
 import { cookies } from 'next/headers';
-import { getUiLanguageFromCookieValue, getUiText, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
+import {
+  cleanupExpiredSubmissions,
+  getLatestSubmissionDeletionDate
+} from '@/lib/submission-retention';
+import {
+  formatUiDateTime,
+  getUiLanguageFromCookieValue,
+  getUiText,
+  UI_LANGUAGE_COOKIE_NAME
+} from '@/lib/ui-language';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,20 +26,46 @@ export default async function SessionsPage() {
   const t = uiText.sessionsHub;
   const shared = uiText.shared;
   const sessionAdmin = uiText.sessionAdmin;
-  const sessionList = await db
-    .select({
-      className: sessionExportMetadata.className,
-      sessionDate: sessionExportMetadata.sessionDate,
-      id: sessions.id,
-      title: sessions.title,
-      language: sessions.language,
-      groupSelectionLocked: sessions.groupSelectionLocked,
-      presentationOrderLocked: sessions.presentationOrderLocked,
-      createdAt: sessions.createdAt
-    })
-    .from(sessions)
-    .leftJoin(sessionExportMetadata, eq(sessionExportMetadata.sessionId, sessions.id))
-    .orderBy(desc(sessions.createdAt));
+  await cleanupExpiredSubmissions();
+
+  const [sessionList, submissionRows] = await Promise.all([
+    db
+      .select({
+        className: sessionExportMetadata.className,
+        sessionDate: sessionExportMetadata.sessionDate,
+        id: sessions.id,
+        title: sessions.title,
+        language: sessions.language,
+        groupSelectionLocked: sessions.groupSelectionLocked,
+        presentationOrderLocked: sessions.presentationOrderLocked,
+        createdAt: sessions.createdAt
+      })
+      .from(sessions)
+      .leftJoin(sessionExportMetadata, eq(sessionExportMetadata.sessionId, sessions.id))
+      .orderBy(desc(sessions.createdAt)),
+    db
+      .select({
+        createdAt: submissions.createdAt,
+        sessionId: submissions.sessionId,
+        submittedAt: submissions.submittedAt
+      })
+      .from(submissions)
+  ]);
+
+  const submissionDeletionBySessionId = new Map<string, Date>();
+  const submissionsBySessionId = new Map<string, { createdAt: Date; submittedAt: Date | null }[]>();
+  for (const submission of submissionRows) {
+    const current = submissionsBySessionId.get(submission.sessionId) ?? [];
+    current.push(submission);
+    submissionsBySessionId.set(submission.sessionId, current);
+  }
+
+  for (const [sessionId, sessionSubmissions] of submissionsBySessionId.entries()) {
+    const deletionDate = getLatestSubmissionDeletionDate(sessionSubmissions);
+    if (deletionDate) {
+      submissionDeletionBySessionId.set(sessionId, deletionDate);
+    }
+  }
 
   return (
     <AdminShell
@@ -56,6 +91,7 @@ export default async function SessionsPage() {
               <th className="px-4 py-3 font-medium">{t.columns.language}</th>
               <th className="px-4 py-3 font-medium">{t.columns.groupLock}</th>
               <th className="px-4 py-3 font-medium">{t.columns.orderLock}</th>
+              <th className="px-4 py-3 font-medium">{t.columns.studentWork}</th>
               <th className="px-4 py-3 font-medium">{t.columns.created}</th>
               <th className="px-4 py-3 font-medium">{t.columns.actions}</th>
             </tr>
@@ -63,7 +99,7 @@ export default async function SessionsPage() {
           <tbody className="divide-y divide-[color:var(--app-border)]">
             {sessionList.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={8}>
+                <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={9}>
                   {t.empty}
                 </td>
               </tr>
@@ -98,6 +134,18 @@ export default async function SessionsPage() {
                     >
                       {session.presentationOrderLocked ? t.locked : t.open}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {submissionDeletionBySessionId.get(session.id) ? (
+                      <span className="ui-chip ui-chip-warning whitespace-normal text-left leading-5">
+                        {t.deletesOn.replace(
+                          '{date}',
+                          formatUiDateTime(submissionDeletionBySessionId.get(session.id)!, uiLanguage)
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[color:var(--app-fg-muted)]">{t.noWorkUploaded}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {session.createdAt.toLocaleString('en-GB', {

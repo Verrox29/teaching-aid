@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { db, groups, sessions, submissions } from '@/db';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES } from '@/lib/group-submission';
-import { randomizePresentationOrder } from './presentation-order';
+import { getOrderedGroups, randomizePresentationOrder } from './presentation-order';
 
 const orderPath = (sessionId: string) => `/sessions/${sessionId}/order`;
 const evaluationPath = (sessionId: string) => `/sessions/${sessionId}/evaluation`;
