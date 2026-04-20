@@ -90,14 +90,7 @@ export function GroupStudentWorkUploadAction({
   const hasUploadedFile = Boolean(fileName?.trim());
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      {hasUploadedFile ? (
-        <span className="ui-chip ui-chip-success inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium">
-          <span aria-hidden="true">✓</span>
-          Uploaded
-        </span>
-      ) : null}
-
+    <div className="relative flex items-center">
       <button
         aria-label={t.uploadGroupWork}
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-[color:var(--app-fg-muted)] transition hover:bg-[color:var(--app-surface-soft)] hover:text-[color:var(--app-fg)]"
@@ -107,6 +100,12 @@ export function GroupStudentWorkUploadAction({
       >
         <UploadIcon className="h-4 w-4" />
       </button>
+
+      {hasUploadedFile ? (
+        <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-[color:var(--app-surface)] bg-[color:var(--app-success)] px-0.5 text-[10px] font-semibold leading-4 text-white shadow-sm">
+          ✓
+        </span>
+      ) : null}
 
       {open ? (
         <GroupUploadModal
