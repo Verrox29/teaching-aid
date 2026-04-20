@@ -3,9 +3,58 @@ import { inflateRawSync, inflateSync } from 'node:zlib';
 const MAX_READABLE_TEXT_LENGTH = 6000;
 const MIN_WORDS_FOR_TEXT = 3;
 
+function isBase64Whitespace(charCode: number) {
+  return (
+    charCode === 9 ||
+    charCode === 10 ||
+    charCode === 11 ||
+    charCode === 12 ||
+    charCode === 13 ||
+    charCode === 32
+  );
+}
+
+function isBase64Character(charCode: number) {
+  return (
+    (charCode >= 0x41 && charCode <= 0x5a) || // A-Z
+    (charCode >= 0x61 && charCode <= 0x7a) || // a-z
+    (charCode >= 0x30 && charCode <= 0x39) || // 0-9
+    charCode === 0x2b || // +
+    charCode === 0x2f // /
+  );
+}
+
 function isLikelyBase64(value: string) {
-  const compact = value.replace(/\s+/g, '');
-  return compact.length >= 64 && compact.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact);
+  let compactLength = 0;
+  let paddingCount = 0;
+  let sawPadding = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const charCode = value.charCodeAt(index);
+
+    if (isBase64Whitespace(charCode)) {
+      continue;
+    }
+
+    if (charCode === 0x3d) {
+      sawPadding = true;
+      paddingCount += 1;
+      if (paddingCount > 2) {
+        return false;
+      }
+
+      compactLength += 1;
+      continue;
+    }
+
+    if (sawPadding || !isBase64Character(charCode)) {
+      return false;
+    }
+
+    compactLength += 1;
+  }
+
+  return compactLength >= 64 && compactLength % 4 === 0;
 }
 
 function stripDiacritics(value: string) {
@@ -346,7 +395,7 @@ export function extractSubmissionTextForAi(
   }
 
   if (isLikelyBase64(normalized)) {
-    const decoded = Buffer.from(normalized.replace(/\s+/g, ''), 'base64');
+    const decoded = Buffer.from(normalized, 'base64');
     if (decoded.length === 0) {
       return null;
     }
