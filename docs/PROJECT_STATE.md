@@ -9,7 +9,7 @@ Teacher/admin web app to manage peer-to-peer sessions from student import to gra
 1. Pairagogie & students setup: session metadata lives here, `Subject` drives the session title, class language is stored on the session, intake/season is edited from the Step 1 header and mirrored in the shared Settings session-context window, and student import/update happens from the Step 1 setup flow and the shared Settings flow.
 2. Group creation: the groups page handles group creation, resize, lock/unlock, public enrolment access, ignore/restore, and membership changes.
 3. AI scoring & feedback: the live evaluation workspace keeps presentation order visible, reads the shared session-wide student-work submissions, autosaves teacher notes, and uses per-group and batch AI support alongside manual scoring.
-4. Grille & grades export: exports stay template-driven, the shared export/admin settings live in the sessions hub rather than inside a session page, the hub also exposes the session-wide student-work upload entry point and retention visibility, and `/sessions` resumes into the last meaningful admin step/page.
+4. Grille & grades export: exports stay template-driven, Pairagogie uses the shared workbook mapping, the export step exposes the final Excel workbook plus debug preview and CSV downloads, and the sessions hub also exposes the session-wide student-work upload entry point and retention visibility. `/sessions` resumes into the last meaningful admin step/page.
 
 The presentation order & upload page still exists as the detailed group-level upload workflow, but the same session-wide submission data is also available from the Sessions hub through a modal entry point.
 
@@ -64,6 +64,7 @@ The presentation order & upload page still exists as the detailed group-level up
 - Course/class language stays on the session row and drives AI output only
 - The sessions hub and session settings modal share the same UI-language control and state
 - The admin UI uses a centralized translation layer for the teacher/admin workflow
+- App-wide interaction feedback is centralized through a shared provider so meaningful async work uses the same global pending overlay and the same portal-backed modal shell
 - Docker-first local workflow
 - GitHub is source of truth
 - Supabase is planned production database target
@@ -87,12 +88,8 @@ The presentation order & upload page still exists as the detailed group-level up
 
 ## Known Issues / Items That Still Need Validation
 
-- File-dependent work was done in Worktree, so export module must be validated in Local mode against the actual repo files
-- Future file-dependent tasks should prefer Local mode
-- Export module should not be considered fully final until validated locally with the actual template and mapping files
+- None currently tracked for the confirmed workflow.
 
 ## Next Recommended Action
 
-- Start a new Local thread
-- Validate/refine Module 6 exports using the actual repo files
-- Then continue polish/final export behavior as needed
+- Continue incremental feature work in Local mode, keeping new decisions aligned with the confirmed workflow above.
