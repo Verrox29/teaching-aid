@@ -239,7 +239,7 @@ const UI_TEXT = {
       activityInstructions: 'Activity instructions',
       briefUsedByAi: 'This brief is used by the AI question and feedback workflow.',
       showPublicQr: 'Show QR code',
-      scanToEnrolInGroup: 'Scan to enrol to a Group',
+      scanToEnrolInGroup: 'Scan to enrol to a group',
       assignmentBrief: 'Assignment brief',
       saveBrief: 'Save brief',
       describeActivity: 'Describe the activity, expectations, and anything the AI should consider.',

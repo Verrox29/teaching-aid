@@ -193,6 +193,7 @@ function PublicPageQrModal({
   open,
   publicPageLabel,
   publicPageHref,
+  subtitle,
   title,
   url
 }: {
@@ -201,6 +202,7 @@ function PublicPageQrModal({
   publicPageLabel: string;
   onClose: () => void;
   open: boolean;
+  subtitle: string;
   title: string;
   url: string;
 }) {
@@ -241,6 +243,7 @@ function PublicPageQrModal({
             <div className="space-y-1">
               <p className="ui-section-title">{title}</p>
               <h2 className="text-xl font-semibold">{title}</h2>
+              <p className="text-sm text-[color:var(--app-fg-muted)]">{subtitle}</p>
             </div>
             <button
               className="ui-button ui-button-secondary px-3 py-2 text-sm"
@@ -1512,7 +1515,8 @@ export function SessionGroupsBoard({
         publicPageLabel={t.publicPage}
         onClose={() => setPublicQrOpen(false)}
         open={publicQrOpen}
-        title={t.scanToEnrolToAGroup}
+        subtitle={t.scanToEnrolInGroup}
+        title={t.showPublicQr}
         url={publicPageUrl}
       />
     </section>
