@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { AppModal, useInteractionFeedback } from '@/components/app-interaction-feedback';
 import type { EvaluationGroupMember } from '@/lib/evaluation/types';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
@@ -52,6 +53,8 @@ export function EvaluationRosterDialog({
   const [adjustmentValue, setAdjustmentValue] = useState('');
   const [draftAdjustments, setDraftAdjustments] = useState<Record<string, number>>({});
   const [status, setStatus] = useState<string>('');
+  const pendingReleaseRef = useRef<null | (() => void)>(null);
+  const { beginPending } = useInteractionFeedback();
 
   const currentGroup = groups.find((group) => group.groupId === groupId) ?? null;
   const selectedStudent =
@@ -90,6 +93,14 @@ export function EvaluationRosterDialog({
     };
   }, [onClose]);
 
+  useEffect(
+    () => () => {
+      pendingReleaseRef.current?.();
+      pendingReleaseRef.current = null;
+    },
+    []
+  );
+
   if (!open || !currentGroup) {
     return null;
   }
@@ -109,22 +120,29 @@ export function EvaluationRosterDialog({
 
   async function sendAction(payload: Record<string, string | number | null>) {
     setStatus(t.saving);
+    pendingReleaseRef.current?.();
+    pendingReleaseRef.current = beginPending(t.saving);
 
-    const response = await fetch(`/api/sessions/${sessionId}/evaluation/roster`, {
-      body: JSON.stringify(payload),
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      method: 'PATCH'
-    });
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/evaluation/roster`, {
+        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'PATCH'
+      });
 
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error ?? t.couldNotSaveRosterChange);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error ?? t.couldNotSaveRosterChange);
+      }
+
+      router.refresh();
+      setStatus(t.saved);
+    } finally {
+      pendingReleaseRef.current?.();
+      pendingReleaseRef.current = null;
     }
-
-    router.refresh();
-    setStatus(t.saved);
   }
 
   function parseSignedAdjustment(value: string) {
@@ -212,161 +230,145 @@ export function EvaluationRosterDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
-      onClick={onClose}
+    <AppModal
+      headerLabel={t.title}
+      onClose={onClose}
+      open
+      title={currentGroup.groupName}
+      widthClassName="w-[min(48rem,calc(100vw-2rem))]"
     >
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          aria-modal="true"
-          className="w-[min(48rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="ui-section-title">{t.title}</p>
-              <h2 className="text-xl font-semibold">{currentGroup.groupName}</h2>
-            </div>
-            <button className="ui-button ui-button-secondary px-3 py-2 text-sm" onClick={onClose} type="button">
-              {t.close}
-            </button>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="ui-section-title">{t.students}</p>
+            <span className="ui-chip px-2 py-1">{currentGroup.members.length}</span>
           </div>
-
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="ui-section-title">{t.students}</p>
-                <span className="ui-chip px-2 py-1">{currentGroup.members.length}</span>
+          <div className="grid max-h-[50vh] gap-2 overflow-auto pr-1">
+            {currentGroup.members.map((member) => {
+              const isSelected = member.id === selectedStudent?.id;
+              return (
+                <button
+                  key={member.id}
+                  className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                    isSelected
+                      ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
+                      : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
+                  }`}
+                  onClick={() => setSelectedStudentId(member.id)}
+                  type="button"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">
+                      {member.firstName} {member.lastName}
+                    </span>
+                    <span className="ui-chip px-2 py-1">
+                      {getFinalGrade(member.id, member.gradeAdjustment) === null
+                        ? t.noGrade
+                        : t.grade.replace('{grade}', formatGrade(getFinalGrade(member.id, member.gradeAdjustment) ?? 0))}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
+                    {member.schoolEmail} · {t.adjustmentValue.replace('{adjustment}', formatAdjustment(getAdjustment(member.id, member.gradeAdjustment)))}
+                  </p>
+                </button>
+              );
+            })}
+            {currentGroup.members.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm text-[color:var(--app-fg-muted)]">
+                {uiLanguage === 'fr' ? 'Aucun étudiant dans ce groupe.' : 'No students in this group.'}
               </div>
-              <div className="grid gap-2 max-h-[50vh] overflow-auto pr-1">
-                {currentGroup.members.map((member) => {
-                  const isSelected = member.id === selectedStudent?.id;
-                  return (
-                    <button
-                      key={member.id}
-                      className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
-                        isSelected
-                          ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
-                          : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
-                      }`}
-                      onClick={() => setSelectedStudentId(member.id)}
-                      type="button"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">
-                          {member.firstName} {member.lastName}
-                        </span>
-                        <span className="ui-chip px-2 py-1">
-                          {getFinalGrade(member.id, member.gradeAdjustment) === null
-                            ? t.noGrade
-                            : t.grade.replace('{grade}', formatGrade(getFinalGrade(member.id, member.gradeAdjustment) ?? 0))}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-[color:var(--app-fg-muted)]">
-                        {member.schoolEmail} · {t.adjustmentValue.replace('{adjustment}', formatAdjustment(getAdjustment(member.id, member.gradeAdjustment)))}
-                      </p>
-                    </button>
-                  );
-                })}
-                {currentGroup.members.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                    {t.noStudentsInGroup}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-              {selectedStudent ? (
-                <>
-                  <div className="space-y-1">
-                    <p className="ui-section-title">{t.selectedStudent}</p>
-                    <h3 className="text-lg font-semibold">
-                      {selectedStudent.firstName} {selectedStudent.lastName}
-                    </h3>
-                    <p className="text-sm text-[color:var(--app-fg-muted)]">{selectedStudent.schoolEmail}</p>
-                    <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      {t.adjustment}:{' '}
-                      <span className="font-medium text-[color:var(--app-fg)]">
-                        {formatAdjustment(getAdjustment(selectedStudent.id, selectedStudent.gradeAdjustment))}
-                      </span>
-                    </p>
-                    <p className="text-sm text-[color:var(--app-fg-muted)]">
-                      {t.finalGrade}:{' '}
-                      <span className="font-medium text-[color:var(--app-fg)]">
-                        {getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) === null
-                          ? t.noGradeYet
-                          : formatGrade(
-                              getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) ?? 0
-                            )}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <label className="grid gap-2 text-sm font-medium">
-                      {t.moveToGroup}
-                      <select
-                        className="ui-select"
-                        onChange={(event) => setDestinationGroupId(event.target.value)}
-                        value={destinationGroupId}
-                      >
-                        <option value="">{t.chooseDestination}</option>
-                        {groups
-                          .filter((group) => group.groupId !== currentGroup.groupId)
-                          .map((group) => {
-                            const remainingSeats = group.capacity - group.members.length;
-                            return (
-                              <option key={group.groupId} value={group.groupId} disabled={remainingSeats <= 0}>
-                                {group.groupName} ({t.remainingSeats.replace('{count}', String(remainingSeats))})
-                              </option>
-                            );
-                          })}
-                      </select>
-                    </label>
-                    <button className="ui-button ui-button-primary" onClick={() => void moveStudent()} type="button">
-                      {t.moveStudent}
-                    </button>
-                    <button className="ui-button ui-button-secondary" onClick={() => void removeStudent()} type="button">
-                      {t.removeFromAllGroups}
-                    </button>
-                  </div>
-
-                  <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3">
-                    <p className="ui-section-title">{t.individualGrading}</p>
-                    <label className="grid gap-2 text-sm font-medium">
-                      {t.adjustment}
-                      <input
-                        className="ui-input w-full"
-                        inputMode="numeric"
-                        pattern="[+-]?[0-9]*"
-                        placeholder={t.signedAdjustmentPlaceholder}
-                        type="text"
-                        value={adjustmentValue}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setAdjustmentValue(nextValue);
-                          void applyAdjustment(nextValue);
-                        }}
-                      />
-                    </label>
-                    <p className="text-xs text-[color:var(--app-fg-muted)]">
-                      {t.signedAdjustmentHelp}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 text-sm text-[color:var(--app-fg-muted)]">
-                  {t.selectStudentHint}
-                </div>
-              )}
-
-              {status ? <p className="text-sm text-[color:var(--app-fg-muted)]">{status}</p> : null}
-            </div>
+            ) : null}
           </div>
         </div>
+
+        <div className="grid gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+          {selectedStudent ? (
+            <>
+              <div className="space-y-1">
+                <p className="ui-section-title">{t.selectedStudent}</p>
+                <h3 className="text-lg font-semibold">
+                  {selectedStudent.firstName} {selectedStudent.lastName}
+                </h3>
+                <p className="text-sm text-[color:var(--app-fg-muted)]">{selectedStudent.schoolEmail}</p>
+                <p className="text-sm text-[color:var(--app-fg-muted)]">
+                  {t.adjustment}:{' '}
+                  <span className="font-medium text-[color:var(--app-fg)]">
+                    {formatAdjustment(getAdjustment(selectedStudent.id, selectedStudent.gradeAdjustment))}
+                  </span>
+                </p>
+                <p className="text-sm text-[color:var(--app-fg-muted)]">
+                  {t.finalGrade}:{' '}
+                  <span className="font-medium text-[color:var(--app-fg)]">
+                    {getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) === null
+                      ? t.noGradeYet
+                      : formatGrade(
+                          getFinalGrade(selectedStudent.id, selectedStudent.gradeAdjustment) ?? 0
+                        )}
+                  </span>
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <label className="grid gap-2 text-sm font-medium">
+                  {t.moveToGroup}
+                  <select
+                    className="ui-select"
+                    onChange={(event) => setDestinationGroupId(event.target.value)}
+                    value={destinationGroupId}
+                  >
+                    <option value="">{t.chooseDestination}</option>
+                    {groups
+                      .filter((group) => group.groupId !== currentGroup.groupId)
+                      .map((group) => {
+                        const remainingSeats = group.capacity - group.members.length;
+                        return (
+                          <option key={group.groupId} value={group.groupId} disabled={remainingSeats <= 0}>
+                            {group.groupName} ({t.remainingSeats.replace('{count}', String(remainingSeats))})
+                          </option>
+                        );
+                      })}
+                  </select>
+                </label>
+                <button className="ui-button ui-button-primary" onClick={() => void moveStudent()} type="button">
+                  {t.moveStudent}
+                </button>
+                <button className="ui-button ui-button-secondary" onClick={() => void removeStudent()} type="button">
+                  {t.removeFromAllGroups}
+                </button>
+              </div>
+
+              <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3">
+                <p className="ui-section-title">{t.individualGrading}</p>
+                <label className="grid gap-2 text-sm font-medium">
+                  {t.adjustment}
+                  <input
+                    className="ui-input w-full"
+                    inputMode="numeric"
+                    pattern="[+-]?[0-9]*"
+                    placeholder={t.signedAdjustmentPlaceholder}
+                    type="text"
+                    value={adjustmentValue}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setAdjustmentValue(nextValue);
+                      void applyAdjustment(nextValue);
+                    }}
+                  />
+                </label>
+                <p className="text-xs text-[color:var(--app-fg-muted)]">
+                  {t.signedAdjustmentHelp}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 text-sm text-[color:var(--app-fg-muted)]">
+              {t.selectStudentHint}
+            </div>
+          )}
+
+          {status ? <p className="text-sm text-[color:var(--app-fg-muted)]">{status}</p> : null}
+        </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

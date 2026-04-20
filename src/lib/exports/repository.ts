@@ -129,7 +129,10 @@ function normalizeMetadataValue(value: string | null | undefined) {
 }
 
 function normalizeStoredMetadataRecord(
-  record: Partial<SessionExportMetadataValues> | null | undefined
+  record:
+    | Partial<Record<keyof SessionExportMetadataValues, string | null | undefined>>
+    | null
+    | undefined
 ): SessionExportMetadataValues {
   if (!record) {
     return {
@@ -153,7 +156,10 @@ function normalizeStoredMetadataRecord(
 }
 
 function normalizeMetadataRecord(
-  record: Partial<SessionExportMetadataValues> | null | undefined,
+  record:
+    | Partial<Record<keyof SessionExportMetadataValues, string | null | undefined>>
+    | null
+    | undefined,
   sessionTitle: string
 ): SessionExportMetadata {
   const stored = normalizeStoredMetadataRecord(record);
@@ -287,7 +293,17 @@ export async function getSessionExportMetadataRecord(
     return getDefaultMetadata(sessionTitle);
   }
 
-  return normalizeMetadataRecord(stored, sessionTitle);
+  return normalizeMetadataRecord(
+    {
+      className: stored.className ?? undefined,
+      professorName: stored.professorName ?? undefined,
+      programme: stored.programme ?? undefined,
+      season: stored.season ?? undefined,
+      sessionDate: stored.sessionDate ?? undefined,
+      subject: stored.subject ?? undefined
+    },
+    sessionTitle
+  );
 }
 
 export async function getSessionExportMetadataUndoAvailability(sessionId: string): Promise<boolean> {

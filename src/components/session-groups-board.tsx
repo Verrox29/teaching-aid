@@ -12,6 +12,7 @@ import {
   saveGroupsAction,
   unlockGroupSelectionAction
 } from '@/app/sessions/[sessionId]/groups/actions';
+import { AppModal, AppPendingFormBridge, useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
 
@@ -188,7 +189,6 @@ function PencilIcon({ className }: { className?: string }) {
 }
 
 function PublicPageQrModal({
-  closeLabel,
   onClose,
   open,
   publicPageLabel,
@@ -197,7 +197,6 @@ function PublicPageQrModal({
   title,
   url
 }: {
-  closeLabel: string;
   publicPageHref: string;
   publicPageLabel: string;
   onClose: () => void;
@@ -228,70 +227,28 @@ function PublicPageQrModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
-      onClick={onClose}
+    <AppModal
+      headerLabel={title}
+      onClose={onClose}
+      open={open}
+      title={title}
+      widthClassName="w-[min(28rem,calc(100vw-2rem))]"
     >
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          aria-modal="true"
-          className="w-[min(28rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="ui-section-title">{title}</p>
-              <h2 className="text-xl font-semibold">{title}</h2>
-            </div>
-            <button
-              aria-label={closeLabel}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-sm font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
-              onClick={onClose}
-              type="button"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
+      <div className="mt-4 grid justify-items-center gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+        <figure className="grid justify-items-center gap-3">
+          <div className="rounded-2xl bg-white p-4">
+            <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
           </div>
-
-          <div className="mt-4 grid justify-items-center gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-            <figure className="grid justify-items-center gap-3">
-              <div className="rounded-2xl bg-white p-4">
-                <QRCodeSVG bgColor="#ffffff" fgColor="#111827" includeMargin size={220} value={url} />
-              </div>
-              <figcaption className="max-w-[16rem] text-center text-sm leading-5 text-[color:var(--app-fg-muted)]">
-                {subtitle}
-              </figcaption>
-            </figure>
-            <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={publicPageHref}>
-              {publicPageLabel}
-            </Link>
-            <p className="break-all text-center text-xs text-[color:var(--app-fg-muted)]">{url}</p>
-          </div>
-        </div>
+          <figcaption className="max-w-[16rem] text-center text-sm leading-5 text-[color:var(--app-fg-muted)]">
+            {subtitle}
+          </figcaption>
+        </figure>
+        <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={publicPageHref}>
+          {publicPageLabel}
+        </Link>
+        <p className="break-all text-center text-xs text-[color:var(--app-fg-muted)]">{url}</p>
       </div>
-    </div>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M5.5 5.5L14.5 14.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M14.5 5.5L5.5 14.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
+    </AppModal>
   );
 }
 
@@ -424,6 +381,7 @@ export function SessionGroupsBoard({
   unassignedStudents: initialUnassignedStudents
 }: SessionGroupsBoardProps) {
   const { uiLanguage } = useUiLanguage();
+  const { runPending } = useInteractionFeedback();
   const t = getUiText(uiLanguage).sessionGroups;
   const [groups, setGroups] = useState<GroupRecord[]>(() => copyGroups(initialGroups));
   const [unassignedStudents, setUnassignedStudents] = useState<StudentRecord[]>(() =>
@@ -658,21 +616,23 @@ export function SessionGroupsBoard({
     applyMembershipState(randomized.groups, randomized.unassignedStudents, previousIgnoredStudents);
 
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/groups/randomize`, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({
-          sessionId,
-          groupsJson: randomizedGroupsJson
-        })
-      });
-      const payload = await response.json().catch(() => ({}));
+      await runPending('Randomizing enrollment...', async () => {
+        const response = await fetch(`/api/sessions/${sessionId}/groups/randomize`, {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          method: 'POST',
+          body: JSON.stringify({
+            sessionId,
+            groupsJson: randomizedGroupsJson
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not randomize the student enrollment.');
-      }
+        if (!response.ok) {
+          throw new Error(payload.error ?? 'Could not randomize the student enrollment.');
+        }
+      });
 
       setLocalAlert({ kind: 'notice', message: 'Student enrollment randomized.' });
     } catch (randomizeError) {
@@ -734,23 +694,25 @@ export function SessionGroupsBoard({
     applyMembershipState(nextGroups, nextUnassignedStudents, nextIgnoredStudents);
 
     try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/students/${studentId}/visibility`,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          method: 'PATCH',
-          body: JSON.stringify({
-            action: 'ignore'
-          })
-        }
-      );
-      const payload = await response.json().catch(() => ({}));
+      await runPending('Updating student visibility...', async () => {
+        const response = await fetch(
+          `/api/sessions/${sessionId}/students/${studentId}/visibility`,
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            method: 'PATCH',
+            body: JSON.stringify({
+              action: 'ignore'
+            })
+          }
+        );
+        const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not ignore the student.');
-      }
+        if (!response.ok) {
+          throw new Error(payload.error ?? 'Could not ignore the student.');
+        }
+      });
 
       setLocalAlert({ kind: 'notice', message: 'Student ignored.' });
     } catch (ignoreError) {
@@ -797,23 +759,25 @@ export function SessionGroupsBoard({
     applyMembershipState(previousGroups, nextUnassignedStudents, nextIgnoredStudents);
 
     try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/students/${studentId}/visibility`,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          method: 'PATCH',
-          body: JSON.stringify({
-            action: 'restore'
-          })
-        }
-      );
-      const payload = await response.json().catch(() => ({}));
+      await runPending('Updating student visibility...', async () => {
+        const response = await fetch(
+          `/api/sessions/${sessionId}/students/${studentId}/visibility`,
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            method: 'PATCH',
+            body: JSON.stringify({
+              action: 'restore'
+            })
+          }
+        );
+        const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Could not restore the student.');
-      }
+        if (!response.ok) {
+          throw new Error(payload.error ?? 'Could not restore the student.');
+        }
+      });
 
       setLocalAlert({ kind: 'notice', message: 'Student restored.' });
     } catch (restoreError) {
@@ -928,7 +892,9 @@ export function SessionGroupsBoard({
     setLocalAlert(null);
 
     try {
-      const renamedGroupName = await renameGroupOnServer(sessionId, groupId, trimmedName);
+      const renamedGroupName = await runPending('Renaming group...', () =>
+        renameGroupOnServer(sessionId, groupId, trimmedName)
+      );
       setGroups((currentGroups) =>
         currentGroups.map((group) =>
           group.id === groupId ? { ...group, name: renamedGroupName } : group
@@ -950,7 +916,6 @@ export function SessionGroupsBoard({
   const hasDirtyGroups = dirtyGroups.length > 0;
   const highlightErrorSection = alert?.kind === 'error';
   const isFrench = uiLanguage === 'fr';
-  const closeLabel = isFrench ? 'Fermer' : 'Close';
 
   return (
     <section className="grid gap-6">
@@ -986,6 +951,7 @@ export function SessionGroupsBoard({
 
               {groupSelectionLocked ? (
                 <form action={unlockGroupSelectionAction}>
+                  <AppPendingFormBridge />
                   <input name="sessionId" type="hidden" value={sessionId} />
                   <button className={topActionButtonClass} type="submit">
                     {isFrench ? 'Déverrouiller les groupes' : 'Unlock group selection'}
@@ -993,6 +959,7 @@ export function SessionGroupsBoard({
                 </form>
               ) : (
                 <form action={lockGroupSelectionAction}>
+                  <AppPendingFormBridge />
                   <input name="sessionId" type="hidden" value={sessionId} />
                   <button className={topActionButtonClass} type="submit">
                     {isFrench ? 'Verrouiller les groupes' : 'Lock group selection'}
@@ -1022,6 +989,7 @@ export function SessionGroupsBoard({
               </button>
 
               <form action={createGroupAction}>
+                <AppPendingFormBridge />
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <button className={topActionButtonClass} type="submit">
                   {isFrench ? 'Créer un nouveau groupe' : 'Create new group'}
@@ -1034,6 +1002,7 @@ export function SessionGroupsBoard({
                   className="flex items-center gap-2"
                   onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
                 >
+                  <AppPendingFormBridge />
                   <input name="sessionId" type="hidden" value={sessionId} />
                   <input name="groupsJson" type="hidden" value={groupsJson} />
                   <button className={topPrimaryActionButtonClass} type="submit">
@@ -1399,6 +1368,7 @@ export function SessionGroupsBoard({
                         className="flex items-center gap-2"
                         onSubmit={(event) => syncGroupsJsonInput(event.currentTarget)}
                       >
+                        <AppPendingFormBridge />
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="groupsJson" type="hidden" value={groupsJson} />
                         <input name="sourceGroupId" type="hidden" value={group.id} />
@@ -1421,6 +1391,7 @@ export function SessionGroupsBoard({
                           }
                         }}
                       >
+                        <AppPendingFormBridge />
                         <input name="sessionId" type="hidden" value={sessionId} />
                         <input name="groupId" type="hidden" value={group.id} />
                         <button className="ui-button ui-button-danger px-3 py-1.5 text-sm" type="submit">
@@ -1531,13 +1502,12 @@ export function SessionGroupsBoard({
       </div>
 
       <PublicPageQrModal
-        closeLabel={closeLabel}
         publicPageHref={publicPageHref}
         publicPageLabel={t.publicPage}
         onClose={() => setPublicQrOpen(false)}
         open={publicQrOpen}
-        subtitle={t.scanToEnrolInGroup}
-        title={t.showPublicQr}
+        subtitle={uiLanguage === 'fr' ? 'Scanner pour rejoindre un groupe' : 'Scan to enrol to a group'}
+        title={uiLanguage === 'fr' ? 'Afficher le QR code' : 'Show QR code'}
         url={publicPageUrl}
       />
     </section>

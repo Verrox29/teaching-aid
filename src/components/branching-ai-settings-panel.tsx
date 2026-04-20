@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { BranchingAiHelpModal } from '@/components/branching-ai-help-modal';
 import type {
   BranchingAiAdminView,
@@ -73,6 +74,7 @@ export function BranchingAiSettingsPanel({
   initialView
 }: BranchingAiSettingsPanelProps) {
   const router = useRouter();
+  const { runPending } = useInteractionFeedback();
   const [view, setView] = useState<BranchingAiAdminView | null>(initialView);
   const [unlockToken, setUnlockToken] = useState('');
   const [unlockStatus, setUnlockStatus] = useState('');
@@ -119,20 +121,22 @@ export function BranchingAiSettingsPanel({
   async function unlockAdminAccess() {
     setBusyAction('unlock');
     setUnlockStatus('');
-    const response = await fetch('/api/admin/branching-ai/unlock', {
-      body: JSON.stringify({ token: unlockToken }),
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      method: 'POST'
+    await runPending('Unlocking Branching AI...', async () => {
+      const response = await fetch('/api/admin/branching-ai/unlock', {
+        body: JSON.stringify({ token: unlockToken }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Could not unlock Branching AI settings.');
+      }
+      setUnlockToken('');
+      setUnlockStatus('Unlocked.');
+      router.refresh();
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error ?? 'Could not unlock Branching AI settings.');
-    }
-    setUnlockToken('');
-    setUnlockStatus('Unlocked.');
-    router.refresh();
   }
 
   async function saveConnection() {
@@ -148,35 +152,39 @@ export function BranchingAiSettingsPanel({
       timeoutMs: Number.parseInt(connectionDraft.timeoutMs, 10)
     };
 
-    const response = await fetch('/api/admin/branching-ai', {
-      body: JSON.stringify({ connection: payload }),
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      method: 'PATCH'
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error ?? 'Could not save Branching AI connection settings.');
-    }
+    await runPending('Saving Branching AI connection...', async () => {
+      const response = await fetch('/api/admin/branching-ai', {
+        body: JSON.stringify({ connection: payload }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'PATCH'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Could not save Branching AI connection settings.');
+      }
 
-    setView(result.view);
-    setApiKeyDraft('');
-    setMessage('Connection settings saved.');
+      setView(result.view);
+      setApiKeyDraft('');
+      setMessage('Connection settings saved.');
+    });
   }
 
   async function testConnection() {
     setBusyAction('connection-test');
     setMessage('');
-    const response = await fetch('/api/admin/branching-ai/test', {
-      method: 'POST'
+    await runPending('Testing Branching AI connection...', async () => {
+      const response = await fetch('/api/admin/branching-ai/test', {
+        method: 'POST'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Could not test Branching AI connection.');
+      }
+      setView(result.view);
+      setMessage('Connection verified successfully.');
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error ?? 'Could not test Branching AI connection.');
-    }
-    setView(result.view);
-    setMessage('Connection verified successfully.');
   }
 
   async function savePrompts() {
@@ -188,20 +196,22 @@ export function BranchingAiSettingsPanel({
       template: promptDrafts[promptKey] ?? ''
     }));
 
-    const response = await fetch('/api/admin/branching-ai', {
-      body: JSON.stringify({ prompts }),
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      method: 'PATCH'
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error ?? 'Could not save Branching AI prompts.');
-    }
+    await runPending('Saving Branching AI prompts...', async () => {
+      const response = await fetch('/api/admin/branching-ai', {
+        body: JSON.stringify({ prompts }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'PATCH'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Could not save Branching AI prompts.');
+      }
 
-    setView(result.view);
-    setMessage('Prompt templates saved.');
+      setView(result.view);
+      setMessage('Prompt templates saved.');
+    });
   }
 
   function hasConnectionChanges() {

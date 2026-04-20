@@ -837,7 +837,7 @@ const UI_TEXT = {
   }
 } as const;
 
-export type UiText = (typeof UI_TEXT)['en'];
+export type UiText = (typeof UI_TEXT)[UiLanguage];
 
 export function getUiText(language: UiLanguage): UiText {
   return UI_TEXT[language];

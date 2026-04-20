@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 
 import { importStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
@@ -238,6 +239,7 @@ export function SessionStudentImport({
 
       {rows.length > 0 ? (
         <form action={formAction} className="grid gap-4">
+          <AppPendingFormBridge />
           <input name="sessionId" type="hidden" value={sessionId} />
           <input
             name="rowsJson"

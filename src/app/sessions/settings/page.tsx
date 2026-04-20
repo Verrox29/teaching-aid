@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { BranchingAiSettingsPanel } from '@/components/branching-ai-settings-panel';
 import { GLOBAL_SETTINGS_COOKIE_NAME, GLOBAL_SETTINGS_COOKIE_VALUE } from '@/lib/global-settings-access';
 import { getBranchingAiAdminAccessState } from '@/lib/ai/admin-auth';
@@ -80,6 +81,7 @@ export default async function GlobalSettingsPage({ searchParams }: GlobalSetting
 
       <section className="grid gap-5 xl:grid-cols-2">
         <form action={saveExportTemplateAction} className="ui-panel grid gap-4 p-6">
+          <AppPendingFormBridge />
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">Template upload</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
@@ -123,6 +125,7 @@ export default async function GlobalSettingsPage({ searchParams }: GlobalSetting
         </form>
 
         <form action={saveExportMappingAction} className="ui-panel grid gap-4 p-6">
+          <AppPendingFormBridge />
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">Mapping editor</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AppModal, useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
 
@@ -37,12 +38,14 @@ export function RandomizeOrderButton({
   const t = getUiText(uiLanguage).randomizeOrder;
   const intervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const pendingReleaseRef = useRef<null | (() => void)>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [previewGroups, setPreviewGroups] = useState(groups);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const { beginPending } = useInteractionFeedback();
 
   useEffect(() => {
     if (!isOpen || isRandomizing || isSaving) {
@@ -54,6 +57,9 @@ export function RandomizeOrderButton({
 
   useEffect(
     () => () => {
+      pendingReleaseRef.current?.();
+      pendingReleaseRef.current = null;
+
       if (intervalRef.current !== null) {
         window.clearInterval(intervalRef.current);
       }
@@ -99,6 +105,8 @@ export function RandomizeOrderButton({
     } finally {
       setIsSaving(false);
       setIsRandomizing(false);
+      pendingReleaseRef.current?.();
+      pendingReleaseRef.current = null;
     }
   }
 
@@ -111,6 +119,8 @@ export function RandomizeOrderButton({
     setStatus(t.shuffling);
     setIsOpen(true);
     setIsRandomizing(true);
+    pendingReleaseRef.current?.();
+    pendingReleaseRef.current = beginPending(t.randomizingOrder);
     setPreviewGroups(shuffle(groups));
 
     intervalRef.current = window.setInterval(() => {
@@ -136,8 +146,6 @@ export function RandomizeOrderButton({
     setError('');
   }
 
-  const closeDisabled = isRandomizing || isSaving;
-
   return (
     <>
       <button
@@ -149,62 +157,37 @@ export function RandomizeOrderButton({
         {isRandomizing || isSaving ? t.randomizingOrder : t.button}
       </button>
 
-      {isOpen ? (
-        <div
-          className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
-          onClick={closeModal}
-        >
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div
-              aria-modal="true"
-              className="w-[min(42rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
-              onClick={(event) => event.stopPropagation()}
-              role="dialog"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="ui-section-title">{t.presentationOrder}</p>
-                  <h2 className="text-xl font-semibold">{t.randomizingGroups}</h2>
-                </div>
-                <button
-                  className="ui-button ui-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={closeDisabled}
-                  onClick={closeModal}
-                  type="button"
+      <AppModal
+        headerLabel={t.presentationOrder}
+        onClose={closeModal}
+        open={isOpen}
+        title={t.randomizingGroups}
+        widthClassName="w-[min(42rem,calc(100vw-2rem))]"
+      >
+        <div className="mt-4 grid gap-4">
+          <p className="text-sm text-[color:var(--app-fg-muted)]">{t.shuffling}</p>
+
+          <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-medium">{status || t.working}</span>
+              {error ? <span className="text-[color:var(--app-danger)]">{error}</span> : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {previewGroups.map((group, index) => (
+                <span
+                  key={`${group.groupId}-${index}`}
+                  className="ui-chip px-3 py-1.5 transition-transform duration-150 ease-out"
+                  style={{
+                    transform: isRandomizing ? `translateY(${(index % 2) * 2}px)` : 'translateY(0)'
+                  }}
                 >
-                  {t.close}
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-4">
-                <p className="text-sm text-[color:var(--app-fg-muted)]">
-                  {t.shuffling}
-                </p>
-
-                <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                  <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="font-medium">{status || t.working}</span>
-                    {error ? <span className="text-[color:var(--app-danger)]">{error}</span> : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {previewGroups.map((group, index) => (
-                      <span
-                        key={`${group.groupId}-${index}`}
-                        className="ui-chip px-3 py-1.5 transition-transform duration-150 ease-out"
-                        style={{
-                          transform: isRandomizing ? `translateY(${(index % 2) * 2}px)` : 'translateY(0)'
-                        }}
-                      >
-                        {group.groupName}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                  {group.groupName}
+                </span>
+              ))}
             </div>
           </div>
         </div>
-      ) : null}
+      </AppModal>
     </>
   );
 }

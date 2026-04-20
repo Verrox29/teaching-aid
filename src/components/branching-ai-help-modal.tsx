@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { AppModal } from '@/components/app-interaction-feedback';
+
 function HelpDialogSection({
   children,
   title
@@ -69,124 +71,102 @@ export function BranchingAiHelpModal() {
         <ChevronIcon className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]"
-          onClick={() => setOpen(false)}
-        >
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div
-              aria-modal="true"
-              className="w-[min(56rem,calc(100vw-2rem))] rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-lg"
-              onClick={(event) => event.stopPropagation()}
-              role="dialog"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="ui-section-title">Branching AI help</p>
-                  <h2 className="text-xl font-semibold">Setup guide</h2>
-                </div>
-                <button
-                  className="ui-button ui-button-secondary px-3 py-2 text-sm"
-                  onClick={() => setOpen(false)}
-                  type="button"
-                >
-                  Close
-                </button>
-              </div>
+      <AppModal
+        headerLabel="Branching AI help"
+        onClose={() => setOpen(false)}
+        open={open}
+        title="Setup guide"
+        widthClassName="w-[min(56rem,calc(100vw-2rem))]"
+      >
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <HelpDialogSection title="What Branching AI is for">
+            <p>
+              This connects the app to an external AI provider used by AI-assisted
+              evaluation functions.
+            </p>
+          </HelpDialogSection>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <HelpDialogSection title="What Branching AI is for">
-                  <p>
-                    This connects the app to an external AI provider used by AI-assisted
-                    evaluation functions.
-                  </p>
-                </HelpDialogSection>
+          <HelpDialogSection title="What you need before starting">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>A provider account</li>
+              <li>An API key</li>
+              <li>A model or deployment name</li>
+              <li>A base URL if your provider requires one</li>
+            </ul>
+          </HelpDialogSection>
 
-                <HelpDialogSection title="What you need before starting">
-                  <ul className="list-disc space-y-1 pl-5">
-                    <li>A provider account</li>
-                    <li>An API key</li>
-                    <li>A model or deployment name</li>
-                    <li>A base URL if your provider requires one</li>
-                  </ul>
-                </HelpDialogSection>
+          <HelpDialogSection title="Step-by-step setup">
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>Open Branching AI in admin settings.</li>
+              <li>Choose the provider.</li>
+              <li>Enter the endpoint if required.</li>
+              <li>Enter the model or deployment name.</li>
+              <li>Enter the API key.</li>
+              <li>Save the configuration.</li>
+              <li>Click Test connection.</li>
+              <li>Confirm the Verified status.</li>
+              <li>Enable Branching AI.</li>
+            </ol>
+          </HelpDialogSection>
 
-                <HelpDialogSection title="Step-by-step setup">
-                  <ol className="list-decimal space-y-1 pl-5">
-                    <li>Open Branching AI in admin settings.</li>
-                    <li>Choose the provider.</li>
-                    <li>Enter the endpoint if required.</li>
-                    <li>Enter the model or deployment name.</li>
-                    <li>Enter the API key.</li>
-                    <li>Save the configuration.</li>
-                    <li>Click Test connection.</li>
-                    <li>Confirm the Verified status.</li>
-                    <li>Enable Branching AI.</li>
-                  </ol>
-                </HelpDialogSection>
+          <HelpDialogSection title="Field explanations">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                <strong>Provider</strong>: the AI family this setup talks to.
+              </li>
+              <li>
+                <strong>API base URL</strong>: the provider endpoint to call.
+              </li>
+              <li>
+                <strong>Model / deployment</strong>: the exact model name to use.
+              </li>
+              <li>
+                <strong>API key</strong>: the secret credential used to authenticate.
+              </li>
+              <li>
+                <strong>Timeout</strong>: how long the app waits before failing.
+              </li>
+              <li>
+                <strong>Verification status</strong>: whether the last saved config was
+                tested successfully.
+              </li>
+            </ul>
+          </HelpDialogSection>
 
-                <HelpDialogSection title="Field explanations">
-                  <ul className="list-disc space-y-1 pl-5">
-                    <li>
-                      <strong>Provider</strong>: the AI family this setup talks to.
-                    </li>
-                    <li>
-                      <strong>API base URL</strong>: the provider endpoint to call.
-                    </li>
-                    <li>
-                      <strong>Model / deployment</strong>: the exact model name to use.
-                    </li>
-                    <li>
-                      <strong>API key</strong>: the secret credential used to authenticate.
-                    </li>
-                    <li>
-                      <strong>Timeout</strong>: how long the app waits before failing.
-                    </li>
-                    <li>
-                      <strong>Verification status</strong>: whether the last saved config was
-                      tested successfully.
-                    </li>
-                  </ul>
-                </HelpDialogSection>
+          <HelpDialogSection title="Prompt templates">
+            <p>
+              Each core AI function has its own editable prompt template. Keep each prompt
+              aligned with its intended job. Connection settings and prompts are managed
+              separately.
+            </p>
+          </HelpDialogSection>
 
-                <HelpDialogSection title="Prompt templates">
-                  <p>
-                    Each core AI function has its own editable prompt template. Keep each prompt
-                    aligned with its intended job. Connection settings and prompts are managed
-                    separately.
-                  </p>
-                </HelpDialogSection>
+          <HelpDialogSection title="Common errors">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>Invalid API key</li>
+              <li>Wrong endpoint</li>
+              <li>Wrong model name</li>
+              <li>Timeout or network issue</li>
+              <li>Insufficient permissions</li>
+            </ul>
+          </HelpDialogSection>
 
-                <HelpDialogSection title="Common errors">
-                  <ul className="list-disc space-y-1 pl-5">
-                    <li>Invalid API key</li>
-                    <li>Wrong endpoint</li>
-                    <li>Wrong model name</li>
-                    <li>Timeout or network issue</li>
-                    <li>Insufficient permissions</li>
-                  </ul>
-                </HelpDialogSection>
+          <HelpDialogSection title="Security notes">
+            <p>
+              API keys are stored securely. Saved keys are not displayed again. Rotate the
+              key if exposure is suspected.
+            </p>
+          </HelpDialogSection>
 
-                <HelpDialogSection title="Security notes">
-                  <p>
-                    API keys are stored securely. Saved keys are not displayed again. Rotate the
-                    key if exposure is suspected.
-                  </p>
-                </HelpDialogSection>
-
-                <HelpDialogSection title="What Test connection checks">
-                  <ul className="list-disc space-y-1 pl-5">
-                    <li>Authentication works</li>
-                    <li>The provider endpoint is reachable</li>
-                    <li>The selected model or deployment is usable</li>
-                  </ul>
-                </HelpDialogSection>
-              </div>
-            </div>
-          </div>
+          <HelpDialogSection title="What Test connection checks">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>Authentication works</li>
+              <li>The provider endpoint is reachable</li>
+              <li>The selected model or deployment is usable</li>
+            </ul>
+          </HelpDialogSection>
         </div>
-      ) : null}
+      </AppModal>
     </>
   );
 }

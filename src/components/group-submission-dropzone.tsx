@@ -3,6 +3,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { uploadGroupSubmissionAction } from '@/app/sessions/[sessionId]/order/actions';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES, GROUP_SUBMISSION_MAX_FILE_SIZE_MB } from '@/lib/group-submission';
 import { formatUiDateTime, getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
@@ -129,6 +130,7 @@ export function GroupSubmissionDropzone({
       role="button"
       tabIndex={0}
     >
+      <AppPendingFormBridge />
       <input name="sessionId" type="hidden" value={sessionId} />
       <input name="groupId" type="hidden" value={groupId} />
       {returnPath ? <input name="returnTo" type="hidden" value={returnPath} /> : null}

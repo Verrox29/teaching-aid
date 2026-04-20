@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { saveExportMetadataAction } from '@/app/sessions/[sessionId]/exports/actions';
+import { AppModal, AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { SessionBoostcampGroupedImport } from '@/components/session-boostcamp-grouped-import';
 import { SessionStudentImport } from '@/components/session-student-import';
 import { getUiText } from '@/lib/ui-language';
@@ -39,79 +40,6 @@ type MetadataSuggestionState = {
   className: string;
   programme: string;
 };
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M5.5 5.5L14.5 14.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M14.5 5.5L5.5 14.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function FloatingModal({
-  children,
-  onClose,
-  headerLabel,
-  closeLabel,
-  open,
-  title,
-  widthClassName = 'w-[min(56rem,calc(100vw-2rem))]'
-}: {
-  children: ReactNode;
-  headerLabel: string;
-  closeLabel: string;
-  onClose: () => void;
-  open: boolean;
-  title: string;
-  widthClassName?: string;
-}) {
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-[color:rgba(17,12,25,0.38)] backdrop-blur-[2px]" onClick={onClose}>
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          aria-modal="true"
-          className={`${widthClassName} max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4`}
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="ui-section-title">{headerLabel}</p>
-              <h2 className="text-xl font-semibold">{title}</h2>
-            </div>
-            <button
-              aria-label={closeLabel}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] text-sm font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-surface-soft)]"
-              onClick={onClose}
-              type="button"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="mt-4">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function SessionStudentsWorkspace({
   autoOpenImport = false,
@@ -350,6 +278,7 @@ export function SessionStudentsWorkspace({
         </div>
 
         <form action={saveExportMetadataAction} className="grid gap-4" id="session-students-metadata-form">
+          <AppPendingFormBridge />
           <input name="sessionId" type="hidden" value={sessionId} />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium">
@@ -472,17 +401,17 @@ export function SessionStudentsWorkspace({
         </div>
       </section>
 
-      <FloatingModal
-        closeLabel={uiLanguage === 'fr' ? 'Fermer' : 'Close'}
+      <AppModal
         headerLabel={t.pairagogieStudentsSetup}
         onClose={closeImport}
         open={importOpen}
         title={t.setupModalTitle}
+        widthClassName="w-[min(56rem,calc(100vw-2rem))]"
       >
         <div className="grid gap-5">
           {renderImportBody()}
         </div>
-      </FloatingModal>
+      </AppModal>
     </div>
   );
 }

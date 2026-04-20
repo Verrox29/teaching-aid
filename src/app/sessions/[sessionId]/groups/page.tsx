@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createDefaultGroupsAction } from './actions';
 
 import { AdminShell } from '@/components/admin-shell';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
 import { db, sessions } from '@/db';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
@@ -99,6 +100,7 @@ export default async function SessionGroupsPage({
           </div>
 
           <form action={createDefaultGroupsAction} className="mt-4">
+            <AppPendingFormBridge />
             <input name="sessionId" type="hidden" value={sessionId} />
             <button
               className="ui-button ui-button-primary"

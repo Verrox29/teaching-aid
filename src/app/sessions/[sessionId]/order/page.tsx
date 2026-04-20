@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { movePresentationOrderAction } from './actions';
 
 import { AdminShell } from '@/components/admin-shell';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
@@ -179,6 +180,7 @@ export default async function SessionOrderPage({
 
                   <div className="flex flex-wrap items-center gap-2">
                     <form action={movePresentationOrderAction}>
+                      <AppPendingFormBridge />
                       <input name="sessionId" type="hidden" value={sessionId} />
                       <input name="groupId" type="hidden" value={group.id} />
                       <input name="direction" type="hidden" value="up" />
@@ -191,6 +193,7 @@ export default async function SessionOrderPage({
                       </button>
                     </form>
                     <form action={movePresentationOrderAction}>
+                      <AppPendingFormBridge />
                       <input name="sessionId" type="hidden" value={sessionId} />
                       <input name="groupId" type="hidden" value={group.id} />
                       <input name="direction" type="hidden" value="down" />

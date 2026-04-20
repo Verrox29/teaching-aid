@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 import './globals.css';
 
+import { AppInteractionFeedbackProvider } from '@/components/app-interaction-feedback';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UiLanguageProvider } from '@/components/ui-language-toggle';
 import { getUiLanguageFromCookieValue, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
@@ -24,7 +25,9 @@ export default async function RootLayout({
     <html lang={uiLanguage} suppressHydrationWarning>
       <body className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
         <ThemeProvider>
-          <UiLanguageProvider>{children}</UiLanguageProvider>
+          <UiLanguageProvider>
+            <AppInteractionFeedbackProvider>{children}</AppInteractionFeedbackProvider>
+          </UiLanguageProvider>
         </ThemeProvider>
       </body>
     </html>

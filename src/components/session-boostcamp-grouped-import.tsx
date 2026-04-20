@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 
 import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
 import {
   parseBoostcampGroupedFile,
@@ -981,6 +982,7 @@ export function SessionBoostcampGroupedImport({
               </div>
 
               <form action={formAction} className="grid gap-3">
+                <AppPendingFormBridge />
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <input name="payloadJson" type="hidden" value={payloadJson} />
                 <div className="flex flex-wrap items-center justify-between gap-3">

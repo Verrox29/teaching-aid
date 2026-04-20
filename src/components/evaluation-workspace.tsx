@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { saveSessionInstructionsAction } from '@/app/sessions/actions';
+import { AppPendingFormBridge, useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
@@ -214,6 +215,7 @@ export function EvaluationWorkspaceClient({
   const t = getUiText(uiLanguage).evaluationWorkspace;
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { runPending } = useInteractionFeedback();
   const [groups, setGroups] = useState<GroupDraft[]>(() => initialDraftGroups(initialGroups));
   const [selectedGroupId, setSelectedGroupId] = useState(initialGroupId);
   const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() =>
@@ -428,8 +430,11 @@ export function EvaluationWorkspaceClient({
         throw new Error(payload.error ?? t.errors.updatePresentationOrder);
       }
 
+      const nextGroups = Array.isArray(payload.groups)
+        ? (payload.groups as Array<{ groupId: string; presentationOrder: number }>)
+        : [];
       const orderByGroupId = new Map(
-        payload.groups.map((group: { groupId: string; presentationOrder: number }) => [
+        nextGroups.map((group) => [
           group.groupId,
           group.presentationOrder
         ])
@@ -438,7 +443,7 @@ export function EvaluationWorkspaceClient({
       setGroups((current) =>
         reorderGroupsByIds(
           current,
-          payload.groups.map((group: { groupId: string }) => group.groupId)
+          nextGroups.map((group) => group.groupId)
         ).map((group) => ({
           ...group,
           presentationOrder: orderByGroupId.get(group.groupId) ?? group.presentationOrder
@@ -659,27 +664,29 @@ export function EvaluationWorkspaceClient({
     );
 
     try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/evaluation/groups/${groupId}/ai`,
-        {
-          body: JSON.stringify({ mode: 'questions' }),
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          method: 'POST'
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error ?? t.errors.regenerateChallengeQuestions);
-      }
-
-      if (payload.group) {
-        setGroups((current) =>
-          current.map((group) => (group.groupId === groupId ? payload.group : group))
+      await runPending('Generating challenge questions...', async () => {
+        const response = await fetch(
+          `/api/sessions/${sessionId}/evaluation/groups/${groupId}/ai`,
+          {
+            body: JSON.stringify({ mode: 'questions' }),
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            method: 'POST'
+          }
         );
-      }
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error ?? t.errors.regenerateChallengeQuestions);
+        }
+
+        if (payload.group) {
+          setGroups((current) =>
+            current.map((group) => (group.groupId === groupId ? payload.group : group))
+          );
+        }
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t.errors.regenerateChallengeQuestions;
@@ -714,33 +721,35 @@ export function EvaluationWorkspaceClient({
     );
 
     try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/evaluation/groups/${groupId}/ai`,
-        {
-          body: JSON.stringify({ mode: 'grading' }),
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          method: 'POST'
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error ?? t.errors.generateAiRecommendations);
-      }
-
-      if (payload.group) {
-        setGroups((current) =>
-          current.map((group) => (group.groupId === groupId ? payload.group : group))
+      await runPending('Generating AI feedback...', async () => {
+        const response = await fetch(
+          `/api/sessions/${sessionId}/evaluation/groups/${groupId}/ai`,
+          {
+            body: JSON.stringify({ mode: 'grading' }),
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            method: 'POST'
+          }
         );
-      }
 
-      setSpellcheckReady((current) => ({ ...current, [groupId]: false }));
-      setSaveStates((current) => ({
-        ...current,
-        [groupId]: { kind: 'saved', at: new Date().toISOString() }
-      }));
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error ?? t.errors.generateAiRecommendations);
+        }
+
+        if (payload.group) {
+          setGroups((current) =>
+            current.map((group) => (group.groupId === groupId ? payload.group : group))
+          );
+        }
+
+        setSpellcheckReady((current) => ({ ...current, [groupId]: false }));
+        setSaveStates((current) => ({
+          ...current,
+          [groupId]: { kind: 'saved', at: new Date().toISOString() }
+        }));
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : t.errors.generateAiRecommendations;
       setGroups((current) =>
@@ -765,76 +774,78 @@ export function EvaluationWorkspaceClient({
     }
 
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/evaluation/ai`, {
-        body: JSON.stringify({ mode }),
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        method: 'POST'
-      });
+      await runPending(mode === 'questions' ? 'Generating all questions...' : 'Generating all feedback...', async () => {
+        const response = await fetch(`/api/sessions/${sessionId}/evaluation/ai`, {
+          body: JSON.stringify({ mode }),
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          method: 'POST'
+        });
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error ?? t.errors.runBatchAi);
-      }
-
-      if (Array.isArray(payload.groups)) {
-        setGroups((current) =>
-          current.map((group) => {
-            const nextGroup = payload.groups.find(
-              (entry: GroupDraft) => entry.groupId === group.groupId
-            );
-            return nextGroup ? nextGroup : group;
-          })
-        );
-
-        const nextPanelStates: Record<string, PanelState> = {};
-        for (const group of payload.groups as GroupDraft[]) {
-          const hasAiFeedback =
-            Boolean(group.aiRecommendedFeedback) || group.aiRecommendedCriteria.length > 0 || group.finalFeedback.trim().length > 0;
-          nextPanelStates[group.groupId] = {
-            challengeOpen: true,
-            gradingOpen: hasAiFeedback,
-            notesOpen: !hasAiFeedback
-          };
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error ?? t.errors.runBatchAi);
         }
-        setPanelStates((current) => ({ ...current, ...nextPanelStates }));
 
-        if (mode === 'grading') {
-          setSpellcheckReady((current) => {
-            const nextState = { ...current };
-            for (const group of payload.groups as GroupDraft[]) {
-              if (group.aiRecommendedFeedback) {
-                nextState[group.groupId] = false;
+        if (Array.isArray(payload.groups)) {
+          setGroups((current) =>
+            current.map((group) => {
+              const nextGroup = payload.groups.find(
+                (entry: GroupDraft) => entry.groupId === group.groupId
+              );
+              return nextGroup ? nextGroup : group;
+            })
+          );
+
+          const nextPanelStates: Record<string, PanelState> = {};
+          for (const group of payload.groups as GroupDraft[]) {
+            const hasAiFeedback =
+              Boolean(group.aiRecommendedFeedback) || group.aiRecommendedCriteria.length > 0 || group.finalFeedback.trim().length > 0;
+            nextPanelStates[group.groupId] = {
+              challengeOpen: true,
+              gradingOpen: hasAiFeedback,
+              notesOpen: !hasAiFeedback
+            };
+          }
+          setPanelStates((current) => ({ ...current, ...nextPanelStates }));
+
+          if (mode === 'grading') {
+            setSpellcheckReady((current) => {
+              const nextState = { ...current };
+              for (const group of payload.groups as GroupDraft[]) {
+                if (group.aiRecommendedFeedback) {
+                  nextState[group.groupId] = false;
+                }
               }
-            }
-            return nextState;
+              return nextState;
+            });
+          }
+        }
+
+        const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
+        if (mode === 'questions') {
+          const nextSkipped = Object.fromEntries(
+            skipped.map((entry: { groupId: string; reason: string }) => [entry.groupId, entry.reason])
+          );
+          setChallengeQuestionsSkipped(nextSkipped);
+          setChallengeQuestionsBatchState({
+            kind: 'done',
+            message:
+              skipped.length > 0
+                ? t.batchQuestionsDoneWithSkipped.replace('{count}', String(skipped.length))
+                : t.batchQuestionsDoneAll
+          });
+        } else {
+          setGradingBatchState({
+            kind: 'done',
+            message:
+              skipped.length > 0
+                ? t.batchFeedbackDoneWithSkipped.replace('{count}', String(skipped.length))
+                : t.batchFeedbackDoneAll
           });
         }
-      }
-
-      const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
-      if (mode === 'questions') {
-        const nextSkipped = Object.fromEntries(
-          skipped.map((entry: { groupId: string; reason: string }) => [entry.groupId, entry.reason])
-        );
-        setChallengeQuestionsSkipped(nextSkipped);
-        setChallengeQuestionsBatchState({
-          kind: 'done',
-          message:
-            skipped.length > 0
-              ? t.batchQuestionsDoneWithSkipped.replace('{count}', String(skipped.length))
-              : t.batchQuestionsDoneAll
-        });
-      } else {
-        setGradingBatchState({
-          kind: 'done',
-          message:
-            skipped.length > 0
-              ? t.batchFeedbackDoneWithSkipped.replace('{count}', String(skipped.length))
-              : t.batchFeedbackDoneAll
-        });
-      }
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : t.errors.runBatchAi;
       if (mode === 'questions') {
@@ -1006,6 +1017,7 @@ export function EvaluationWorkspaceClient({
             {t.briefUsedByAi}
           </p>
           <form action={saveSessionInstructionsAction} className="grid gap-3">
+            <AppPendingFormBridge />
             <input name="sessionId" type="hidden" value={sessionId} />
             <textarea
               aria-label={t.assignmentBrief}
@@ -1402,7 +1414,7 @@ export function EvaluationWorkspaceClient({
                         gradingOpen: open
                       }))
                     }
-                    title={t.finalGradingTitle}
+                    title={t.finalGrading}
                     titleClassName="text-lg font-semibold"
                   >
                     <div className="grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
@@ -1480,7 +1492,9 @@ export function EvaluationWorkspaceClient({
                         </span>
                       </div>
                       <p className="text-[color:var(--app-fg-muted)]">
-                        {t.totalCalculatedFromTeacherScores}
+                        {uiLanguage === 'fr'
+                          ? 'Le total est calculé à partir des notes contrôlées par l’enseignant ci-dessus.'
+                          : 'The total is calculated from the teacher-controlled scores above.'}
                       </p>
                     </div>
 

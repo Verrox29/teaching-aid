@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { createSessionAction } from '@/app/sessions/actions';
+import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -51,6 +52,7 @@ export function SessionCreateForm() {
 
   return (
     <form action={formAction} className="ui-card grid gap-6 p-6">
+      <AppPendingFormBridge />
       <div className="grid gap-2">
         <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="title">
           Title
