@@ -43,9 +43,13 @@ export async function AdminShell({
 
   return (
     <main className="min-h-screen">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+      <div
+        className={`mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 sm:px-6 lg:px-8 ${
+          isSessionAdminPage ? 'pb-4 pt-0' : 'py-4 lg:py-6'
+        }`}
+      >
         <section
-          className={`ui-shell ${isSessionAdminPage ? 'px-4 py-4 sm:px-5 sm:py-4' : 'px-5 py-5 sm:px-6 sm:py-6'}`}
+          className={`ui-shell ${isSessionAdminPage ? 'sticky top-0 z-50 px-4 py-4 backdrop-blur-md sm:px-5 sm:py-4' : 'px-5 py-5 sm:px-6 sm:py-6'}`}
         >
           {isSessionAdminPage && sessionId && slug && sessionHeaderState ? (
             <div className="grid gap-2.5">
