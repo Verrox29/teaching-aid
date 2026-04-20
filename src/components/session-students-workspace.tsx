@@ -123,6 +123,7 @@ export function SessionStudentsWorkspace({
 }: SessionStudentsWorkspaceProps) {
   const { uiLanguage } = useUiLanguage();
   const t = getUiText(uiLanguage).sessionStudents;
+  const shared = getUiText(uiLanguage).shared;
   const [importOpen, setImportOpen] = useState(autoOpenImport);
   const [importMode, setImportMode] = useState<ImportMode>('chooser');
   const [metadataDraft, setMetadataDraft] = useState(metadata);
@@ -326,6 +327,12 @@ export function SessionStudentsWorkspace({
               <h2 className="text-xl font-semibold">{t.metadataTitle}</h2>
               <p className="text-sm text-[color:var(--app-fg-muted)]">
                 {t.metadataDescription}
+              </p>
+              <p className="text-sm text-[color:var(--app-fg-muted)]">
+                <span className="font-medium text-[color:var(--app-fg)]">
+                  {getUiText(uiLanguage).sessionAdmin.intake}:
+                </span>{' '}
+                {metadataDraft.season || shared.notSet}
               </p>
               {metadataSuggestions.className || metadataSuggestions.programme ? (
                 <p className="text-xs text-[color:var(--app-fg-muted)]">
