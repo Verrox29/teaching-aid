@@ -95,19 +95,34 @@ export default async function SessionGroupsPage({
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">{t.createDefaultGroups}</h2>
             <p className="text-sm text-[color:var(--app-fg-muted)]">
-              {t.noGroupsYet} {t.createGroupsHelp.replace('{count}', String(session.groupCount))}
+              {t.noGroupsYet} {t.createGroupsHelp}
             </p>
           </div>
 
-          <form action={createDefaultGroupsAction} className="mt-4">
+          <form action={createDefaultGroupsAction} className="mt-4 grid gap-4">
             <AppPendingFormBridge />
             <input name="sessionId" type="hidden" value={sessionId} />
-            <button
-              className="ui-button ui-button-primary"
-              type="submit"
-            >
-              {t.createDefaultGroupsButton}
-            </button>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium">
+                {t.groupCount}
+                <input className="ui-input" defaultValue={session.groupCount} min="1" name="groupCount" type="number" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                {t.defaultGroupCapacity}
+                <input
+                  className="ui-input"
+                  defaultValue={session.defaultGroupCapacity}
+                  min="1"
+                  name="defaultGroupCapacity"
+                  type="number"
+                />
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <button className="ui-button ui-button-primary" type="submit">
+                {t.createDefaultGroupsButton}
+              </button>
+            </div>
           </form>
         </section>
       ) : null}

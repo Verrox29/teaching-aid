@@ -12,7 +12,7 @@ import { ensurePairagogieRubric } from '@/lib/evaluation/rubric';
 import { GLOBAL_SETTINGS_PATH } from '@/lib/global-settings-access';
 
 const createSessionSchema = z.object({
-  title: z.string().trim().min(1, 'Title is required'),
+  subject: z.string().trim().min(1, 'Subject is required'),
   language: z.enum(['fr', 'en'], {
     errorMap: () => ({ message: 'Language is required' })
   }),
@@ -21,28 +21,18 @@ const createSessionSchema = z.object({
     .trim()
     .transform((value) => value || undefined)
     .optional(),
-  default_group_capacity: z.coerce
-    .number({
-      invalid_type_error: 'Default group capacity is required'
-    })
-    .int('Default group capacity must be a whole number')
-    .positive('Default group capacity must be greater than 0'),
-  group_count: z.coerce
-    .number({
-      invalid_type_error: 'Group count is required'
-    })
-    .int('Group count must be a whole number')
-    .positive('Group count must be greater than 0'),
-  admin_access_code: z.string().trim().min(1, 'Admin access code is required')
+  className: z.string().trim().optional().default(''),
+  season: z.enum(['Fall', 'Spring']).or(z.literal('')).optional().default(''),
+  sessionDate: z.string().trim().optional().default('')
 });
 
 type CreateSessionFormValues = {
-  title: string;
+  subject: string;
   language: 'fr' | 'en';
   instruction_text: string;
-  default_group_capacity: string;
-  group_count: string;
-  admin_access_code: string;
+  className: string;
+  season: string;
+  sessionDate: string;
 };
 
 export type CreateSessionFormState = {
@@ -175,12 +165,12 @@ export async function createSessionAction(
   formData: FormData
 ): Promise<CreateSessionFormState> {
   const rawValues: CreateSessionFormValues = {
-    title: String(formData.get('title') ?? ''),
+    subject: String(formData.get('subject') ?? ''),
     language: (String(formData.get('language') ?? 'fr') as 'fr' | 'en'),
     instruction_text: String(formData.get('instruction_text') ?? ''),
-    default_group_capacity: String(formData.get('default_group_capacity') ?? ''),
-    group_count: String(formData.get('group_count') ?? ''),
-    admin_access_code: String(formData.get('admin_access_code') ?? '')
+    className: String(formData.get('className') ?? ''),
+    season: String(formData.get('season') ?? ''),
+    sessionDate: String(formData.get('sessionDate') ?? '')
   };
 
   const parsed = createSessionSchema.safeParse(rawValues);
@@ -194,17 +184,17 @@ export async function createSessionAction(
   }
 
   const values = parsed.data;
-  const slug = await generateUniqueSlug(values.title);
-  const adminAccessCodeHash = hashAdminAccessCode(values.admin_access_code);
+  const slug = await generateUniqueSlug(values.subject);
+  const adminAccessCodeHash = hashAdminAccessCode(randomBytes(16).toString('hex'));
 
   const inserted = await db.insert(sessions).values({
-    title: values.title,
+    title: values.subject,
     slug,
     language: values.language,
     instructions: values.instruction_text,
-    defaultGroupCapacity: values.default_group_capacity,
-    groupCount: values.group_count,
     adminAccessCodeHash,
+    defaultGroupCapacity: 1,
+    groupCount: 1,
     groupSelectionLocked: false,
     presentationOrderLocked: false
   }).returning({ id: sessions.id });
@@ -212,6 +202,14 @@ export async function createSessionAction(
   const sessionId = inserted[0]?.id;
   if (sessionId) {
     await ensurePairagogieRubric(sessionId);
+    await upsertSessionExportMetadata(sessionId, {
+      className: values.className.trim() || values.subject,
+      professorName: '',
+      programme: '',
+      season: values.season.trim(),
+      sessionDate: values.sessionDate.trim(),
+      subject: values.subject
+    });
   }
 
   revalidatePath('/sessions');

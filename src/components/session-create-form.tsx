@@ -5,8 +5,10 @@ import { useFormStatus } from 'react-dom';
 
 import { createSessionAction } from '@/app/sessions/actions';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
+import { useUiLanguage } from '@/components/ui-language-toggle';
+import { getUiText } from '@/lib/ui-language';
 
-function SubmitButton() {
+function SubmitButton({ pendingLabel, readyLabel }: { pendingLabel: string; readyLabel: string }) {
   const { pending } = useFormStatus();
 
   return (
@@ -15,7 +17,7 @@ function SubmitButton() {
       disabled={pending}
       type="submit"
     >
-      {pending ? 'Creating...' : 'Create session'}
+      {pending ? pendingLabel : readyLabel}
     </button>
   );
 }
@@ -35,16 +37,18 @@ function FieldError({ errors }: FieldErrorProps) {
 const initialCreateSessionFormState = {
   errors: {},
   values: {
-    title: '',
+    subject: '',
     language: 'fr',
     instruction_text: '',
-    default_group_capacity: '',
-    group_count: '',
-    admin_access_code: ''
+    className: '',
+    season: 'Fall',
+    sessionDate: ''
   }
 } as const;
 
 export function SessionCreateForm() {
+  const { uiLanguage } = useUiLanguage();
+  const t = getUiText(uiLanguage);
   const [state, formAction] = useActionState(
     createSessionAction,
     initialCreateSessionFormState
@@ -54,22 +58,22 @@ export function SessionCreateForm() {
     <form action={formAction} className="ui-card grid gap-6 p-6">
       <AppPendingFormBridge />
       <div className="grid gap-2">
-        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="title">
-          Title
+        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="subject">
+          {t.sessionAdmin.subject}
         </label>
         <input
           className="ui-input"
-          defaultValue={state.values.title}
-          id="title"
-          name="title"
+          defaultValue={state.values.subject}
+          id="subject"
+          name="subject"
           type="text"
         />
-        <FieldError errors={state.errors.title} />
+        <FieldError errors={state.errors.subject} />
       </div>
 
       <div className="grid gap-2">
         <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="language">
-          Language
+          {t.shared.language}
         </label>
         <select
           className="ui-select"
@@ -85,56 +89,49 @@ export function SessionCreateForm() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="grid gap-2">
-          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="default_group_capacity">
-            Default Group Capacity
+          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="className">
+            {t.sessionAdmin.class}
           </label>
           <input
             className="ui-input"
-            defaultValue={state.values.default_group_capacity}
-            id="default_group_capacity"
-            min="1"
-            name="default_group_capacity"
-            step="1"
-            type="number"
+            defaultValue={state.values.className}
+            id="className"
+            name="className"
+            type="text"
           />
-          <FieldError errors={state.errors.default_group_capacity} />
+          <FieldError errors={state.errors.className} />
         </div>
 
         <div className="grid gap-2">
-          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="group_count">
-            Group Count
+          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="season">
+            {t.sessionAdmin.intake}
+          </label>
+          <select className="ui-select" defaultValue={state.values.season || 'Fall'} id="season" name="season">
+            <option value="Fall">Fall</option>
+            <option value="Spring">Spring</option>
+          </select>
+          <FieldError errors={state.errors.season} />
+        </div>
+
+        <div className="grid gap-2 md:col-span-2">
+          <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="sessionDate">
+            {t.sessionAdmin.presentationDate}
           </label>
           <input
             className="ui-input"
-            defaultValue={state.values.group_count}
-            id="group_count"
-            min="1"
-            name="group_count"
-            step="1"
-            type="number"
+            defaultValue={state.values.sessionDate}
+            id="sessionDate"
+            name="sessionDate"
+            type="date"
           />
-          <FieldError errors={state.errors.group_count} />
+          <FieldError errors={state.errors.sessionDate} />
         </div>
-      </div>
-
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-[color:var(--app-fg)]" htmlFor="admin_access_code">
-          Admin Access Code
-        </label>
-        <input
-          className="ui-input"
-          defaultValue={state.values.admin_access_code}
-          id="admin_access_code"
-          name="admin_access_code"
-          type="password"
-        />
-        <FieldError errors={state.errors.admin_access_code} />
       </div>
 
       {state.message ? <p className="text-sm text-[color:var(--app-danger)]">{state.message}</p> : null}
 
       <div className="flex justify-end">
-        <SubmitButton />
+        <SubmitButton pendingLabel={t.shared.creatingSession} readyLabel={t.shared.createSession} />
       </div>
     </form>
   );

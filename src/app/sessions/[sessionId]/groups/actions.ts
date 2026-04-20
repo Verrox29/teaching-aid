@@ -11,7 +11,15 @@ import { savedGroupsPayloadSchema } from './schemas';
 const groupsPath = (sessionId: string) => `/sessions/${sessionId}/groups`;
 
 const createGroupsSchema = z.object({
-  sessionId: z.string().uuid('Invalid session id')
+  sessionId: z.string().uuid('Invalid session id'),
+  defaultGroupCapacity: z.coerce
+    .number({ invalid_type_error: 'Default group capacity is required' })
+    .int('Default group capacity must be a whole number')
+    .positive('Default group capacity must be greater than 0'),
+  groupCount: z.coerce
+    .number({ invalid_type_error: 'Group count is required' })
+    .int('Group count must be a whole number')
+    .positive('Group count must be greater than 0')
 });
 
 const createGroupSchema = z.object({
@@ -255,6 +263,8 @@ export async function persistGroupUpdate({
 
 export async function createDefaultGroupsAction(formData: FormData): Promise<never> {
   const parsed = createGroupsSchema.safeParse({
+    defaultGroupCapacity: String(formData.get('defaultGroupCapacity') ?? ''),
+    groupCount: String(formData.get('groupCount') ?? ''),
     sessionId: String(formData.get('sessionId') ?? '')
   });
 
@@ -277,11 +287,20 @@ export async function createDefaultGroupsAction(formData: FormData): Promise<nev
     redirectWithMessage(parsed.data.sessionId, 'error', 'Groups already exist for this session.');
   }
 
+  await db
+    .update(sessions)
+    .set({
+      defaultGroupCapacity: parsed.data.defaultGroupCapacity,
+      groupCount: parsed.data.groupCount,
+      updatedAt: new Date()
+    })
+    .where(eq(sessions.id, parsed.data.sessionId));
+
   await db.insert(groups).values(
-    Array.from({ length: session.groupCount }, (_, index) => ({
+    Array.from({ length: parsed.data.groupCount }, (_, index) => ({
       sessionId: parsed.data.sessionId,
       name: `Group ${index + 1}`,
-      capacity: session.defaultGroupCapacity
+      capacity: parsed.data.defaultGroupCapacity
     }))
   );
 
