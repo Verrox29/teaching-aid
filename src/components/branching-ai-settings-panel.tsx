@@ -7,6 +7,7 @@ import { useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { BranchingAiHelpModal } from '@/components/branching-ai-help-modal';
 import type {
   BranchingAiAdminView,
+  BranchingAiChallengeQuestionValidationSettings,
   BranchingAiPromptTemplateView,
   BranchingAiProvider,
   BranchingAiVerificationStatus
@@ -29,6 +30,17 @@ type ConnectionDraft = {
   model: string;
   provider: BranchingAiProvider;
   timeoutMs: string;
+};
+
+type ValidationDraft = {
+  maxQuestionLength: string;
+  minAcceptedQuestions: string;
+  minQuestionWordCount: string;
+  maxAcceptedQuestions: string;
+  rejectDuplicateQuestions: boolean;
+  rejectIndirectFrenchWording: boolean;
+  requireFrenchVous: boolean;
+  requireReadableLetters: boolean;
 };
 
 function formatDateTime(value: Date | null | undefined) {
@@ -69,6 +81,21 @@ function clonePromptDrafts(prompts: BranchingAiPromptTemplateView[]) {
   >;
 }
 
+function cloneValidationDraft(
+  validation: BranchingAiChallengeQuestionValidationSettings | null | undefined
+): ValidationDraft {
+  return {
+    maxQuestionLength: String(validation?.maxQuestionLength ?? 180),
+    minAcceptedQuestions: String(validation?.minAcceptedQuestions ?? 2),
+    minQuestionWordCount: String(validation?.minQuestionWordCount ?? 3),
+    maxAcceptedQuestions: String(validation?.maxAcceptedQuestions ?? 3),
+    rejectDuplicateQuestions: validation?.rejectDuplicateQuestions ?? true,
+    rejectIndirectFrenchWording: validation?.rejectIndirectFrenchWording ?? true,
+    requireFrenchVous: validation?.requireFrenchVous ?? true,
+    requireReadableLetters: validation?.requireReadableLetters ?? true
+  };
+}
+
 export function BranchingAiSettingsPanel({
   accessState,
   initialView
@@ -80,7 +107,7 @@ export function BranchingAiSettingsPanel({
   const [unlockStatus, setUnlockStatus] = useState('');
   const [message, setMessage] = useState('');
   const [busyAction, setBusyAction] = useState<
-    'connection-save' | 'connection-test' | 'prompts-save' | 'unlock' | null
+    'connection-save' | 'connection-test' | 'prompts-save' | 'validation-save' | 'unlock' | null
   >(null);
   const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft>(() => ({
     apiBaseUrl: initialView?.settings.apiBaseUrl ?? '',
@@ -92,6 +119,9 @@ export function BranchingAiSettingsPanel({
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>(() =>
     initialView ? clonePromptDrafts(initialView.prompts) : {}
+  );
+  const [validationDraft, setValidationDraft] = useState<ValidationDraft>(() =>
+    cloneValidationDraft(initialView?.settings.challengeQuestionValidationSettings)
   );
 
   useEffect(() => {
@@ -105,6 +135,7 @@ export function BranchingAiSettingsPanel({
     });
     setApiKeyDraft('');
     setPromptDrafts(initialView ? clonePromptDrafts(initialView.prompts) : {});
+    setValidationDraft(cloneValidationDraft(initialView?.settings.challengeQuestionValidationSettings));
     setMessage('');
   }, [initialView]);
 
@@ -214,6 +245,39 @@ export function BranchingAiSettingsPanel({
     });
   }
 
+  async function saveValidationSettings() {
+    setBusyAction('validation-save');
+    setMessage('');
+
+    const payload = {
+      maxQuestionLength: Number.parseInt(validationDraft.maxQuestionLength, 10),
+      maxAcceptedQuestions: Number.parseInt(validationDraft.maxAcceptedQuestions, 10),
+      minAcceptedQuestions: Number.parseInt(validationDraft.minAcceptedQuestions, 10),
+      minQuestionWordCount: Number.parseInt(validationDraft.minQuestionWordCount, 10),
+      rejectDuplicateQuestions: validationDraft.rejectDuplicateQuestions,
+      rejectIndirectFrenchWording: validationDraft.rejectIndirectFrenchWording,
+      requireFrenchVous: validationDraft.requireFrenchVous,
+      requireReadableLetters: validationDraft.requireReadableLetters
+    };
+
+    await runPending('Saving Branching AI validation rules...', async () => {
+      const response = await fetch('/api/admin/branching-ai', {
+        body: JSON.stringify({ challengeQuestionValidation: payload }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'PATCH'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Could not save challenge question validation.');
+      }
+
+      setView(result.view);
+      setMessage('Challenge question validation saved.');
+    });
+  }
+
   function hasConnectionChanges() {
     if (!view) {
       return false;
@@ -236,6 +300,25 @@ export function BranchingAiSettingsPanel({
 
     return BRANCHING_AI_PROMPT_KEYS.some(
       (promptKey) => (promptDrafts[promptKey] ?? '') !== (view.prompts.find((entry) => entry.promptKey === promptKey)?.template ?? '')
+    );
+  }
+
+  function hasValidationChanges() {
+    if (!view) {
+      return false;
+    }
+
+    const current = view.settings.challengeQuestionValidationSettings;
+    return (
+      validationDraft.maxQuestionLength !== String(current?.maxQuestionLength ?? 180) ||
+      validationDraft.minAcceptedQuestions !== String(current?.minAcceptedQuestions ?? 2) ||
+      validationDraft.maxAcceptedQuestions !== String(current?.maxAcceptedQuestions ?? 3) ||
+      validationDraft.minQuestionWordCount !== String(current?.minQuestionWordCount ?? 3) ||
+      validationDraft.rejectDuplicateQuestions !== (current?.rejectDuplicateQuestions ?? true) ||
+      validationDraft.rejectIndirectFrenchWording !==
+        (current?.rejectIndirectFrenchWording ?? true) ||
+      validationDraft.requireFrenchVous !== (current?.requireFrenchVous ?? true) ||
+      validationDraft.requireReadableLetters !== (current?.requireReadableLetters ?? true)
     );
   }
 
@@ -537,28 +620,223 @@ export function BranchingAiSettingsPanel({
                     </label>
 
                     {key === 'generate_challenge_questions' ? (
-                      <div className="mt-3 grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--app-fg-muted)]">
-                          Latest validation failures
-                        </p>
-                        {view.settings.latestQuestionRejectionReasons &&
-                        view.settings.latestQuestionRejectionReasons.length > 0 ? (
-                          <div className="flex flex-col gap-2">
-                            {view.settings.latestQuestionRejectionReasons.map((reason, index) => (
-                              <div
-                                key={`${reason}-${index}`}
-                                className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg)]"
-                              >
-                                {reason}
-                              </div>
-                            ))}
+                      <div className="mt-3 grid gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--app-fg-muted)]">
+                              Validation rules
+                            </p>
+                            <p className="text-sm text-[color:var(--app-fg-muted)]">
+                              These settings control which model-generated challenge questions are
+                              accepted at runtime.
+                            </p>
                           </div>
-                        ) : (
-                          <p className="text-sm text-[color:var(--app-fg-muted)]">
-                            No validation failures recorded yet.
+                          <button
+                            className="ui-button ui-button-secondary px-3 py-2 text-sm"
+                            disabled={!hasValidationChanges() || busyAction !== null}
+                            onClick={() => {
+                              void saveValidationSettings().catch((error) => {
+                                setMessage(
+                                  error instanceof Error
+                                    ? error.message
+                                    : 'Could not save validation rules.'
+                                );
+                              }).finally(() => setBusyAction(null));
+                            }}
+                            type="button"
+                          >
+                            Save validation rules
+                          </button>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <label className="grid gap-2 text-sm font-medium">
+                            Maximum question length
+                            <input
+                              className="ui-input"
+                              inputMode="numeric"
+                              min="40"
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  maxQuestionLength: event.target.value
+                                }))
+                              }
+                              type="number"
+                              value={validationDraft.maxQuestionLength}
+                            />
+                            <span className="text-xs text-[color:var(--app-fg-muted)]">
+                              Questions longer than this are rejected.
+                            </span>
+                          </label>
+
+                          <label className="grid gap-2 text-sm font-medium">
+                            Minimum question word count
+                            <input
+                              className="ui-input"
+                              inputMode="numeric"
+                              min="1"
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  minQuestionWordCount: event.target.value
+                                }))
+                              }
+                              type="number"
+                              value={validationDraft.minQuestionWordCount}
+                            />
+                            <span className="text-xs text-[color:var(--app-fg-muted)]">
+                              Short fragments are rejected.
+                            </span>
+                          </label>
+
+                          <label className="grid gap-2 text-sm font-medium">
+                            Minimum accepted questions
+                            <input
+                              className="ui-input"
+                              inputMode="numeric"
+                              min="1"
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  minAcceptedQuestions: event.target.value
+                                }))
+                              }
+                              type="number"
+                              value={validationDraft.minAcceptedQuestions}
+                            />
+                            <span className="text-xs text-[color:var(--app-fg-muted)]">
+                              The runtime validator requires at least this many accepted questions.
+                            </span>
+                          </label>
+
+                          <label className="grid gap-2 text-sm font-medium">
+                            Maximum accepted questions
+                            <input
+                              className="ui-input"
+                              inputMode="numeric"
+                              min="1"
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  maxAcceptedQuestions: event.target.value
+                                }))
+                              }
+                              type="number"
+                              value={validationDraft.maxAcceptedQuestions}
+                            />
+                            <span className="text-xs text-[color:var(--app-fg-muted)]">
+                              The runtime validator allows at most this many accepted questions.
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="flex items-start gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-4 py-3 text-sm font-medium">
+                            <input
+                              checked={validationDraft.requireFrenchVous}
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  requireFrenchVous: event.target.checked
+                                }))
+                              }
+                              type="checkbox"
+                            />
+                            <span className="grid gap-1">
+                              French questions must include <code>vous</code>
+                              <span className="text-xs font-normal text-[color:var(--app-fg-muted)]">
+                                Rejects indirect French wording that does not address the group
+                                directly.
+                              </span>
+                            </span>
+                          </label>
+
+                          <label className="flex items-start gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-4 py-3 text-sm font-medium">
+                            <input
+                              checked={validationDraft.rejectIndirectFrenchWording}
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  rejectIndirectFrenchWording: event.target.checked
+                                }))
+                              }
+                              type="checkbox"
+                            />
+                            <span className="grid gap-1">
+                              Reject indirect French wording like <code>ce groupe</code>
+                              <span className="text-xs font-normal text-[color:var(--app-fg-muted)]">
+                                Keeps the questions pointed at the presenting students.
+                              </span>
+                            </span>
+                          </label>
+
+                          <label className="flex items-start gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-4 py-3 text-sm font-medium">
+                            <input
+                              checked={validationDraft.requireReadableLetters}
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  requireReadableLetters: event.target.checked
+                                }))
+                              }
+                              type="checkbox"
+                            />
+                            <span className="grid gap-1">
+                              Require readable letters
+                              <span className="text-xs font-normal text-[color:var(--app-fg-muted)]">
+                                Rejects strings that do not look like real text.
+                              </span>
+                            </span>
+                          </label>
+
+                          <label className="flex items-start gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-4 py-3 text-sm font-medium">
+                            <input
+                              checked={validationDraft.rejectDuplicateQuestions}
+                              onChange={(event) =>
+                                setValidationDraft((current) => ({
+                                  ...current,
+                                  rejectDuplicateQuestions: event.target.checked
+                                }))
+                              }
+                              type="checkbox"
+                            />
+                            <span className="grid gap-1">
+                              Reject duplicate questions
+                              <span className="text-xs font-normal text-[color:var(--app-fg-muted)]">
+                                Prevents the model from repeating the same question twice.
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
+                          <p className="font-medium text-[color:var(--app-fg)]">
+                            Latest validation failures
                           </p>
-                        )}
+                          {view.settings.latestQuestionRejectionReasons &&
+                          view.settings.latestQuestionRejectionReasons.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                              {view.settings.latestQuestionRejectionReasons.map((reason, index) => (
+                                <div
+                                  key={`${reason}-${index}`}
+                                  className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg)]"
+                                >
+                                  {reason}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p>No validation failures recorded yet.</p>
+                          )}
+                        </div>
                       </div>
+                    ) : null}
+
+                    {key === 'generate_challenge_questions' && hasValidationChanges() ? (
+                      <p className="text-sm text-[color:var(--app-warning)]">
+                        Validation changes are not saved yet.
+                      </p>
                     ) : null}
 
                     <div className="mt-3 grid gap-2">

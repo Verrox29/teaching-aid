@@ -11,9 +11,13 @@ import { decryptBranchingAiSecret, encryptBranchingAiSecret } from './crypto';
 import { BRANCHING_AI_PROMPT_DEFAULTS } from './prompt-defaults';
 import type {
   BranchingAiAdminView,
+  BranchingAiChallengeQuestionValidationSettings,
   BranchingAiPromptTemplateRecord,
   BranchingAiProvider,
   BranchingAiSettingsRecord
+} from './types';
+import {
+  DEFAULT_BRANCHING_AI_CHALLENGE_QUESTION_VALIDATION_SETTINGS
 } from './types';
 
 const BRANCHING_AI_GLOBAL_KEY = 'global';
@@ -46,6 +50,8 @@ function getDefaultSettings(): BranchingAiSettingsRecord {
     lastTestError: null,
     lastTestedAt: null,
     latestQuestionRejectionReasons: null,
+    challengeQuestionValidationSettings:
+      DEFAULT_BRANCHING_AI_CHALLENGE_QUESTION_VALIDATION_SETTINGS,
     model: null,
     provider: 'openai-compatible',
     timeoutMs: 15000,
@@ -84,6 +90,7 @@ async function ensureBranchingAiSettingsRow(): Promise<BranchingAiSettingsRecord
     lastTestError: record.lastTestError,
     lastTestedAt: record.lastTestedAt,
     latestQuestionRejectionReasons: record.latestQuestionRejectionReasons,
+    challengeQuestionValidationSettings: record.challengeQuestionValidationSettings,
     model: record.model,
     provider: record.provider,
     timeoutMs: record.timeoutMs,
@@ -189,6 +196,9 @@ export async function getBranchingAiAdminView(): Promise<BranchingAiAdminView> {
       lastTestError: settings.lastTestError,
       lastTestedAt: settings.lastTestedAt,
       latestQuestionRejectionReasons: settings.latestQuestionRejectionReasons ?? null,
+      challengeQuestionValidationSettings:
+        settings.challengeQuestionValidationSettings ??
+        DEFAULT_BRANCHING_AI_CHALLENGE_QUESTION_VALIDATION_SETTINGS,
       model: settings.model,
       provider: settings.provider,
       timeoutMs: settings.timeoutMs,
@@ -289,6 +299,7 @@ export async function saveBranchingAiSettings(input: BranchingAiSaveInput & { ap
         lastTestError: connectionChanged || secretChanged ? null : existing.lastTestError,
         lastTestedAt: connectionChanged || secretChanged ? null : existing.lastTestedAt,
         latestQuestionRejectionReasons: existing.latestQuestionRejectionReasons,
+        challengeQuestionValidationSettings: existing.challengeQuestionValidationSettings,
         model: normalizedNext.model,
         provider: normalizedNext.provider,
         timeoutMs: normalizedNext.timeoutMs,
@@ -303,6 +314,7 @@ export async function saveBranchingAiSettings(input: BranchingAiSaveInput & { ap
         lastTestError: connectionChanged || secretChanged ? null : existing.lastTestError,
         lastTestedAt: connectionChanged || secretChanged ? null : existing.lastTestedAt,
         latestQuestionRejectionReasons: existing.latestQuestionRejectionReasons,
+        challengeQuestionValidationSettings: existing.challengeQuestionValidationSettings,
         model: normalizedNext.model,
         provider: normalizedNext.provider,
         timeoutMs: normalizedNext.timeoutMs,
@@ -345,6 +357,23 @@ export async function saveBranchingAiPromptTemplates(input: BranchingAiPromptSav
         }
       });
   }
+
+  return getBranchingAiAdminView();
+}
+
+export async function saveBranchingAiChallengeQuestionValidationSettings(
+  input: BranchingAiChallengeQuestionValidationSettings
+) {
+  const existing = await ensureBranchingAiSettingsRow();
+  const updatedAt = new Date();
+
+  await db
+    .update(branchingAiSettings)
+    .set({
+      challengeQuestionValidationSettings: input,
+      updatedAt
+    })
+    .where(eq(branchingAiSettings.key, existing.key));
 
   return getBranchingAiAdminView();
 }

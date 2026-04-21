@@ -5,6 +5,7 @@ import {
   BRANCHING_AI_PROVIDERS,
   BRANCHING_AI_PROMPT_KEYS,
   getBranchingAiAdminView,
+  saveBranchingAiChallengeQuestionValidationSettings,
   saveBranchingAiPromptTemplates,
   saveBranchingAiSettings
 } from '@/lib/ai';
@@ -24,13 +25,27 @@ const promptSchema = z.object({
   template: z.string()
 });
 
+const challengeQuestionValidationSchema = z.object({
+  maxQuestionLength: z.number().int().min(10).max(1000),
+  minAcceptedQuestions: z.number().int().min(1).max(10),
+  maxAcceptedQuestions: z.number().int().min(1).max(10),
+  minQuestionWordCount: z.number().int().min(1).max(20),
+  rejectDuplicateQuestions: z.boolean(),
+  rejectIndirectFrenchWording: z.boolean(),
+  requireFrenchVous: z.boolean(),
+  requireReadableLetters: z.boolean()
+}).refine((value) => value.minAcceptedQuestions <= value.maxAcceptedQuestions, {
+  message: 'Minimum accepted questions must be less than or equal to maximum accepted questions.'
+});
+
 const requestSchema = z
   .object({
     connection: connectionSchema.optional(),
+    challengeQuestionValidation: challengeQuestionValidationSchema.optional(),
     prompts: z.array(promptSchema).optional()
   })
-  .refine((value) => Boolean(value.connection || value.prompts), {
-    message: 'Provide connection settings or prompt templates to save.'
+  .refine((value) => Boolean(value.connection || value.prompts || value.challengeQuestionValidation), {
+    message: 'Provide connection settings, prompt templates, or challenge question validation settings to save.'
   });
 
 export async function GET() {
@@ -72,6 +87,12 @@ export async function PATCH(request: Request) {
 
     if (parsed.data.prompts) {
       view = await saveBranchingAiPromptTemplates({ prompts: parsed.data.prompts });
+    }
+
+    if (parsed.data.challengeQuestionValidation) {
+      view = await saveBranchingAiChallengeQuestionValidationSettings(
+        parsed.data.challengeQuestionValidation
+      );
     }
 
     return NextResponse.json({ view });

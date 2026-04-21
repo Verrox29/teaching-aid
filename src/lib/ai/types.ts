@@ -14,6 +14,29 @@ export const BRANCHING_AI_VERIFICATION_STATUSES = [
 
 export type BranchingAiVerificationStatus = (typeof BRANCHING_AI_VERIFICATION_STATUSES)[number];
 
+export type BranchingAiChallengeQuestionValidationSettings = {
+  maxQuestionLength: number;
+  minAcceptedQuestions: number;
+  maxAcceptedQuestions: number;
+  minQuestionWordCount: number;
+  rejectDuplicateQuestions: boolean;
+  rejectIndirectFrenchWording: boolean;
+  requireFrenchVous: boolean;
+  requireReadableLetters: boolean;
+};
+
+export const DEFAULT_BRANCHING_AI_CHALLENGE_QUESTION_VALIDATION_SETTINGS: BranchingAiChallengeQuestionValidationSettings =
+  {
+    maxQuestionLength: 180,
+    minAcceptedQuestions: 2,
+    maxAcceptedQuestions: 3,
+    minQuestionWordCount: 3,
+    rejectDuplicateQuestions: true,
+    rejectIndirectFrenchWording: true,
+    requireFrenchVous: true,
+    requireReadableLetters: true
+  };
+
 export type BranchingAiSettingsRecord = {
   apiBaseUrl: string | null;
   enabled: boolean;
@@ -21,6 +44,7 @@ export type BranchingAiSettingsRecord = {
   lastTestError: string | null;
   lastTestedAt: Date | null;
   latestQuestionRejectionReasons: string[] | null;
+  challengeQuestionValidationSettings: BranchingAiChallengeQuestionValidationSettings | null;
   model: string | null;
   provider: BranchingAiProvider;
   timeoutMs: number;

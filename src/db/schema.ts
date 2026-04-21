@@ -16,6 +16,9 @@ import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections
 } from '@/lib/evaluation/types';
+import type {
+  BranchingAiChallengeQuestionValidationSettings
+} from '@/lib/ai/types';
 import type { PairagogieExportMapping } from '@/lib/exports/types';
 
 export const sessions = pgTable(
@@ -324,6 +327,9 @@ export const branchingAiSettings = pgTable('branching_ai_settings', {
   timeoutMs: integer('timeout_ms').notNull().default(15000),
   latestQuestionRejectionReasons: jsonb('latest_question_rejection_reasons').$type<
     string[] | null
+  >(),
+  challengeQuestionValidationSettings: jsonb('challenge_question_validation_settings').$type<
+    BranchingAiChallengeQuestionValidationSettings | null
   >(),
   verificationStatus: varchar('verification_status', { length: 32 })
     .notNull()

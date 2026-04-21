@@ -9,7 +9,11 @@ import type {
   EvaluationAiFeedbackSections,
   EvaluationCriterionRow
 } from '@/lib/evaluation/types';
-import type { BranchingAiVerificationStatus } from './types';
+import type {
+  BranchingAiChallengeQuestionValidationSettings,
+  BranchingAiVerificationStatus
+} from './types';
+import { DEFAULT_BRANCHING_AI_CHALLENGE_QUESTION_VALIDATION_SETTINGS } from './types';
 
 import { buildBranchingAiClient } from './provider';
 import { getBranchingAiFullSettings } from './settings-repository';
@@ -179,20 +183,6 @@ const gradingResponseJsonSchema = {
     }
   },
   required: ['commentSections', 'criteria'],
-  type: 'object'
-} as const;
-
-const challengeQuestionsResponseJsonSchema = {
-  additionalProperties: false,
-  properties: {
-    questions: {
-      items: { type: 'string' },
-      minItems: 2,
-      maxItems: 3,
-      type: 'array'
-    }
-  },
-  required: ['questions'],
   type: 'object'
 } as const;
 
@@ -729,6 +719,15 @@ function pickQuestionVariationFocus(language: 'en' | 'fr') {
   return variants[Math.floor(Math.random() * variants.length)] ?? variants[0];
 }
 
+function normalizeChallengeQuestionValidationSettings(
+  settings?: BranchingAiChallengeQuestionValidationSettings | null
+): BranchingAiChallengeQuestionValidationSettings {
+  return {
+    ...DEFAULT_BRANCHING_AI_CHALLENGE_QUESTION_VALIDATION_SETTINGS,
+    ...(settings ?? {})
+  };
+}
+
 function truncateDebugText(value: string, limit: number) {
   if (value.length <= limit) {
     return value;
@@ -758,7 +757,11 @@ function stringifyDebugQuestionValue(value: unknown) {
   }
 }
 
-function validateChallengeQuestionText(value: unknown, language: 'en' | 'fr') {
+function validateChallengeQuestionText(
+  value: unknown,
+  language: 'en' | 'fr',
+  settings: BranchingAiChallengeQuestionValidationSettings
+) {
   const original = stringifyDebugQuestionValue(value);
   const normalized = original
     .replace(/^[\s\-*•\d.)]+/, '')
@@ -770,24 +773,29 @@ function validateChallengeQuestionText(value: unknown, language: 'en' | 'fr') {
     rejectionReasons.push('Empty after trimming.');
   }
 
-  if (normalized.length > 180) {
-    rejectionReasons.push('Question exceeds 180 characters.');
+  if (normalized.length > settings.maxQuestionLength) {
+    rejectionReasons.push(`Question exceeds ${settings.maxQuestionLength} characters.`);
   }
 
-  if (!/[A-Za-zÀ-ÿ]/.test(normalized)) {
+  if (settings.requireReadableLetters && !/[A-Za-zÀ-ÿ]/.test(normalized)) {
     rejectionReasons.push('Question does not contain readable letters.');
   }
 
-  if (normalized.split(/\s+/g).filter(Boolean).length < 3) {
-    rejectionReasons.push('Question has fewer than 3 words.');
+  if (normalized.split(/\s+/g).filter(Boolean).length < settings.minQuestionWordCount) {
+    rejectionReasons.push(
+      `Question has fewer than ${settings.minQuestionWordCount} words.`
+    );
   }
 
   if (language === 'fr') {
-    if (/\bce groupe\b/i.test(normalized) || /\ble groupe\b/i.test(normalized)) {
+    if (
+      settings.rejectIndirectFrenchWording &&
+      (/\bce groupe\b/i.test(normalized) || /\ble groupe\b/i.test(normalized))
+    ) {
       rejectionReasons.push('Uses indirect wording like "ce groupe" or "le groupe".');
     }
 
-    if (!/\bvous\b/i.test(normalized)) {
+    if (settings.requireFrenchVous && !/\bvous\b/i.test(normalized)) {
       rejectionReasons.push('Missing "vous" in the French question.');
     }
   }
@@ -802,7 +810,32 @@ function validateChallengeQuestionText(value: unknown, language: 'en' | 'fr') {
   };
 }
 
-function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'fr'): ParsedChallengeQuestionsOutcome {
+function buildChallengeQuestionsResponseJsonSchema(
+  validationSettings: BranchingAiChallengeQuestionValidationSettings
+) {
+  return {
+    additionalProperties: false,
+    properties: {
+      questions: {
+        items: {
+          maxLength: validationSettings.maxQuestionLength,
+          type: 'string'
+        },
+        minItems: validationSettings.minAcceptedQuestions,
+        maxItems: validationSettings.maxAcceptedQuestions,
+        type: 'array'
+      }
+    },
+    required: ['questions'],
+    type: 'object'
+  } as const;
+}
+
+function parseChallengeQuestionsResponse(
+  rawContent: string,
+  language: 'en' | 'fr',
+  validationSettings: BranchingAiChallengeQuestionValidationSettings
+): ParsedChallengeQuestionsOutcome {
   const stripped = stripJsonFences(rawContent);
   const candidates = Array.from(
     new Set([stripped, extractJsonCandidate(rawContent)].filter(Boolean))
@@ -849,7 +882,7 @@ function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'f
       const questionRejectionReasons: string[] = [];
 
       for (const entry of questions) {
-        const validation = validateChallengeQuestionText(entry, language);
+        const validation = validateChallengeQuestionText(entry, language, validationSettings);
         const finalQuestion = validation.accepted
           ? validation.question
           : stringifyDebugQuestionValue(entry).trim();
@@ -860,7 +893,10 @@ function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'f
         };
 
         if (validation.accepted) {
-          if (acceptedQuestions.includes(validation.question)) {
+          if (
+            validationSettings.rejectDuplicateQuestions &&
+            acceptedQuestions.includes(validation.question)
+          ) {
             result.accepted = false;
             result.rejectionReasons.push('Duplicate question.');
             questionRejectionReasons.push('Duplicate question.');
@@ -889,8 +925,13 @@ function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'f
         continue;
       }
 
-      if (acceptedQuestions.length < 2 || acceptedQuestions.length > 3) {
-        const reason = `Returned ${acceptedQuestions.length} usable questions after validation; expected 2 or 3.`;
+      if (
+        acceptedQuestions.length < validationSettings.minAcceptedQuestions ||
+        acceptedQuestions.length > validationSettings.maxAcceptedQuestions
+      ) {
+        const reason =
+          `Returned ${acceptedQuestions.length} usable questions after validation; expected ` +
+          `${validationSettings.minAcceptedQuestions} to ${validationSettings.maxAcceptedQuestions}.`;
         candidateDebug.questionRejectionReasons = Array.from(
           new Set([...candidateDebug.questionRejectionReasons, reason])
         );
@@ -918,20 +959,32 @@ function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'f
   };
 }
 
-function buildChallengeQuestionRuntimeScaffold(renderedPrompt: string, input: EvaluationChallengeQuestionPromptInput) {
+function buildChallengeQuestionRuntimeScaffold(
+  renderedPrompt: string,
+  input: EvaluationChallengeQuestionPromptInput,
+  validationSettings: BranchingAiChallengeQuestionValidationSettings
+) {
   const sessionLanguage = normalizeLanguage(input.sessionLanguage);
   const criteriaJson = stringifyCriteriaJson(input.evaluationCriteria);
 
   return [
     'Runtime question contract:',
     '- Return valid JSON only, with no markdown, code fences, or prose outside the JSON object.',
-    '- Return exactly 2 or 3 short oral-defense questions.',
+    `- Return exactly ${validationSettings.minAcceptedQuestions} to ${validationSettings.maxAcceptedQuestions} short oral-defense questions.`,
     '- Anchor every question in the specific presentation/work submitted by this group, not just the broad topic.',
     '- Ask what the students must defend about what they actually presented, wrote, built, or chose.',
     '- Avoid generic topic-survey questions unless they are directly grounded in the submitted work.',
     '- Prefer a concrete anchor from the presentation or submission, such as a slide number, quoted phrase, statistic, chart, example, method, or stated action.',
-    '- Address the presenting group directly with "vous" when the session language is French.',
-    '- Do not use indirect wording such as "ce groupe" or copy long fragments from the submission.',
+    validationSettings.requireFrenchVous
+      ? '- Address the presenting group directly with "vous" when the session language is French.'
+      : '- French questions may use direct or indirect address.',
+    validationSettings.rejectIndirectFrenchWording
+      ? '- Do not use indirect wording such as "ce groupe" or copy long fragments from the submission.'
+      : '- Indirect wording is allowed if it stays specific and natural.',
+    `- Keep each question under ${validationSettings.maxQuestionLength} characters.`,
+    validationSettings.requireReadableLetters
+      ? '- Each question must contain readable letters.'
+      : '- Letter content is not required by the validator.',
     '- Keep each question concise, natural, and easy to say aloud.',
     '- Focus on diagnosis, rationale, trade-offs, and evidence/impact.',
     '',
@@ -1197,6 +1250,9 @@ export async function generateBranchingAiChallengeQuestions(
   }
 
   const settings = settingsBundle.settings;
+  const validationSettings = normalizeChallengeQuestionValidationSettings(
+    settings.challengeQuestionValidationSettings
+  );
   const promptTemplate =
     getPromptTemplate(settingsBundle.prompts, 'generate_challenge_questions') ?? '';
   const renderedPrompt = renderPromptTemplate(
@@ -1277,12 +1333,20 @@ export async function generateBranchingAiChallengeQuestions(
       'Return valid JSON only.',
       'Do not wrap the response in markdown, code fences, or prose.',
       'Follow the output schema exactly.',
-      'Return 2 or 3 concise oral-defense questions.',
+      `Return ${validationSettings.minAcceptedQuestions} to ${validationSettings.maxAcceptedQuestions} concise oral-defense questions.`,
       'Anchor every question in the specific presentation/work submitted by this group.',
       'Do not drift into generic overview questions about the broad topic unless they are directly tied to the submitted work.',
       'Each question should reference at least one concrete detail from the presentation or submission, such as a slide number, quoted phrase, statistic, chart, example, method, or stated action.',
-      'Address the presenting group directly with "vous" when the session language is French.',
-      'Do not use indirect wording such as "ce groupe".',
+      validationSettings.requireFrenchVous
+        ? 'Address the presenting group directly with "vous" when the session language is French.'
+        : 'French questions may use direct or indirect address.',
+      validationSettings.rejectIndirectFrenchWording
+        ? 'Do not use indirect wording such as "ce groupe".'
+        : 'Indirect wording is allowed if it stays specific and natural.',
+      `Keep each question under ${validationSettings.maxQuestionLength} characters.`,
+      validationSettings.requireReadableLetters
+        ? 'Each question must contain readable letters.'
+        : 'Letter content is not required by the validator.',
       'Avoid long copied fragments from the submission.',
       'Make the question set feel fresh by varying the emphasis.'
     ].join(' ');
@@ -1290,7 +1354,7 @@ export async function generateBranchingAiChallengeQuestions(
     const requestMessages = [
       { content: systemPrompt, role: 'system' as const },
       {
-        content: buildChallengeQuestionRuntimeScaffold(renderedPrompt, input),
+        content: buildChallengeQuestionRuntimeScaffold(renderedPrompt, input, validationSettings),
         role: 'user' as const
       }
     ];
@@ -1305,7 +1369,7 @@ export async function generateBranchingAiChallengeQuestions(
         responseFormat: {
           json_schema: {
             name: 'pairagogie_challenge_questions',
-            schema: challengeQuestionsResponseJsonSchema,
+            schema: buildChallengeQuestionsResponseJsonSchema(validationSettings),
             strict: true
           },
           type: 'json_schema'
@@ -1326,7 +1390,7 @@ export async function generateBranchingAiChallengeQuestions(
       });
     }
 
-    const parsedOutcome = parseChallengeQuestionsResponse(content, language);
+    const parsedOutcome = parseChallengeQuestionsResponse(content, language, validationSettings);
     if (!parsedOutcome.parsed) {
       const reason = buildQuestionFallbackReason(
         `The model returned unusable JSON: ${parsedOutcome.reason}`
