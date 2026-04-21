@@ -1,5 +1,4 @@
 import { asc, eq } from 'drizzle-orm';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 
@@ -8,6 +7,7 @@ import { movePresentationOrderAction } from './actions';
 import { AdminShell } from '@/components/admin-shell';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { db, groups, submissions, sessions } from '@/db';
 import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
@@ -95,12 +95,12 @@ export default async function SessionOrderPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
             {t.groups}
-          </Link>
-          <Link className="ui-button ui-button-secondary" href="/sessions">
+          </PendingNavigationLink>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href="/sessions">
             {t.sessionsList}
-          </Link>
+          </PendingNavigationLink>
         </>
       }
       description={t.description}
@@ -149,9 +149,9 @@ export default async function SessionOrderPage({
             </p>
           </div>
           <div className="mt-4">
-            <Link className="ui-button ui-button-primary" href={`/sessions/${sessionId}/groups`}>
+            <PendingNavigationLink className="ui-button ui-button-primary" href={`/sessions/${sessionId}/groups`}>
               {t.goToGroups}
-            </Link>
+            </PendingNavigationLink>
           </div>
         </section>
       ) : (

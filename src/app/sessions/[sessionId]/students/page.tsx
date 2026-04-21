@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { asc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 
 import { AdminShell } from '@/components/admin-shell';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 import { SessionStudentsWorkspace } from '@/components/session-students-workspace';
 import { db, sessionStudents, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
@@ -75,15 +75,15 @@ export default async function SessionStudentsPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/groups`}>
             {t.groupsLink}
-          </Link>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
+          </PendingNavigationLink>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
             {t.evaluationLink}
-          </Link>
-          <Link className="ui-button ui-button-primary" href="/sessions">
+          </PendingNavigationLink>
+          <PendingNavigationLink className="ui-button ui-button-primary" href="/sessions">
             {t.sessionsListLink}
-          </Link>
+          </PendingNavigationLink>
         </>
         }
         currentStep={1}

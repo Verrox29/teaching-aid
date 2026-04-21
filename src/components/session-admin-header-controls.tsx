@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { saveSessionContextAction, saveSessionInstructionsAction, undoSessionContextAction, undoSessionInstructionsAction } from '@/app/sessions/actions';
 import { AppModal, AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { ResponsiveBackActionContent } from '@/components/back-action';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 import type { SessionAdminHeaderState } from '@/lib/session-admin-state';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
@@ -116,9 +116,9 @@ export function SessionAdminHeaderControls({
     <>
       <div className="flex w-full min-w-0 flex-wrap items-start justify-end gap-2 md:w-auto md:flex-nowrap">
         <div className="flex min-w-0 flex-wrap items-start justify-end gap-2 md:flex-nowrap">
-          <Link className="ui-button ui-button-secondary shrink-0 px-3 py-2 text-sm" href="/sessions">
+          <PendingNavigationLink className="ui-button ui-button-secondary shrink-0 px-3 py-2 text-sm" href="/sessions">
             <ResponsiveBackActionContent label={shared.backToSessionsHub} />
-          </Link>
+          </PendingNavigationLink>
           <button
             aria-haspopup="dialog"
             aria-expanded={modalStack.length > 0}
@@ -194,19 +194,19 @@ export function SessionAdminHeaderControls({
                     Import students, refresh the roster, and keep the setup current.
                   </p>
                 </div>
-                <Link
+                <PendingNavigationLink
                   className="ui-button ui-button-secondary px-3 py-2 text-sm"
                   href={`/sessions/${sessionId}/students?setup=1`}
                 >
                   <PencilIcon className="h-4 w-4" />
                   {t.edit}
-                </Link>
+                </PendingNavigationLink>
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
+                <PendingNavigationLink className="ui-button ui-button-secondary px-3 py-2 text-sm" href={`/sessions/${sessionId}/students?setup=1`}>
                   {t.openStudentsSetup}
-                </Link>
+                </PendingNavigationLink>
               </div>
             </div>
           </div>

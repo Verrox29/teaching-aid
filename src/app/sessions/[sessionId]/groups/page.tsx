@@ -1,13 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
-import Link from 'next/link';
 
 import { createDefaultGroupsAction } from './actions';
 
 import { AdminShell } from '@/components/admin-shell';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { SessionGroupsBoard } from '@/components/session-groups-board';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 import { db, sessions, submissions } from '@/db';
 import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 import { recordSessionAdminPath } from '@/lib/session-navigation';
@@ -85,15 +85,15 @@ export default async function SessionGroupsPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/sessions/${sessionId}`}>
             {t.resume}
-          </Link>
-          <Link className="ui-button ui-button-secondary" href={`/s/${session.slug}`}>
+          </PendingNavigationLink>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/s/${session.slug}`}>
             {t.publicPage}
-          </Link>
-          <Link className="ui-button ui-button-primary" href="/sessions">
+          </PendingNavigationLink>
+          <PendingNavigationLink className="ui-button ui-button-primary" href="/sessions">
             {t.sessionsList}
-          </Link>
+          </PendingNavigationLink>
         </>
       }
       currentStep={2}

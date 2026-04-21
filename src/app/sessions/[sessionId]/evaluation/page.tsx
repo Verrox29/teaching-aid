@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 
 import { AdminShell } from '@/components/admin-shell';
 import { EvaluationWorkspaceClient } from '@/components/evaluation-workspace';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 import { SessionContextPopover } from '@/components/session-context-popover';
 import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
@@ -62,9 +62,9 @@ export default async function SessionEvaluationPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/exports`}>
             {t.exports}
-          </Link>
+          </PendingNavigationLink>
           <SessionContextPopover metadata={metadata} />
         </>
       }

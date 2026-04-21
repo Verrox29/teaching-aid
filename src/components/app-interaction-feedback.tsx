@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname, useSearchParams } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useFormStatus } from 'react-dom';
@@ -9,10 +10,12 @@ import { ResponsiveBackActionContent } from '@/components/back-action';
 type PendingEntry = {
   id: string;
   label?: string;
+  kind: 'action' | 'navigation';
 };
 
 type InteractionFeedbackContextValue = {
   beginPending: (label?: string) => () => void;
+  beginNavigationPending: (label?: string) => () => void;
   runPending: <T>(label: string, task: () => Promise<T> | T) => Promise<T>;
 };
 
@@ -90,13 +93,42 @@ function PendingOverlay({ entries }: { entries: PendingEntry[] }) {
   );
 }
 
+function PendingRouteObserver({
+  onRouteChange
+}: {
+  onRouteChange: () => void;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const routeKey = `${pathname}?${searchParams.toString()}`;
+  const previousRouteKeyRef = useRef(routeKey);
+
+  useEffect(() => {
+    if (previousRouteKeyRef.current !== routeKey) {
+      onRouteChange();
+      previousRouteKeyRef.current = routeKey;
+    }
+  }, [onRouteChange, routeKey]);
+
+  return null;
+}
+
 export function AppInteractionFeedbackProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [entries, setEntries] = useState<PendingEntry[]>([]);
   const nextIdRef = useRef(0);
 
   const beginPending = useCallback((label?: string) => {
     const id = String(++nextIdRef.current);
-    setEntries((current) => [...current, { id, label }]);
+    setEntries((current) => [...current, { id, kind: 'action', label }]);
+
+    return () => {
+      setEntries((current) => current.filter((entry) => entry.id !== id));
+    };
+  }, []);
+
+  const beginNavigationPending = useCallback((label?: string) => {
+    const id = String(++nextIdRef.current);
+    setEntries((current) => [...current, { id, kind: 'navigation', label }]);
 
     return () => {
       setEntries((current) => current.filter((entry) => entry.id !== id));
@@ -116,13 +148,19 @@ export function AppInteractionFeedbackProvider({ children }: Readonly<{ children
   const value = useMemo<InteractionFeedbackContextValue>(
     () => ({
       beginPending,
+      beginNavigationPending,
       runPending
     }),
-    [beginPending, runPending]
+    [beginNavigationPending, beginPending, runPending]
   );
+
+  const clearNavigationPending = useCallback(() => {
+    setEntries((current) => current.filter((entry) => entry.kind !== 'navigation'));
+  }, []);
 
   return (
     <InteractionFeedbackContext.Provider value={value}>
+      <PendingRouteObserver onRouteChange={clearNavigationPending} />
       {children}
       <PendingOverlay entries={entries} />
     </InteractionFeedbackContext.Provider>

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 
 type AdminTimelineNavProps = {
   currentStep: number;
@@ -40,17 +40,18 @@ export function AdminTimelineNav({
           const isPast = step.step < currentStep;
 
           return (
-            <Link
+            <PendingNavigationLink
               key={step.step}
               aria-current={isActive ? 'step' : undefined}
               className={`ui-timeline-step ${isActive ? 'ui-timeline-step-active' : isPast ? 'ui-timeline-step-complete' : 'ui-timeline-step-future'}`}
+              pendingLabel={`Loading ${step.label}...`}
               href={href}
             >
               <span className="ui-timeline-dot">{isPast ? '✓' : step.step}</span>
               <span className="text-left text-sm font-medium leading-snug whitespace-normal break-words">
                 {step.label}
               </span>
-            </Link>
+            </PendingNavigationLink>
           );
         })}
       </div>
