@@ -29,6 +29,13 @@
       "when": 1776757744928,
       "tag": "0003_branching_ai_latest_question_rejection_reasons",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776757744929,
+      "tag": "0004_branching_ai_challenge_question_validation_settings",
+      "breakpoints": true
     }
   ]
 }
