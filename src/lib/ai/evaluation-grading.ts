@@ -4,6 +4,7 @@ import type {
   EvaluationAiFeedbackSections,
   EvaluationCriterionRow
 } from '@/lib/evaluation/types';
+import type { BranchingAiVerificationStatus } from './types';
 
 import { buildBranchingAiClient } from './provider';
 import { getBranchingAiFullSettings } from './settings-repository';
@@ -82,7 +83,19 @@ export type BranchingAiChallengeQuestionsResult = {
     repairApplied: boolean;
     responseFormat: 'json_schema' | 'json_object' | 'heuristic_fallback';
   };
+  debug?: BranchingAiChallengeQuestionsDebug;
   questions: string[];
+};
+
+export type BranchingAiChallengeQuestionsDebug = {
+  fallbackReason: string | null;
+  model: string | null;
+  promptKeyUsed: 'generate_challenge_questions';
+  promptTemplateSnippet: string;
+  provider: string | null;
+  renderedPromptSnippet: string;
+  usedBranchingAi: boolean;
+  verificationStatus: BranchingAiVerificationStatus;
 };
 
 const gradingResponseJsonSchema = {
@@ -495,6 +508,38 @@ function buildChallengeQuestionPromptVariables(input: EvaluationChallengeQuestio
     submission_text: normalizeText(input.submissionText) || 'No submission text was provided.',
     subject: input.subject
   };
+}
+
+function buildChallengeQuestionDebug(params: {
+  fallbackReason: string | null;
+  model: string | null;
+  promptTemplate: string;
+  provider: string | null;
+  renderedPrompt: string;
+  usedBranchingAi: boolean;
+  verificationStatus: BranchingAiVerificationStatus;
+}): BranchingAiChallengeQuestionsDebug {
+  return {
+    fallbackReason: params.fallbackReason,
+    model: params.model,
+    promptKeyUsed: 'generate_challenge_questions',
+    promptTemplateSnippet: snippetText(params.promptTemplate, 300),
+    provider: params.provider,
+    renderedPromptSnippet: snippetText(redactPromptSecrets(params.renderedPrompt), 500),
+    usedBranchingAi: params.usedBranchingAi,
+    verificationStatus: params.verificationStatus
+  };
+}
+
+function snippetText(value: string, limit: number) {
+  return value.trim().slice(0, limit);
+}
+
+function redactPromptSecrets(value: string) {
+  return value
+    .replace(/\bsk-[A-Za-z0-9]{20,}\b/g, '[redacted]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b/gi, 'Bearer [redacted]')
+    .replace(/\b(api[_-]?key|token|secret|password)\s*[:=]\s*([^\s\n]{8,})/gi, '$1: [redacted]');
 }
 
 function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPromptInput) {
@@ -962,11 +1007,36 @@ export async function generateBranchingAiChallengeQuestions(
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
+      debug: {
+        fallbackReason: buildQuestionFallbackReason(reason),
+        model: null,
+        promptKeyUsed: 'generate_challenge_questions',
+        promptTemplateSnippet: '',
+        provider: null,
+        renderedPromptSnippet: '',
+        usedBranchingAi: false,
+        verificationStatus: 'not_configured'
+      },
       questions: fallback
     };
   }
 
   const settings = settingsBundle.settings;
+  const promptTemplate =
+    getPromptTemplate(settingsBundle.prompts, 'generate_challenge_questions') ?? '';
+  const renderedPrompt = renderPromptTemplate(
+    promptTemplate,
+    buildChallengeQuestionPromptVariables(input)
+  );
+  const debug = buildChallengeQuestionDebug({
+    fallbackReason: null,
+    model: settings.model,
+    promptTemplate,
+    provider: settings.provider,
+    renderedPrompt,
+    usedBranchingAi: false,
+    verificationStatus: settings.verificationStatus
+  });
 
   if (
     !settings.enabled ||
@@ -983,14 +1053,14 @@ export async function generateBranchingAiChallengeQuestions(
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
+      debug: {
+        ...debug,
+        fallbackReason: buildQuestionFallbackReason('Branching AI is not fully configured or verified.')
+      },
       questions: fallback
     };
   }
 
-  const promptTemplate = getPromptTemplate(
-    settingsBundle.prompts,
-    'generate_challenge_questions'
-  );
   if (!promptTemplate?.trim()) {
     return {
       diagnostics: {
@@ -998,16 +1068,17 @@ export async function generateBranchingAiChallengeQuestions(
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
+      debug: {
+        ...debug,
+        fallbackReason: buildQuestionFallbackReason('The challenge question prompt template is missing.')
+      },
       questions: fallback
     };
   }
 
   try {
     const client = buildBranchingAiClient(settings, settingsBundle.apiKey!);
-    const renderedPrompt = renderPromptTemplate(
-      promptTemplate,
-      buildChallengeQuestionPromptVariables(input)
-    );
+    debug.usedBranchingAi = true;
     const systemPrompt = [
       'You generate challenge questions for a teacher.',
       'Return valid JSON only.',
@@ -1064,13 +1135,18 @@ export async function generateBranchingAiChallengeQuestions(
 
     const parsedOutcome = parseChallengeQuestionsResponse(content, language);
     if (!parsedOutcome.parsed) {
+      const reason = buildQuestionFallbackReason(
+        `The model returned unusable JSON: ${parsedOutcome.reason}`
+      );
       return {
         diagnostics: {
-          fallbackReason: buildQuestionFallbackReason(
-            `The model returned unusable JSON: ${parsedOutcome.reason}`
-          ),
+          fallbackReason: reason,
           repairApplied: false,
           responseFormat: 'heuristic_fallback'
+        },
+        debug: {
+          ...debug,
+          fallbackReason: reason
         },
         questions: fallback
       };
@@ -1082,6 +1158,7 @@ export async function generateBranchingAiChallengeQuestions(
         repairApplied: parsedOutcome.repairApplied,
         responseFormat: responseFormatUsed
       },
+      debug,
       questions: parsedOutcome.parsed
     };
   } catch (error) {
@@ -1091,6 +1168,10 @@ export async function generateBranchingAiChallengeQuestions(
         fallbackReason: buildQuestionFallbackReason(reason),
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
+      },
+      debug: {
+        ...debug,
+        fallbackReason: buildQuestionFallbackReason(reason)
       },
       questions: fallback
     };

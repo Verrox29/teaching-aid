@@ -81,6 +81,9 @@ export async function POST(request: Request, { params }: RouteParams) {
     const mode = parsed.data.mode;
     const hasTeacherComments = Boolean(context.evaluation?.presentationComments?.trim());
     const hasSubmissionContent = Boolean(context.submission?.content?.trim());
+    let challengeQuestionsResult: Awaited<
+      ReturnType<typeof generateBranchingAiChallengeQuestions>
+    > | null = null;
     let gradingResult: Awaited<ReturnType<typeof generateBranchingAiGradingRecommendations>> | null =
       null;
 
@@ -90,7 +93,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     if (mode === 'questions') {
       await resetEvaluationAiQuestions(sessionId, groupId);
-      const challengeQuestionsResult = await generateBranchingAiChallengeQuestions(
+      challengeQuestionsResult = await generateBranchingAiChallengeQuestions(
         {
           assignmentBrief: sessionRecord?.instructions?.trim() || '',
           className: metadata.className || context.session.title,
@@ -156,10 +159,19 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const refreshed = await getEvaluationWorkspace(sessionId);
     const refreshedGroup = refreshed.groups.find((entry) => entry.groupId === groupId) ?? null;
+    const challengeQuestionsDebug =
+      mode === 'questions' && process.env.NODE_ENV !== 'production'
+        ? challengeQuestionsResult?.debug ?? null
+        : null;
     return NextResponse.json({
       ai:
         mode === 'questions'
-          ? { challengeQuestions: refreshedGroup?.aiRecommendedQuestions ?? [] }
+          ? {
+              challengeQuestions: {
+                debug: challengeQuestionsDebug,
+                questions: refreshedGroup?.aiRecommendedQuestions ?? []
+              }
+            }
           : {
               feedback: refreshedGroup?.aiRecommendedFeedback ?? null,
               recommendedCriteria: refreshedGroup?.aiRecommendedCriteria ?? [],

@@ -48,6 +48,17 @@ type SerializableGroup = {
   totalScore: number | null;
 };
 
+type SerializableChallengeQuestionsDebug = {
+  fallbackReason: string | null;
+  model: string | null;
+  promptKeyUsed: 'generate_challenge_questions';
+  promptTemplateSnippet: string;
+  provider: string | null;
+  renderedPromptSnippet: string;
+  usedBranchingAi: boolean;
+  verificationStatus: string;
+};
+
 type EvaluationWorkspaceClientProps = {
   groups: SerializableGroup[];
   initialGroupId: string;
@@ -235,6 +246,9 @@ export function EvaluationWorkspaceClient({
   const [challengeQuestionsSkipped, setChallengeQuestionsSkipped] = useState<Record<string, string>>(
     {}
   );
+  const [challengeQuestionsDebugByGroupId, setChallengeQuestionsDebugByGroupId] = useState<
+    Record<string, SerializableChallengeQuestionsDebug | null>
+  >({});
   const [rosterGroupId, setRosterGroupId] = useState<string | null>(null);
   const [draggedTabGroupId, setDraggedTabGroupId] = useState<string | null>(null);
   const [dropTargetTabGroupId, setDropTargetTabGroupId] = useState<string | null>(null);
@@ -312,6 +326,10 @@ export function EvaluationWorkspaceClient({
     selectedGroup?.presentationComments.trim() || selectedGroup?.submissionContent?.trim()
   );
   const selectedGroupHasChallengeQuestions = Boolean(selectedGroup?.aiRecommendedQuestions.length);
+  const selectedGroupChallengeQuestionsDebug =
+    process.env.NODE_ENV !== 'production'
+      ? challengeQuestionsDebugByGroupId[selectedGroup?.groupId ?? ''] ?? null
+      : null;
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
@@ -648,6 +666,10 @@ export function EvaluationWorkspaceClient({
       delete next[groupId];
       return next;
     });
+    setChallengeQuestionsDebugByGroupId((current) => ({
+      ...current,
+      [groupId]: null
+    }));
 
     setGroups((current) =>
       current.map((group) =>
@@ -679,6 +701,13 @@ export function EvaluationWorkspaceClient({
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(payload.error ?? t.errors.regenerateChallengeQuestions);
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          setChallengeQuestionsDebugByGroupId((current) => ({
+            ...current,
+            [groupId]: payload?.ai?.challengeQuestions?.debug ?? null
+          }));
         }
 
         if (payload.group) {
@@ -1346,6 +1375,65 @@ export function EvaluationWorkspaceClient({
                           <p>{t.generateQuestionsFromWork}</p>
                         </div>
                       )}
+
+                      {selectedGroupChallengeQuestionsDebug ? (
+                        <div className="grid gap-2 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-[11px] text-[color:var(--app-fg-muted)]">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                promptKeyUsed:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.promptKeyUsed}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                usedBranchingAi:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.usedBranchingAi ? 'true' : 'false'}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                verificationStatus:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.verificationStatus}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                model:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.model ?? 'null'}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                provider:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.provider ?? 'null'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              fallbackReason:
+                            </span>{' '}
+                            {selectedGroupChallengeQuestionsDebug.fallbackReason ?? 'null'}
+                          </div>
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              promptTemplateSnippet
+                            </span>
+                            <pre className="max-h-28 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {selectedGroupChallengeQuestionsDebug.promptTemplateSnippet || 'No template snippet.'}
+                            </pre>
+                          </div>
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              renderedPromptSnippet
+                            </span>
+                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {selectedGroupChallengeQuestionsDebug.renderedPromptSnippet || 'No rendered prompt snippet.'}
+                            </pre>
+                          </div>
+                        </div>
+                      ) : null}
                     </CollapsiblePanel>
 
                     <label className="grid gap-2 text-sm font-medium">
