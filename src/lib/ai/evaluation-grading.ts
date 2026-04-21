@@ -1,4 +1,9 @@
-import { buildChallengeQuestions, buildEvaluationRecommendations } from '@/lib/evaluation/engine';
+import {
+  buildChallengeQuestions,
+  buildEvaluationRecommendations,
+  getChallengeQuestionAnchorDebug
+} from '@/lib/evaluation/engine';
+import type { ChallengeQuestionAnchorDebug } from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -66,6 +71,31 @@ type ParseOutcome =
       reason: string;
     };
 
+type ChallengeQuestionValidationResult = {
+  accepted: boolean;
+  question: string;
+  rejectionReasons: string[];
+};
+
+type ChallengeQuestionParseDebug = {
+  parsedQuestionsBeforeValidation: string[] | null;
+  questionRejectionReasons: string[];
+  questionValidationResults: ChallengeQuestionValidationResult[];
+};
+
+type ParsedChallengeQuestionsOutcome =
+  | {
+      debug: ChallengeQuestionParseDebug;
+      parsed: string[];
+      repairApplied: boolean;
+    }
+  | {
+      debug: ChallengeQuestionParseDebug;
+      parsed: null;
+      repairApplied: boolean;
+      reason: string;
+    };
+
 export type BranchingAiGradingResult = {
   diagnostics: {
     fallbackReason: string | null;
@@ -91,9 +121,23 @@ export type BranchingAiChallengeQuestionsDebug = {
   fallbackReason: string | null;
   model: string | null;
   promptKeyUsed: 'generate_challenge_questions';
+  parsedQuestionsBeforeValidation: string[] | null;
   promptTemplateSnippet: string;
   provider: string | null;
+  primaryAnchor: string;
+  questionRejectionReasons: string[];
+  questionValidationResults: Array<{
+    accepted: boolean;
+    question: string;
+    rejectionReasons: string[];
+  }>;
   renderedPromptSnippet: string;
+  rawModelResponse: string;
+  secondaryAnchor: string;
+  submissionAnchorCandidates: string[];
+  submissionTextSnippet: string;
+  critiqueAnchor: string;
+  topicFocus: string;
   usedBranchingAi: boolean;
   verificationStatus: BranchingAiVerificationStatus;
 };
@@ -511,21 +555,36 @@ function buildChallengeQuestionPromptVariables(input: EvaluationChallengeQuestio
 }
 
 function buildChallengeQuestionDebug(params: {
+  anchorDebug: ChallengeQuestionAnchorDebug;
   fallbackReason: string | null;
   model: string | null;
+  parseDebug: ChallengeQuestionParseDebug;
   promptTemplate: string;
   provider: string | null;
   renderedPrompt: string;
+  rawModelResponse: string;
+  submissionText: string | null;
   usedBranchingAi: boolean;
   verificationStatus: BranchingAiVerificationStatus;
 }): BranchingAiChallengeQuestionsDebug {
+  const renderedPromptSnippet = snippetText(redactPromptSecrets(params.renderedPrompt), 500);
   return {
     fallbackReason: params.fallbackReason,
+    critiqueAnchor: params.anchorDebug.critiqueAnchor,
     model: params.model,
+    parsedQuestionsBeforeValidation: params.parseDebug.parsedQuestionsBeforeValidation,
     promptKeyUsed: 'generate_challenge_questions',
     promptTemplateSnippet: snippetText(params.promptTemplate, 300),
     provider: params.provider,
-    renderedPromptSnippet: snippetText(redactPromptSecrets(params.renderedPrompt), 500),
+    primaryAnchor: params.anchorDebug.primaryAnchor,
+    questionRejectionReasons: params.parseDebug.questionRejectionReasons,
+    questionValidationResults: params.parseDebug.questionValidationResults,
+    rawModelResponse: truncateDebugText(params.rawModelResponse.trim(), 12000),
+    renderedPromptSnippet,
+    secondaryAnchor: params.anchorDebug.secondaryAnchor,
+    submissionAnchorCandidates: params.anchorDebug.submissionAnchorCandidates,
+    submissionTextSnippet: snippetText(params.submissionText?.trim() ?? '', 1000),
+    topicFocus: params.anchorDebug.topicFocus,
     usedBranchingAi: params.usedBranchingAi,
     verificationStatus: params.verificationStatus
   };
@@ -670,85 +729,180 @@ function pickQuestionVariationFocus(language: 'en' | 'fr') {
   return variants[Math.floor(Math.random() * variants.length)] ?? variants[0];
 }
 
-function normalizeChallengeQuestionText(value: string, language: 'en' | 'fr') {
-  const normalized = value
+function truncateDebugText(value: string, limit: number) {
+  if (value.length <= limit) {
+    return value;
+  }
+
+  return `${value.slice(0, limit)}\n...[truncated ${value.length - limit} chars]`;
+}
+
+function stringifyDebugQuestionValue(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function validateChallengeQuestionText(value: unknown, language: 'en' | 'fr') {
+  const original = stringifyDebugQuestionValue(value);
+  const normalized = original
     .replace(/^[\s\-*•\d.)]+/, '')
     .replace(/\s+/g, ' ')
     .trim();
+  const rejectionReasons: string[] = [];
 
   if (!normalized) {
-    return null;
+    rejectionReasons.push('Empty after trimming.');
   }
 
   if (normalized.length > 180) {
-    return null;
+    rejectionReasons.push('Question exceeds 180 characters.');
   }
 
   if (!/[A-Za-zÀ-ÿ]/.test(normalized)) {
-    return null;
+    rejectionReasons.push('Question does not contain readable letters.');
   }
 
   if (normalized.split(/\s+/g).filter(Boolean).length < 3) {
-    return null;
+    rejectionReasons.push('Question has fewer than 3 words.');
   }
 
   if (language === 'fr') {
     if (/\bce groupe\b/i.test(normalized) || /\ble groupe\b/i.test(normalized)) {
-      return null;
+      rejectionReasons.push('Uses indirect wording like "ce groupe" or "le groupe".');
     }
 
     if (!/\bvous\b/i.test(normalized)) {
-      return null;
+      rejectionReasons.push('Missing "vous" in the French question.');
     }
   }
 
-  if (!/[\?!.]$/.test(normalized)) {
-    return `${normalized}?`;
-  }
+  const accepted = rejectionReasons.length === 0;
+  const question = accepted && !/[\?!.]$/.test(normalized) ? `${normalized}?` : normalized;
 
-  return normalized;
+  return {
+    accepted,
+    question: question || original,
+    rejectionReasons
+  };
 }
 
-function normalizeChallengeQuestionsPayload(payload: unknown, language: 'en' | 'fr') {
-  if (!isRecord(payload)) {
-    return null;
-  }
-
-  const candidate = payload.questions ?? payload.challengeQuestions ?? payload.items;
-  const normalized: string[] = [];
-
-  if (Array.isArray(candidate)) {
-    for (const entry of candidate) {
-      const text = coerceText(entry);
-      const normalizedText = text ? normalizeChallengeQuestionText(text, language) : null;
-      if (normalizedText && !normalized.includes(normalizedText)) {
-        normalized.push(normalizedText);
-      }
-    }
-  }
-
-  return normalized.length >= 2 && normalized.length <= 3 ? normalized : null;
-}
-
-function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'fr') {
+function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'fr'): ParsedChallengeQuestionsOutcome {
   const stripped = stripJsonFences(rawContent);
   const candidates = Array.from(
     new Set([stripped, extractJsonCandidate(rawContent)].filter(Boolean))
   );
   const errors: string[] = [];
+  const blankDebug: ChallengeQuestionParseDebug = {
+    parsedQuestionsBeforeValidation: null,
+    questionRejectionReasons: [],
+    questionValidationResults: []
+  };
+  let lastDebug = blankDebug;
 
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate) as unknown;
-      const normalized = normalizeChallengeQuestionsPayload(parsed, language);
-      if (!normalized) {
+      const questions = isRecord(parsed)
+        ? parsed.questions ?? parsed.challengeQuestions ?? parsed.items
+        : Array.isArray(parsed)
+          ? parsed
+          : null;
+      const candidateDebug: ChallengeQuestionParseDebug = {
+        parsedQuestionsBeforeValidation: null,
+        questionRejectionReasons: [],
+        questionValidationResults: []
+      };
+
+      if (Array.isArray(questions)) {
+        candidateDebug.parsedQuestionsBeforeValidation = questions.map((entry) =>
+          stringifyDebugQuestionValue(entry)
+        );
+      }
+
+      if (!Array.isArray(questions)) {
+        candidateDebug.questionRejectionReasons.push(
+          'JSON parsed but the challenge question payload was missing usable questions.'
+        );
+        lastDebug = candidateDebug;
         errors.push('JSON parsed but the challenge question payload was missing usable questions.');
+        continue;
+      }
+
+      const validationResults: ChallengeQuestionValidationResult[] = [];
+      const acceptedQuestions: string[] = [];
+      const questionRejectionReasons: string[] = [];
+
+      for (const entry of questions) {
+        const validation = validateChallengeQuestionText(entry, language);
+        const finalQuestion = validation.accepted
+          ? validation.question
+          : stringifyDebugQuestionValue(entry).trim();
+        const result: ChallengeQuestionValidationResult = {
+          accepted: validation.accepted,
+          question: finalQuestion,
+          rejectionReasons: [...validation.rejectionReasons]
+        };
+
+        if (validation.accepted) {
+          if (acceptedQuestions.includes(validation.question)) {
+            result.accepted = false;
+            result.rejectionReasons.push('Duplicate question.');
+            questionRejectionReasons.push('Duplicate question.');
+          } else {
+            acceptedQuestions.push(validation.question);
+          }
+        }
+
+        if (!result.accepted) {
+          questionRejectionReasons.push(...result.rejectionReasons);
+        }
+
+        validationResults.push(result);
+      }
+
+      candidateDebug.questionValidationResults = validationResults;
+      candidateDebug.questionRejectionReasons = Array.from(new Set(questionRejectionReasons));
+
+      if (!isRecord(parsed)) {
+        const reason = 'JSON parsed but the challenge question payload was malformed.';
+        candidateDebug.questionRejectionReasons = Array.from(
+          new Set([...candidateDebug.questionRejectionReasons, reason])
+        );
+        lastDebug = candidateDebug;
+        errors.push(reason);
+        continue;
+      }
+
+      if (acceptedQuestions.length < 2 || acceptedQuestions.length > 3) {
+        const reason = `Returned ${acceptedQuestions.length} usable questions after validation; expected 2 or 3.`;
+        candidateDebug.questionRejectionReasons = Array.from(
+          new Set([...candidateDebug.questionRejectionReasons, reason])
+        );
+        lastDebug = candidateDebug;
+        errors.push(reason);
         continue;
       }
 
       const repairApplied = candidate !== stripped || candidate !== rawContent.trim();
       return {
-        parsed: normalized,
+        parsed: acceptedQuestions,
+        debug: candidateDebug,
         repairApplied
       };
     } catch (error) {
@@ -758,6 +912,8 @@ function parseChallengeQuestionsResponse(rawContent: string, language: 'en' | 'f
 
   return {
     parsed: null,
+    debug: lastDebug,
+    repairApplied: false,
     reason: errors[0] ?? 'The model did not return valid JSON.'
   };
 }
@@ -983,6 +1139,17 @@ export async function generateBranchingAiChallengeQuestions(
   input: EvaluationChallengeQuestionPromptInput
 ): Promise<BranchingAiChallengeQuestionsResult> {
   const language = normalizeLanguage(input.sessionLanguage);
+  const anchorDebug = getChallengeQuestionAnchorDebug(
+    {
+      className: input.className,
+      groupName: input.groupName,
+      teacherComments: input.presentationContent,
+      sessionLanguage: input.sessionLanguage,
+      submissionText: input.submissionText,
+      subject: input.subject
+    },
+    language
+  );
   const fallback = buildChallengeQuestions(
     {
       className: input.className,
@@ -1001,22 +1168,30 @@ export async function generateBranchingAiChallengeQuestions(
     settingsBundle = await getBranchingAiFullSettings();
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Could not load Branching AI settings.';
+    const fallbackDebug = buildChallengeQuestionDebug({
+      anchorDebug,
+      fallbackReason: buildQuestionFallbackReason(reason),
+      model: null,
+      parseDebug: {
+        parsedQuestionsBeforeValidation: null,
+        questionRejectionReasons: [],
+        questionValidationResults: []
+      },
+      promptTemplate: '',
+      provider: null,
+      rawModelResponse: '',
+      renderedPrompt: '',
+      submissionText: input.submissionText,
+      usedBranchingAi: false,
+      verificationStatus: 'not_configured'
+    });
     return {
       diagnostics: {
         fallbackReason: buildQuestionFallbackReason(reason),
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
-      debug: {
-        fallbackReason: buildQuestionFallbackReason(reason),
-        model: null,
-        promptKeyUsed: 'generate_challenge_questions',
-        promptTemplateSnippet: '',
-        provider: null,
-        renderedPromptSnippet: '',
-        usedBranchingAi: false,
-        verificationStatus: 'not_configured'
-      },
+      debug: fallbackDebug,
       questions: fallback
     };
   }
@@ -1028,15 +1203,6 @@ export async function generateBranchingAiChallengeQuestions(
     promptTemplate,
     buildChallengeQuestionPromptVariables(input)
   );
-  const debug = buildChallengeQuestionDebug({
-    fallbackReason: null,
-    model: settings.model,
-    promptTemplate,
-    provider: settings.provider,
-    renderedPrompt,
-    usedBranchingAi: false,
-    verificationStatus: settings.verificationStatus
-  });
 
   if (
     !settings.enabled ||
@@ -1047,38 +1213,65 @@ export async function generateBranchingAiChallengeQuestions(
     !settings.apiBaseUrl?.trim() ||
     !settings.model?.trim()
   ) {
+    const fallbackDebug = buildChallengeQuestionDebug({
+      anchorDebug,
+      fallbackReason: buildQuestionFallbackReason('Branching AI is not fully configured or verified.'),
+      model: settings.model,
+      parseDebug: {
+        parsedQuestionsBeforeValidation: null,
+        questionRejectionReasons: [],
+        questionValidationResults: []
+      },
+      promptTemplate,
+      provider: settings.provider,
+      rawModelResponse: '',
+      renderedPrompt,
+      submissionText: input.submissionText,
+      usedBranchingAi: false,
+      verificationStatus: settings.verificationStatus
+    });
     return {
       diagnostics: {
         fallbackReason: buildQuestionFallbackReason('Branching AI is not fully configured or verified.'),
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
-      debug: {
-        ...debug,
-        fallbackReason: buildQuestionFallbackReason('Branching AI is not fully configured or verified.')
-      },
+      debug: fallbackDebug,
       questions: fallback
     };
   }
 
   if (!promptTemplate?.trim()) {
+    const fallbackDebug = buildChallengeQuestionDebug({
+      anchorDebug,
+      fallbackReason: buildQuestionFallbackReason('The challenge question prompt template is missing.'),
+      model: settings.model,
+      parseDebug: {
+        parsedQuestionsBeforeValidation: null,
+        questionRejectionReasons: [],
+        questionValidationResults: []
+      },
+      promptTemplate,
+      provider: settings.provider,
+      rawModelResponse: '',
+      renderedPrompt,
+      submissionText: input.submissionText,
+      usedBranchingAi: false,
+      verificationStatus: settings.verificationStatus
+    });
     return {
       diagnostics: {
         fallbackReason: buildQuestionFallbackReason('The challenge question prompt template is missing.'),
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
-      debug: {
-        ...debug,
-        fallbackReason: buildQuestionFallbackReason('The challenge question prompt template is missing.')
-      },
+      debug: fallbackDebug,
       questions: fallback
     };
   }
 
   try {
     const client = buildBranchingAiClient(settings, settingsBundle.apiKey!);
-    debug.usedBranchingAi = true;
     const systemPrompt = [
       'You generate challenge questions for a teacher.',
       'Return valid JSON only.',
@@ -1138,20 +1331,43 @@ export async function generateBranchingAiChallengeQuestions(
       const reason = buildQuestionFallbackReason(
         `The model returned unusable JSON: ${parsedOutcome.reason}`
       );
+      const debug = buildChallengeQuestionDebug({
+        anchorDebug,
+        fallbackReason: reason,
+        model: settings.model,
+        parseDebug: parsedOutcome.debug,
+        promptTemplate,
+        provider: settings.provider,
+        rawModelResponse: content,
+        renderedPrompt,
+        submissionText: input.submissionText,
+        usedBranchingAi: true,
+        verificationStatus: settings.verificationStatus
+      });
       return {
         diagnostics: {
           fallbackReason: reason,
           repairApplied: false,
           responseFormat: 'heuristic_fallback'
         },
-        debug: {
-          ...debug,
-          fallbackReason: reason
-        },
+        debug,
         questions: fallback
       };
     }
 
+    const debug = buildChallengeQuestionDebug({
+      anchorDebug,
+      fallbackReason: null,
+      model: settings.model,
+      parseDebug: parsedOutcome.debug,
+      promptTemplate,
+      provider: settings.provider,
+      rawModelResponse: content,
+      renderedPrompt,
+      submissionText: input.submissionText,
+      usedBranchingAi: true,
+      verificationStatus: settings.verificationStatus
+    });
     return {
       diagnostics: {
         fallbackReason: null,
@@ -1163,16 +1379,30 @@ export async function generateBranchingAiChallengeQuestions(
     };
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'The Branching AI request failed.';
+    const debug = buildChallengeQuestionDebug({
+      anchorDebug,
+      fallbackReason: buildQuestionFallbackReason(reason),
+      model: settings.model,
+      parseDebug: {
+        parsedQuestionsBeforeValidation: null,
+        questionRejectionReasons: [],
+        questionValidationResults: []
+      },
+      promptTemplate,
+      provider: settings.provider,
+      rawModelResponse: '',
+      renderedPrompt,
+      submissionText: input.submissionText,
+      usedBranchingAi: true,
+      verificationStatus: settings.verificationStatus
+    });
     return {
       diagnostics: {
         fallbackReason: buildQuestionFallbackReason(reason),
         repairApplied: false,
         responseFormat: 'heuristic_fallback'
       },
-      debug: {
-        ...debug,
-        fallbackReason: buildQuestionFallbackReason(reason)
-      },
+      debug,
       questions: fallback
     };
   }

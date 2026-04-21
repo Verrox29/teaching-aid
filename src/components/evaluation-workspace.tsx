@@ -50,11 +50,25 @@ type SerializableGroup = {
 
 type SerializableChallengeQuestionsDebug = {
   fallbackReason: string | null;
+  parsedQuestionsBeforeValidation: string[] | null;
   model: string | null;
   promptKeyUsed: 'generate_challenge_questions';
   promptTemplateSnippet: string;
   provider: string | null;
+  primaryAnchor: string;
+  questionRejectionReasons: string[];
+  questionValidationResults: Array<{
+    accepted: boolean;
+    question: string;
+    rejectionReasons: string[];
+  }>;
   renderedPromptSnippet: string;
+  rawModelResponse: string;
+  secondaryAnchor: string;
+  submissionAnchorCandidates: string[];
+  submissionTextSnippet: string;
+  critiqueAnchor: string;
+  topicFocus: string;
   usedBranchingAi: boolean;
   verificationStatus: string;
 };
@@ -1377,7 +1391,7 @@ export function EvaluationWorkspaceClient({
                       )}
 
                       {selectedGroupChallengeQuestionsDebug ? (
-                        <div className="grid gap-2 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-[11px] text-[color:var(--app-fg-muted)]">
+                        <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-[11px] text-[color:var(--app-fg-muted)]">
                           <div className="flex flex-wrap gap-x-4 gap-y-1">
                             <span>
                               <span className="font-medium text-[color:var(--app-fg)]">
@@ -1410,12 +1424,109 @@ export function EvaluationWorkspaceClient({
                               {selectedGroupChallengeQuestionsDebug.provider ?? 'null'}
                             </span>
                           </div>
+
                           <div>
                             <span className="font-medium text-[color:var(--app-fg)]">
                               fallbackReason:
                             </span>{' '}
                             {selectedGroupChallengeQuestionsDebug.fallbackReason ?? 'null'}
                           </div>
+
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              rawModelResponse
+                            </span>
+                            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {selectedGroupChallengeQuestionsDebug.rawModelResponse || 'No raw model response.'}
+                            </pre>
+                          </div>
+
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              parsedQuestionsBeforeValidation
+                            </span>
+                            <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {selectedGroupChallengeQuestionsDebug.parsedQuestionsBeforeValidation
+                                ? JSON.stringify(
+                                    selectedGroupChallengeQuestionsDebug.parsedQuestionsBeforeValidation,
+                                    null,
+                                    2
+                                  )
+                                : 'null'}
+                            </pre>
+                          </div>
+
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              questionValidationResults
+                            </span>
+                            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {JSON.stringify(
+                                selectedGroupChallengeQuestionsDebug.questionValidationResults,
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              questionRejectionReasons:
+                            </span>{' '}
+                            {selectedGroupChallengeQuestionsDebug.questionRejectionReasons.length > 0
+                              ? selectedGroupChallengeQuestionsDebug.questionRejectionReasons.join(' | ')
+                              : 'None'}
+                          </div>
+
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              submissionTextSnippet
+                            </span>
+                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {selectedGroupChallengeQuestionsDebug.submissionTextSnippet || 'No submission text.'}
+                            </pre>
+                          </div>
+
+                          <div className="grid gap-1">
+                            <span className="font-medium text-[color:var(--app-fg)]">
+                              submissionAnchorCandidates
+                            </span>
+                            <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-2 text-[11px] text-[color:var(--app-fg-muted)]">
+                              {JSON.stringify(
+                                selectedGroupChallengeQuestionsDebug.submissionAnchorCandidates,
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </div>
+
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                primaryAnchor:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.primaryAnchor}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                secondaryAnchor:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.secondaryAnchor}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                critiqueAnchor:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.critiqueAnchor}
+                            </span>
+                            <span>
+                              <span className="font-medium text-[color:var(--app-fg)]">
+                                topicFocus:
+                              </span>{' '}
+                              {selectedGroupChallengeQuestionsDebug.topicFocus}
+                            </span>
+                          </div>
+
                           <div className="grid gap-1">
                             <span className="font-medium text-[color:var(--app-fg)]">
                               promptTemplateSnippet
@@ -1424,6 +1535,7 @@ export function EvaluationWorkspaceClient({
                               {selectedGroupChallengeQuestionsDebug.promptTemplateSnippet || 'No template snippet.'}
                             </pre>
                           </div>
+
                           <div className="grid gap-1">
                             <span className="font-medium text-[color:var(--app-fg)]">
                               renderedPromptSnippet

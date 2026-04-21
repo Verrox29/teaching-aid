@@ -27,6 +27,14 @@ type EvaluationChallengeQuestionInput = {
   subject: string;
 };
 
+export type ChallengeQuestionAnchorDebug = {
+  critiqueAnchor: string;
+  primaryAnchor: string;
+  secondaryAnchor: string;
+  submissionAnchorCandidates: string[];
+  topicFocus: string;
+};
+
 type EvaluationFeedbackLabels = Record<keyof EvaluationAiFeedbackSections, string>;
 
 const FEEDBACK_LABELS: Record<EvaluationLanguage, EvaluationFeedbackLabels> = {
@@ -698,7 +706,43 @@ export function buildChallengeQuestions(
   input: EvaluationChallengeQuestionInput,
   language: EvaluationLanguage
 ) {
+  const anchorDebug = getChallengeQuestionAnchorDebug(input, language);
+  const pronoun = addressPronoun(language);
+
+  if (language === 'fr') {
+    return [
+      `Quand vous parlez de ${anchorDebug.primaryAnchor}, quelle preuve concrète dans votre travail justifie ce constat ou ce choix ?`,
+      `Pourquoi avez-vous retenu ${anchorDebug.secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
+      `Comment justifiez-vous l’idée principale de ${anchorDebug.topicFocus} face à une question critique sur ${
+        anchorDebug.critiqueAnchor === anchorDebug.topicFocus ? 'les preuves et les effets attendus' : anchorDebug.critiqueAnchor
+      } ?`
+    ];
+  }
+
+  return [
+    `When you discuss ${anchorDebug.primaryAnchor}, what concrete evidence in the work justifies that diagnosis or choice?`,
+    `Why did you choose ${anchorDebug.secondaryAnchor} instead of another option, and what trade-off did that require?`,
+    `How do ${pronoun} justify the main idea of ${anchorDebug.topicFocus} when challenged on ${
+      anchorDebug.critiqueAnchor === anchorDebug.topicFocus ? 'the evidence and expected impact' : anchorDebug.critiqueAnchor
+    }?`
+  ];
+}
+
+export function getChallengeQuestionAnchorDebug(
+  input: EvaluationChallengeQuestionInput,
+  language: EvaluationLanguage
+): ChallengeQuestionAnchorDebug {
   const anchors = extractSubmissionAnchors(input, language);
+  const submissionText = input.submissionText?.trim() ?? '';
+  const submissionAnchorCandidates = Array.from(
+    new Set([
+      ...extractConcreteChallengeAnchors(submissionText, language),
+      ...splitSentences(submissionText)
+        .filter((sentence) => tokenizeWords(sentence).length >= 6)
+        .map((sentence) => trimQuestionFocus(sentence, language))
+        .filter(isSafeQuestionAnchor)
+    ])
+  ).slice(0, 8);
   const topicFocus = pickSafeAnchor(
     [anchors.fallbackTopic, input.subject, input.className, ...FALLBACK_TOPICS[language]],
     language
@@ -706,25 +750,14 @@ export function buildChallengeQuestions(
   const primaryAnchor = pickSafeAnchor([anchors.primaryAnchor, topicFocus], language);
   const secondaryAnchor = pickSafeAnchor([anchors.secondaryAnchor, topicFocus], language);
   const critiqueAnchor = pickSafeAnchor([anchors.critiqueAnchor, topicFocus], language);
-  const pronoun = addressPronoun(language);
 
-  if (language === 'fr') {
-    return [
-      `Quand vous parlez de ${primaryAnchor}, quelle preuve concrète dans votre travail justifie ce constat ou ce choix ?`,
-      `Pourquoi avez-vous retenu ${secondaryAnchor} plutôt qu’une autre option, et quel compromis cela a-t-il demandé ?`,
-      `Comment justifiez-vous l’idée principale de ${topicFocus} face à une question critique sur ${
-        critiqueAnchor === topicFocus ? 'les preuves et les effets attendus' : critiqueAnchor
-      } ?`
-    ];
-  }
-
-  return [
-    `When you discuss ${primaryAnchor}, what concrete evidence in the work justifies that diagnosis or choice?`,
-    `Why did you choose ${secondaryAnchor} instead of another option, and what trade-off did that require?`,
-    `How do ${pronoun} justify the main idea of ${topicFocus} when challenged on ${
-      critiqueAnchor === topicFocus ? 'the evidence and expected impact' : critiqueAnchor
-    }?`
-  ];
+  return {
+    critiqueAnchor,
+    primaryAnchor,
+    secondaryAnchor,
+    submissionAnchorCandidates,
+    topicFocus
+  };
 }
 
 function scoreCriterion(
