@@ -45,6 +45,7 @@ function getDefaultSettings(): BranchingAiSettingsRecord {
     key: BRANCHING_AI_GLOBAL_KEY,
     lastTestError: null,
     lastTestedAt: null,
+    latestQuestionRejectionReasons: null,
     model: null,
     provider: 'openai-compatible',
     timeoutMs: 15000,
@@ -82,6 +83,7 @@ async function ensureBranchingAiSettingsRow(): Promise<BranchingAiSettingsRecord
     key: record.key,
     lastTestError: record.lastTestError,
     lastTestedAt: record.lastTestedAt,
+    latestQuestionRejectionReasons: record.latestQuestionRejectionReasons,
     model: record.model,
     provider: record.provider,
     timeoutMs: record.timeoutMs,
@@ -186,6 +188,7 @@ export async function getBranchingAiAdminView(): Promise<BranchingAiAdminView> {
       enabled: settings.enabled,
       lastTestError: settings.lastTestError,
       lastTestedAt: settings.lastTestedAt,
+      latestQuestionRejectionReasons: settings.latestQuestionRejectionReasons ?? null,
       model: settings.model,
       provider: settings.provider,
       timeoutMs: settings.timeoutMs,
@@ -285,6 +288,7 @@ export async function saveBranchingAiSettings(input: BranchingAiSaveInput & { ap
         key: normalizedNext.key,
         lastTestError: connectionChanged || secretChanged ? null : existing.lastTestError,
         lastTestedAt: connectionChanged || secretChanged ? null : existing.lastTestedAt,
+        latestQuestionRejectionReasons: existing.latestQuestionRejectionReasons,
         model: normalizedNext.model,
         provider: normalizedNext.provider,
         timeoutMs: normalizedNext.timeoutMs,
@@ -294,13 +298,14 @@ export async function saveBranchingAiSettings(input: BranchingAiSaveInput & { ap
       .onConflictDoUpdate({
         target: branchingAiSettings.key,
         set: {
-          apiBaseUrl: normalizedNext.apiBaseUrl,
-          enabled: normalizedNext.enabled,
-          lastTestError: connectionChanged || secretChanged ? null : existing.lastTestError,
-          lastTestedAt: connectionChanged || secretChanged ? null : existing.lastTestedAt,
-          model: normalizedNext.model,
-          provider: normalizedNext.provider,
-          timeoutMs: normalizedNext.timeoutMs,
+        apiBaseUrl: normalizedNext.apiBaseUrl,
+        enabled: normalizedNext.enabled,
+        lastTestError: connectionChanged || secretChanged ? null : existing.lastTestError,
+        lastTestedAt: connectionChanged || secretChanged ? null : existing.lastTestedAt,
+        latestQuestionRejectionReasons: existing.latestQuestionRejectionReasons,
+        model: normalizedNext.model,
+        provider: normalizedNext.provider,
+        timeoutMs: normalizedNext.timeoutMs,
           updatedAt: normalizedNext.updatedAt,
           verificationStatus: nextStatus
         }
@@ -381,6 +386,26 @@ export async function saveBranchingAiConnectionTestResult(params: {
       lastTestedAt: updatedAt,
       updatedAt,
       verificationStatus: params.success ? 'verified' : 'failed'
+    })
+    .where(eq(branchingAiSettings.key, existing.key));
+
+  return getBranchingAiAdminView();
+}
+
+export async function saveBranchingAiLatestQuestionRejectionReasons(
+  reasons: string[] | null
+) {
+  const existing = await ensureBranchingAiSettingsRow();
+  const normalizedReasons =
+    reasons?.map((reason) => reason.trim()).filter((reason) => reason.length > 0) ?? null;
+  const updatedAt = new Date();
+
+  await db
+    .update(branchingAiSettings)
+    .set({
+      latestQuestionRejectionReasons:
+        normalizedReasons && normalizedReasons.length > 0 ? normalizedReasons : null,
+      updatedAt
     })
     .where(eq(branchingAiSettings.key, existing.key));
 

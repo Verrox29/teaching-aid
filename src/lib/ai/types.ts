@@ -20,6 +20,7 @@ export type BranchingAiSettingsRecord = {
   key: string;
   lastTestError: string | null;
   lastTestedAt: Date | null;
+  latestQuestionRejectionReasons: string[] | null;
   model: string | null;
   provider: BranchingAiProvider;
   timeoutMs: number;

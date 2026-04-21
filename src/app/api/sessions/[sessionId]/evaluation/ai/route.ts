@@ -6,7 +6,8 @@ import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import {
   derivePeerQuestionsObserved,
   generateBranchingAiChallengeQuestions,
-  generateBranchingAiGradingRecommendations
+  generateBranchingAiGradingRecommendations,
+  saveBranchingAiLatestQuestionRejectionReasons
 } from '@/lib/ai';
 import { db, sessions } from '@/db';
 import { getSessionExportMetadataRecord } from '@/lib/exports/repository';
@@ -118,6 +119,9 @@ export async function POST(request: Request, { params }: RouteParams) {
           groupId: group.groupId,
           sessionId
         });
+        await saveBranchingAiLatestQuestionRejectionReasons(
+          challengeQuestionsResult.debug?.questionRejectionReasons ?? null
+        );
         continue;
       }
 

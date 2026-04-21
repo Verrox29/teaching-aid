@@ -322,6 +322,9 @@ export const branchingAiSettings = pgTable('branching_ai_settings', {
   apiBaseUrl: text('api_base_url'),
   model: varchar('model', { length: 160 }),
   timeoutMs: integer('timeout_ms').notNull().default(15000),
+  latestQuestionRejectionReasons: jsonb('latest_question_rejection_reasons').$type<
+    string[] | null
+  >(),
   verificationStatus: varchar('verification_status', { length: 32 })
     .notNull()
     .default('not_configured'),

@@ -5,7 +5,8 @@ import { z } from 'zod';
 import {
   derivePeerQuestionsObserved,
   generateBranchingAiChallengeQuestions,
-  generateBranchingAiGradingRecommendations
+  generateBranchingAiGradingRecommendations,
+  saveBranchingAiLatestQuestionRejectionReasons
 } from '@/lib/ai';
 import { db, sessions } from '@/db';
 import {
@@ -120,6 +121,9 @@ export async function POST(request: Request, { params }: RouteParams) {
         groupId,
         sessionId
       });
+      await saveBranchingAiLatestQuestionRejectionReasons(
+        challengeQuestionsResult.debug?.questionRejectionReasons ?? null
+      );
     } else {
       await setEvaluationAiStatus(sessionId, groupId, 'generating');
       gradingResult = await generateBranchingAiGradingRecommendations({

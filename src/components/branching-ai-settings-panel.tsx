@@ -536,6 +536,31 @@ export function BranchingAiSettingsPanel({
                       />
                     </label>
 
+                    {key === 'generate_challenge_questions' ? (
+                      <div className="mt-3 grid gap-2 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--app-fg-muted)]">
+                          Latest validation failures
+                        </p>
+                        {view.settings.latestQuestionRejectionReasons &&
+                        view.settings.latestQuestionRejectionReasons.length > 0 ? (
+                          <div className="flex flex-col gap-2">
+                            {view.settings.latestQuestionRejectionReasons.map((reason, index) => (
+                              <div
+                                key={`${reason}-${index}`}
+                                className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg)]"
+                              >
+                                {reason}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-[color:var(--app-fg-muted)]">
+                            No validation failures recorded yet.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+
                     <div className="mt-3 grid gap-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--app-fg-muted)]">
                         Available variables
