@@ -53,7 +53,7 @@ export async function AdminShell({
         >
           {isSessionAdminPage && sessionId && slug && sessionHeaderState ? (
             <div className="grid gap-2.5">
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_max-content] lg:items-start">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_max-content] md:items-start">
                 <div className="min-w-0 space-y-1.5">
                   <h1 className="ui-session-admin-title">
                     {sessionHeaderState.sessionTitle || title}

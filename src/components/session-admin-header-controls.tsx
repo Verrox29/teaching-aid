@@ -114,8 +114,8 @@ export function SessionAdminHeaderControls({
 
   return (
     <>
-      <div className="flex w-full min-w-0 flex-wrap items-start justify-end gap-2 lg:w-auto lg:flex-nowrap">
-        <div className="flex min-w-0 flex-wrap items-start justify-end gap-2 lg:flex-nowrap">
+      <div className="flex w-full min-w-0 flex-wrap items-start justify-end gap-2 md:w-auto md:flex-nowrap">
+        <div className="flex min-w-0 flex-wrap items-start justify-end gap-2 md:flex-nowrap">
           <Link className="ui-button ui-button-secondary shrink-0 px-3 py-2 text-sm" href="/sessions">
             <ResponsiveBackActionContent label={shared.backToSessionsHub} />
           </Link>

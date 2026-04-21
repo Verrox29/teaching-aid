@@ -27,7 +27,7 @@ export function ResponsiveBackActionContent({ label }: BackActionContentProps) {
   return (
     <>
       <BackArrowIcon className="h-4 w-4" />
-      <span className="sr-only sm:not-sr-only">{label}</span>
+      <span className="sr-only lg:not-sr-only">{label}</span>
     </>
   );
 }
