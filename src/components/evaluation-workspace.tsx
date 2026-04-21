@@ -10,6 +10,7 @@ import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
 import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { useUiLanguage } from '@/components/ui-language-toggle';
+import { shouldShowAdminDiagnostics } from '@/lib/admin-diagnostics';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
 import { formatUiDateTime, getUiText } from '@/lib/ui-language';
 import type { UiLanguage } from '@/lib/ui-language';
@@ -335,7 +336,12 @@ export function EvaluationWorkspaceClient({
   const challengeOpen = selectedGroupPanelState?.challengeOpen ?? true;
   const notesOpen = selectedGroupPanelState?.notesOpen ?? true;
   const gradingOpen = selectedGroupPanelState?.gradingOpen ?? false;
-  const selectedGroupHasUploadedWork = Boolean(selectedGroup?.submissionId);
+  const selectedGroupHasUploadedWork = Boolean(
+    selectedGroup?.submissionId || selectedGroup?.submissionTitle || selectedGroup?.submittedAt
+  );
+  const challengeQuestionsDescription = selectedGroupHasUploadedWork
+    ? t.reviewChallengeQuestions
+    : t.pleaseUploadWork;
   const selectedGroupHasFeedbackInputs = Boolean(
     selectedGroup?.presentationComments.trim() || selectedGroup?.submissionContent?.trim()
   );
@@ -344,6 +350,7 @@ export function EvaluationWorkspaceClient({
     process.env.NODE_ENV !== 'production'
       ? challengeQuestionsDebugByGroupId[selectedGroup?.groupId ?? ''] ?? null
       : null;
+  const showAdminDiagnostics = shouldShowAdminDiagnostics();
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
@@ -1345,7 +1352,7 @@ export function EvaluationWorkspaceClient({
                         ) : null
                       }
                       contentClassName="gap-3"
-                      description={t.pleaseUploadWork}
+                      description={challengeQuestionsDescription}
                       open={challengeOpen}
                       onOpenChange={(open) =>
                         setGroupPanelState(selectedGroup.groupId, (current) => ({
@@ -1356,6 +1363,12 @@ export function EvaluationWorkspaceClient({
                       title={t.challengeQuestions}
                       titleClassName="text-base font-semibold"
                     >
+                      {selectedGroupHasUploadedWork ? (
+                        <div className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          {challengeQuestionsDescription}
+                        </div>
+                      ) : null}
+
                       {selectedGroupHasChallengeQuestions ? (
                         <ul className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
                           {selectedGroup.aiRecommendedQuestions.map((question, index) => (
@@ -1384,13 +1397,9 @@ export function EvaluationWorkspaceClient({
                           {t.couldNotGenerateChallengeQuestions}
                           {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
                         </div>
-                      ) : (
-                        <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-3 text-sm text-[color:var(--app-fg-muted)]">
-                          <p>{t.generateQuestionsFromWork}</p>
-                        </div>
-                      )}
+                      ) : null}
 
-                      {selectedGroupChallengeQuestionsDebug ? (
+                      {showAdminDiagnostics && selectedGroupChallengeQuestionsDebug ? (
                         <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-[11px] text-[color:var(--app-fg-muted)]">
                           <div className="flex flex-wrap gap-x-4 gap-y-1">
                             <span>

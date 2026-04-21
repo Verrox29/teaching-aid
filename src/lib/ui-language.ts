@@ -236,6 +236,7 @@ const UI_TEXT = {
       generateQuestions: 'Generate questions',
       generatingQuestions: 'Generating...',
       pleaseUploadWork: "Please upload the group's work to enable question recommendation.",
+      reviewChallengeQuestions: 'Questions proposed are suggestions only. Review them before asking students.',
       challengeQuestions: 'Challenge questions',
       generating: 'Generating',
       sendToAi: 'Send the notes or uploaded work to AI for structured feedback and conservative grade suggestions.',
@@ -665,6 +666,8 @@ const UI_TEXT = {
       generateQuestions: 'Générer des questions',
       generatingQuestions: 'Génération...',
       pleaseUploadWork: "Veuillez téléverser le travail du groupe pour activer les questions recommandées.",
+      reviewChallengeQuestions:
+        'Les questions proposées ne sont que des suggestions. Relisez-les avant de les poser aux étudiants.',
       challengeQuestions: 'Questions de défi',
       generating: 'Génération',
       sendToAi: 'Envoyer les notes ou le travail téléversé à l’IA pour obtenir des retours structurés et des suggestions de notes prudentes.',
@@ -742,6 +745,8 @@ const UI_TEXT = {
       regenerateQuestions: 'Régénérer les questions',
       generatingQuestions: 'Génération...',
       pleaseUploadWork: "Veuillez téléverser le travail du groupe pour activer les questions recommandées.",
+      reviewChallengeQuestions:
+        'Les questions proposées ne sont que des suggestions. Relisez-les avant de les poser aux étudiants.',
       couldNotGenerateChallengeQuestions: 'Impossible de générer les questions de défi.',
       generateQuestionsFromWork: "Générez des questions à partir du travail téléversé pour préparer la soutenance orale.",
       challengeQuestions: 'Questions de défi',

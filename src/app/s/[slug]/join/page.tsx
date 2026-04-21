@@ -9,6 +9,7 @@ import {
   getStudentById,
   getStudentMembership
 } from '../queries';
+import { ResponsiveBackActionContent } from '@/components/back-action';
 import { PublicStudentSearch } from '@/components/public-student-search';
 
 type PublicJoinPageProps = {
@@ -57,10 +58,10 @@ export default async function PublicJoinPage({ params, searchParams }: PublicJoi
 
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            className="text-sm font-medium text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline"
+            className="ui-button ui-button-secondary px-3 py-2 text-sm"
             href={`/s/${slug}`}
           >
-            Back to session
+            <ResponsiveBackActionContent label="Back to session" />
           </Link>
           {session.groupSelectionLocked ? (
             <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">

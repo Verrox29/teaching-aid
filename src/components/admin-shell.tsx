@@ -111,7 +111,7 @@ export async function AdminShell({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-start justify-end gap-3 self-start">
                   {actions}
                   <UiLanguageToggle />
                   <ThemeToggle />

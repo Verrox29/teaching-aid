@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
+import { ResponsiveBackActionContent } from '@/components/back-action';
 import { BranchingAiSettingsPanel } from '@/components/branching-ai-settings-panel';
 import { GLOBAL_SETTINGS_COOKIE_NAME, GLOBAL_SETTINGS_COOKIE_VALUE } from '@/lib/global-settings-access';
 import { getBranchingAiAdminAccessState } from '@/lib/ai/admin-auth';
@@ -41,7 +42,7 @@ export default async function GlobalSettingsPage({ searchParams }: GlobalSetting
     <AdminShell
       actions={
         <Link className="ui-button ui-button-secondary" href="/sessions">
-          Back to sessions
+          <ResponsiveBackActionContent label="Back to sessions" />
         </Link>
       }
       description="Manage the shared export template, mapping, and Branching AI settings."

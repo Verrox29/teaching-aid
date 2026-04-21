@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { useFormStatus } from 'react-dom';
 
+import { ResponsiveBackActionContent } from '@/components/back-action';
+
 type PendingEntry = {
   id: string;
   label?: string;
@@ -49,27 +51,6 @@ function CloseIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-function ArrowLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M8.25 4.75L3.75 10L8.25 15.25"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.75"
-      />
-      <path
-        d="M16.25 10H4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.75"
       />
     </svg>
   );
@@ -217,12 +198,12 @@ export function AppModal({
           onClick={(event) => event.stopPropagation()}
           role="dialog"
         >
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <p className="ui-section-title">{headerLabel}</p>
               <h2 className="text-xl font-semibold">{title}</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               {showBackButton && onBack ? (
                 <button
                   aria-label={backLabel ?? 'Back'}
@@ -230,8 +211,7 @@ export function AppModal({
                   onClick={onBack}
                   type="button"
                 >
-                  <ArrowLeftIcon className="h-4 w-4" />
-                  {backLabel ?? 'Back'}
+                  <ResponsiveBackActionContent label={backLabel ?? 'Back'} />
                 </button>
               ) : null}
               {headerActions}

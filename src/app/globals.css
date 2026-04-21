@@ -1,36 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Play:wght@400;700&family=Roboto:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --app-bg: #f6f0f9;
+  --app-bg: #f5f2f8;
   --app-surface: #ffffff;
-  --app-surface-muted: #f0e8f4;
-  --app-surface-soft: #e8deee;
-  --app-border: rgba(74, 43, 95, 0.12);
-  --app-fg: #1f1528;
-  --app-fg-muted: #6a5d77;
-  --app-accent: #c03a88;
-  --app-accent-strong: #a82974;
-  --app-accent-soft: rgba(192, 58, 136, 0.14);
+  --app-surface-muted: #f2edf6;
+  --app-surface-soft: #ebe3f1;
+  --app-border: rgba(41, 30, 54, 0.12);
+  --app-fg: #1d1626;
+  --app-fg-muted: #6a6172;
+  --app-accent: #9519c1;
+  --app-accent-strong: #79119f;
+  --app-accent-deep: #5d0f78;
+  --app-accent-soft: rgba(149, 25, 193, 0.16);
   --app-success: #0e8a60;
   --app-warning: #a5680d;
   --app-danger: #b33d63;
-  --app-shadow: 0 18px 50px rgba(37, 22, 48, 0.08);
+  --app-shadow: 0 18px 50px rgba(33, 18, 44, 0.08);
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --app-bg: #120f17;
-  --app-surface: #19131f;
-  --app-surface-muted: #221a2b;
-  --app-surface-soft: #2a2135;
-  --app-border: rgba(244, 230, 255, 0.1);
-  --app-fg: #f5eef8;
-  --app-fg-muted: #b8a8c6;
-  --app-accent: #e157a7;
-  --app-accent-strong: #f06cb8;
-  --app-accent-soft: rgba(225, 87, 167, 0.18);
+  --app-bg: #111018;
+  --app-surface: #191622;
+  --app-surface-muted: #201c2b;
+  --app-surface-soft: #2a2436;
+  --app-border: rgba(233, 224, 245, 0.1);
+  --app-fg: #f6f1f8;
+  --app-fg-muted: #b9adca;
+  --app-accent: #c85ae8;
+  --app-accent-strong: #e06af0;
+  --app-accent-deep: #7d2ab2;
+  --app-accent-soft: rgba(200, 90, 232, 0.18);
   --app-success: #32d19e;
   --app-warning: #efb25d;
   --app-danger: #ff7798;
@@ -45,10 +49,30 @@ html {
 body {
   @apply antialiased;
   min-height: 100vh;
+  font-family: 'Roboto', Montserrat, Calibri, sans-serif;
   background:
-    radial-gradient(circle at top, rgba(192, 58, 136, 0.08), transparent 28%),
+    radial-gradient(circle at top, rgba(149, 25, 193, 0.1), transparent 30%),
     var(--app-bg);
   color: var(--app-fg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.ui-page-title,
+.ui-session-admin-title,
+.ui-section-title {
+  font-family: 'Play', Aptos, Arial, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 a {
@@ -58,39 +82,40 @@ a {
 @layer components {
   .ui-shell {
     border: 1px solid var(--app-border);
-    border-radius: 1.75rem;
-    background: color-mix(in srgb, var(--app-surface) 96%, transparent);
+    border-radius: 1.85rem;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 98%, transparent), color-mix(in srgb, var(--app-surface) 94%, transparent));
     box-shadow: var(--app-shadow);
   }
 
   .ui-panel {
     border: 1px solid var(--app-border);
-    border-radius: 1.5rem;
-    background: color-mix(in srgb, var(--app-surface) 95%, transparent);
+    border-radius: 1.55rem;
+    background: color-mix(in srgb, var(--app-surface) 96%, transparent);
     box-shadow: var(--app-shadow);
   }
 
   .ui-panel-muted {
     border: 1px solid var(--app-border);
-    border-radius: 1.25rem;
+    border-radius: 1.35rem;
     background: var(--app-surface-muted);
   }
 
   .ui-card {
     border: 1px solid var(--app-border);
-    border-radius: 1.25rem;
+    border-radius: 1.35rem;
     background: var(--app-surface);
     box-shadow: var(--app-shadow);
   }
 
   .ui-card-soft {
     border: 1px solid var(--app-border);
-    border-radius: 1.25rem;
+    border-radius: 1.35rem;
     background: var(--app-surface-muted);
   }
 
   .ui-section-title {
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -125,7 +150,7 @@ a {
     gap: 0.35rem;
     border-radius: 999px;
     border: 1px solid var(--app-border);
-    background: var(--app-surface-soft);
+    background: color-mix(in srgb, var(--app-surface-soft) 82%, var(--app-surface));
     padding: 0.4rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 600;
@@ -161,7 +186,7 @@ a {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 999px;
+    border-radius: 0.95rem;
     border: 1px solid transparent;
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
@@ -172,7 +197,9 @@ a {
       border-color 150ms ease,
       color 150ms ease,
       transform 150ms ease,
-      opacity 150ms ease;
+      opacity 150ms ease,
+      box-shadow 150ms ease,
+      filter 150ms ease;
     outline: none;
   }
 
@@ -190,27 +217,33 @@ a {
   }
 
   .ui-button-primary {
-    background: var(--app-accent);
+    background: linear-gradient(135deg, #b759e0 0%, var(--app-accent) 48%, var(--app-accent-deep) 100%);
     color: #ffffff;
+    box-shadow:
+      0 12px 28px rgba(149, 25, 193, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
   .ui-button-primary:hover {
-    background: var(--app-accent-strong);
+    filter: saturate(1.05) brightness(1.03);
+    box-shadow:
+      0 16px 32px rgba(149, 25, 193, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
 
   .ui-button-secondary {
     border-color: var(--app-border);
-    background: var(--app-surface-muted);
+    background: color-mix(in srgb, var(--app-surface-muted) 88%, var(--app-surface));
     color: var(--app-fg);
   }
 
   .ui-button-secondary:hover {
-    background: var(--app-surface-soft);
+    background: color-mix(in srgb, var(--app-surface-soft) 90%, var(--app-surface));
   }
 
   .ui-button-ghost {
     border-color: var(--app-border);
-    background: transparent;
+    background: color-mix(in srgb, var(--app-surface) 75%, transparent);
     color: var(--app-fg);
   }
 
@@ -366,11 +399,13 @@ a {
     transition:
       background-color 150ms ease,
       border-color 150ms ease,
-      transform 150ms ease;
+      transform 150ms ease,
+      box-shadow 150ms ease;
   }
 
   .ui-switch:hover {
     transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(33, 18, 44, 0.08);
   }
 
   .ui-switch-track {
@@ -386,7 +421,7 @@ a {
   }
 
   .ui-switch[aria-checked='true'] .ui-switch-track {
-    background: var(--app-accent);
+    background: linear-gradient(135deg, #b759e0 0%, var(--app-accent) 48%, var(--app-accent-deep) 100%);
   }
 
   .ui-switch-thumb {

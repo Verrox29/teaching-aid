@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 
 import { AdminShell } from '@/components/admin-shell';
+import { ResponsiveBackActionContent } from '@/components/back-action';
 import { SessionCreateForm } from '@/components/session-create-form';
 import { getUiLanguageFromCookieValue, UI_LANGUAGE_COOKIE_NAME } from '@/lib/ui-language';
 
@@ -13,7 +14,7 @@ export default async function NewSessionPage() {
     <AdminShell
       actions={
         <Link className="ui-button ui-button-ghost" href="/sessions">
-          {uiLanguage === 'fr' ? 'Retour aux sessions' : 'Back to sessions'}
+          <ResponsiveBackActionContent label={uiLanguage === 'fr' ? 'Retour aux sessions' : 'Back to sessions'} />
         </Link>
       }
       description={

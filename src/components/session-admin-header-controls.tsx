@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { saveSessionContextAction, saveSessionInstructionsAction, undoSessionContextAction, undoSessionInstructionsAction } from '@/app/sessions/actions';
 import { AppModal, AppPendingFormBridge } from '@/components/app-interaction-feedback';
+import { ResponsiveBackActionContent } from '@/components/back-action';
 import type { SessionAdminHeaderState } from '@/lib/session-admin-state';
 import { getUiText } from '@/lib/ui-language';
 import { useUiLanguage } from '@/components/ui-language-toggle';
@@ -19,27 +20,6 @@ type SessionAdminHeaderControlsProps = {
   currentStep?: number;
   state: SessionAdminHeaderState;
 };
-
-function ArrowLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M8.25 4.75L3.75 10L8.25 15.25"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.75"
-      />
-      <path
-        d="M16.25 10H4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.75"
-      />
-    </svg>
-  );
-}
 
 function GearIcon({ className }: { className?: string }) {
   return (
@@ -134,11 +114,10 @@ export function SessionAdminHeaderControls({
 
   return (
     <>
-      <div className="flex w-full flex-wrap items-center justify-end gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-start justify-end gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href="/sessions">
-            <ArrowLeftIcon className="h-4 w-4" />
-            {shared.backToSessionsHub}
+            <ResponsiveBackActionContent label={shared.backToSessionsHub} />
           </Link>
           <button
             aria-haspopup="dialog"
