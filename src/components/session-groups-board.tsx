@@ -1104,7 +1104,7 @@ export function SessionGroupsBoard({
           highlightErrorSection ? 'scroll-mt-24' : ''
         }`}
       >
-        <aside className="lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
+        <aside className="lg:sticky lg:top-24 lg:h-fit lg:max-h-[calc(100vh-12rem)] lg:overflow-auto">
           <section
             className={`grid gap-4 rounded-2xl border p-5 ${
               alert?.kind === 'error' && !alert.groupId && !alert.studentId

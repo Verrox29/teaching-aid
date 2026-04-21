@@ -114,16 +114,16 @@ export function SessionAdminHeaderControls({
 
   return (
     <>
-      <div className="flex w-full flex-wrap items-start justify-end gap-2">
-        <div className="flex flex-wrap items-start gap-2">
-          <Link className="ui-button ui-button-secondary px-3 py-2 text-sm" href="/sessions">
+      <div className="flex w-full min-w-0 flex-wrap items-start justify-end gap-2 lg:w-auto lg:flex-nowrap">
+        <div className="flex min-w-0 flex-wrap items-start justify-end gap-2 lg:flex-nowrap">
+          <Link className="ui-button ui-button-secondary shrink-0 px-3 py-2 text-sm" href="/sessions">
             <ResponsiveBackActionContent label={shared.backToSessionsHub} />
           </Link>
           <button
             aria-haspopup="dialog"
             aria-expanded={modalStack.length > 0}
             aria-label={t.settings}
-            className="ui-button ui-button-ghost h-9 w-9 px-0"
+            className="ui-button ui-button-ghost h-9 w-9 shrink-0 px-0"
             onClick={() => {
               if (!settingsOpen) {
                 openModal('settings');
@@ -133,7 +133,9 @@ export function SessionAdminHeaderControls({
           >
             <GearIcon className="h-4 w-4" />
           </button>
-          <ThemeToggle />
+          <div className="shrink-0">
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
