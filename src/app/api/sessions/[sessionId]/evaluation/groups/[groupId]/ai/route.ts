@@ -100,7 +100,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           className: metadata.className || context.session.title,
           evaluationCriteria: context.rubric?.criteria ?? [],
           groupName: context.group.name,
-          presentationContent: context.evaluation?.presentationComments ?? '',
+          presentationContent: context.submission?.content ?? context.submissionText ?? '',
           sessionContext: buildSessionContextSummary({
             className: metadata.className || context.session.title,
             instructions: sessionRecord?.instructions ?? null,
@@ -109,7 +109,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             sessionTitle: sessionRecord?.title ?? context.session.title
           }),
           sessionLanguage: context.session.language,
-          submissionText: context.submissionText,
+          submissionText: context.submissionText ?? context.submission?.content ?? '',
           subject: metadata.subject || context.session.title
         }
       );

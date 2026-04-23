@@ -1398,7 +1398,6 @@ export function EvaluationWorkspaceClient({
                           {selectedGroup.aiLastError ? ` ${selectedGroup.aiLastError}` : ''}
                         </div>
                       ) : null}
-
                       {showAdminDiagnostics && selectedGroupChallengeQuestionsDebug ? (
                         <div className="grid gap-3 rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-3 text-[11px] text-[color:var(--app-fg-muted)]">
                           <div className="flex flex-wrap gap-x-4 gap-y-1">

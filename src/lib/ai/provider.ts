@@ -39,6 +39,30 @@ function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, '');
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function parseRetryAfterHeader(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.ceil(seconds * 1000);
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isFinite(timestamp)) {
+    return Math.max(0, timestamp - Date.now());
+  }
+
+  return null;
+}
+
 async function executeChatCompletion(
   requestConfig: OpenAiCompatibleRequest,
   options: BranchingAiChatCompletionOptions
@@ -47,41 +71,51 @@ async function executeChatCompletion(
   const timeout = setTimeout(() => controller.abort(), requestConfig.timeoutMs);
 
   try {
-    const response = await fetch(`${requestConfig.apiBaseUrl}/v1/chat/completions`, {
-      body: JSON.stringify({
-        ...(options.responseFormat ? { response_format: options.responseFormat } : {}),
-        max_tokens: options.maxTokens ?? 1024,
-        messages: options.messages,
-        model: requestConfig.model,
-        temperature: options.temperature ?? 0
-      }),
-      headers: {
-        Authorization: `Bearer ${requestConfig.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      method: 'POST',
-      signal: controller.signal
-    });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch(`${requestConfig.apiBaseUrl}/v1/chat/completions`, {
+        body: JSON.stringify({
+          ...(options.responseFormat ? { response_format: options.responseFormat } : {}),
+          max_tokens: options.maxTokens ?? 1024,
+          messages: options.messages,
+          model: requestConfig.model,
+          temperature: options.temperature ?? 0
+        }),
+        headers: {
+          Authorization: `Bearer ${requestConfig.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        signal: controller.signal
+      });
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`Provider returned ${response.status}${body ? `: ${body.slice(0, 240)}` : ''}`);
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        if (response.status === 429 && attempt === 0) {
+          const retryAfterMs = parseRetryAfterHeader(response.headers.get('retry-after'));
+          await sleep(Math.min(retryAfterMs ?? 5000, 15000));
+          continue;
+        }
+
+        throw new Error(
+          `Provider returned ${response.status}${body ? `: ${body.slice(0, 240)}` : ''}`
+        );
+      }
+
+      const payload = (await response.json()) as {
+        choices?: Array<{
+          message?: {
+            content?: string | null;
+          } | null;
+        }>;
+      };
+      const content = payload.choices?.[0]?.message?.content?.trim() ?? '';
+
+      if (!content) {
+        throw new Error('Provider response did not include message content.');
+      }
+
+      return content;
     }
-
-    const payload = (await response.json()) as {
-      choices?: Array<{
-        message?: {
-          content?: string | null;
-        } | null;
-      }>;
-    };
-    const content = payload.choices?.[0]?.message?.content?.trim() ?? '';
-
-    if (!content) {
-      throw new Error('Provider response did not include message content.');
-    }
-
-    return content;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('AI request timed out.');

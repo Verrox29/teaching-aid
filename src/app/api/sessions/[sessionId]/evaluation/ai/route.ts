@@ -53,6 +53,12 @@ function buildSessionContextSummary(params: {
   ].join('\n');
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export async function POST(request: Request, { params }: RouteParams) {
   const { sessionId } = await params;
   const body = await request.json().catch(() => ({}));
@@ -79,8 +85,9 @@ export async function POST(request: Request, { params }: RouteParams) {
     const sessionRecord = sessionRows[0] ?? null;
     const mode = parsed.data.mode;
     const skipped: Array<{ groupId: string; groupName: string; reason: string }> = [];
+    const batchCooldownMs = mode === 'grading' ? 2000 : 750;
 
-    for (const group of workspace.groups) {
+    for (const [index, group] of workspace.groups.entries()) {
       if (mode === 'questions') {
         if (!group.submissionId) {
           skipped.push({
@@ -98,7 +105,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             className: metadata.className || workspace.session.title,
             evaluationCriteria: workspace.rubric?.criteria ?? [],
             groupName: group.groupName,
-            presentationContent: group.presentationComments ?? '',
+            presentationContent: group.submissionContent ?? group.submissionText ?? '',
             sessionContext: buildSessionContextSummary({
               className: metadata.className || workspace.session.title,
               instructions: sessionRecord?.instructions ?? null,
@@ -107,7 +114,7 @@ export async function POST(request: Request, { params }: RouteParams) {
               sessionTitle: sessionRecord?.title ?? workspace.session.title
             }),
             sessionLanguage: workspace.session.language,
-            submissionText: group.submissionText,
+            submissionText: group.submissionText ?? group.submissionContent ?? '',
             subject: metadata.subject || workspace.session.title
           }
         );
@@ -122,6 +129,9 @@ export async function POST(request: Request, { params }: RouteParams) {
         await saveBranchingAiLatestQuestionRejectionReasons(
           challengeQuestionsResult.debug?.questionRejectionReasons ?? null
         );
+        if (index < workspace.groups.length - 1) {
+          await sleep(batchCooldownMs);
+        }
         continue;
       }
 
@@ -167,6 +177,10 @@ export async function POST(request: Request, { params }: RouteParams) {
       await saveEvaluationDraft(sessionId, group.groupId, {
         finalFeedback: formatFeedbackSections(result.feedback, workspace.session.language)
       });
+
+      if (index < workspace.groups.length - 1) {
+        await sleep(batchCooldownMs);
+      }
     }
 
     const refreshed = await getEvaluationWorkspace(sessionId);
