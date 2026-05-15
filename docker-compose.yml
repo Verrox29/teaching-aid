@@ -20,6 +20,14 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
+    command:
+      - sh
+      - -lc
+      - |
+        if [ ! -f node_modules/.package-lock.json ] || ! cmp -s package-lock.json node_modules/.package-lock.json; then
+          npm ci;
+        fi
+        npm run dev
     depends_on:
       db:
         condition: service_healthy

@@ -108,6 +108,12 @@ type BatchState = {
   message: string;
 };
 
+type ChallengeQuestionSkippedGroup = {
+  groupId: string;
+  groupName: string;
+  reason: string;
+};
+
 function buildFeedbackString(sections: EvaluationAiFeedbackSections, language: string) {
   return formatFeedbackSections(sections, language);
 }
@@ -261,6 +267,9 @@ export function EvaluationWorkspaceClient({
   const [challengeQuestionsSkipped, setChallengeQuestionsSkipped] = useState<Record<string, string>>(
     {}
   );
+  const [challengeQuestionsSkippedGroups, setChallengeQuestionsSkippedGroups] = useState<
+    ChallengeQuestionSkippedGroup[]
+  >([]);
   const [challengeQuestionsDebugByGroupId, setChallengeQuestionsDebugByGroupId] = useState<
     Record<string, SerializableChallengeQuestionsDebug | null>
   >({});
@@ -819,6 +828,7 @@ export function EvaluationWorkspaceClient({
   async function runBatchAi(mode: 'grading' | 'questions') {
     if (mode === 'questions') {
       setChallengeQuestionsBatchState({ kind: 'running', message: '' });
+      setChallengeQuestionsSkippedGroups([]);
     } else {
       setGradingBatchState({ kind: 'running', message: '' });
     }
@@ -875,10 +885,12 @@ export function EvaluationWorkspaceClient({
 
         const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
         if (mode === 'questions') {
+          const skippedGroups = skipped as ChallengeQuestionSkippedGroup[];
           const nextSkipped = Object.fromEntries(
-            skipped.map((entry: { groupId: string; reason: string }) => [entry.groupId, entry.reason])
+            skippedGroups.map((entry) => [entry.groupId, entry.reason])
           );
           setChallengeQuestionsSkipped(nextSkipped);
+          setChallengeQuestionsSkippedGroups(skippedGroups);
           setChallengeQuestionsBatchState({
             kind: 'done',
             message:
@@ -1089,6 +1101,15 @@ export function EvaluationWorkspaceClient({
             <p className="text-sm text-[color:var(--app-fg-muted)]">
               {challengeQuestionsBatchState.message}
             </p>
+          ) : null}
+          {challengeQuestionsSkippedGroups.length > 0 ? (
+            <ul className="grid gap-1 text-sm text-[color:var(--app-fg-muted)]">
+              {challengeQuestionsSkippedGroups.map((entry) => (
+                <li key={entry.groupId}>
+                  {entry.groupName}: {entry.reason}
+                </li>
+              ))}
+            </ul>
           ) : null}
           {gradingBatchState.message ? (
             <p className="text-sm text-[color:var(--app-fg-muted)]">{gradingBatchState.message}</p>

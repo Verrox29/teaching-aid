@@ -4,6 +4,8 @@ import { asc, desc, eq } from 'drizzle-orm';
 import { AdminShell } from '@/components/admin-shell';
 import { GlobalSettingsButton } from '@/components/global-settings-button';
 import { SessionDeleteAction } from '@/components/session-delete-action';
+import { SessionGroupLockToggleAction } from '@/components/session-group-lock-toggle-action';
+import { SessionSubmissionsRetentionAction } from '@/components/session-submissions-retention-action';
 import { SessionUploadStudentsWorkAction } from '@/components/session-upload-students-work-action';
 import { db, groups, sessionExportMetadata, sessions, submissions } from '@/db';
 import { cookies } from 'next/headers';
@@ -49,7 +51,6 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
         title: sessions.title,
         language: sessions.language,
         groupSelectionLocked: sessions.groupSelectionLocked,
-        presentationOrderLocked: sessions.presentationOrderLocked,
         createdAt: sessions.createdAt
       })
       .from(sessions)
@@ -79,7 +80,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
   const groupBySessionId = new Map<string, { id: string; name: string }[]>();
   const submissionByGroupId = new Map<
     string,
-    { fileName: string | null; submittedAt: string | null }
+    { createdAt: string; fileName: string | null; submittedAt: string | null }
   >();
   const submissionsBySessionId = new Map<string, { createdAt: Date; submittedAt: Date | null }[]>();
 
@@ -97,6 +98,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     current.push(submission);
     submissionsBySessionId.set(submission.sessionId, current);
     submissionByGroupId.set(submission.groupId, {
+      createdAt: submission.createdAt.toISOString(),
       fileName: submission.title,
       submittedAt: submission.submittedAt ? submission.submittedAt.toISOString() : null
     });
@@ -144,7 +146,6 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
               <th className="px-4 py-3 font-medium">{shared.date}</th>
               <th className="px-4 py-3 font-medium">{t.columns.language}</th>
               <th className="px-4 py-3 font-medium">{t.columns.groupLock}</th>
-              <th className="px-4 py-3 font-medium">{t.columns.orderLock}</th>
               <th className="px-4 py-3 font-medium">{t.columns.studentWork}</th>
               <th className="px-4 py-3 font-medium">{t.columns.created}</th>
               <th className="px-4 py-3 font-medium">{t.columns.actions}</th>
@@ -153,7 +154,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
           <tbody className="divide-y divide-[color:var(--app-border)]">
             {sessionList.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={9}>
+                <td className="px-4 py-6 text-[color:var(--app-fg-muted)]" colSpan={8}>
                   {t.empty}
                 </td>
               </tr>
@@ -176,27 +177,41 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
                   </td>
                   <td className="px-4 py-3">{session.language}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`ui-chip ${session.groupSelectionLocked ? 'ui-chip-warning' : 'ui-chip-success'}`}
-                    >
-                      {session.groupSelectionLocked ? t.locked : t.open}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`ui-chip ${session.presentationOrderLocked ? 'ui-chip-warning' : 'ui-chip-success'}`}
-                    >
-                      {session.presentationOrderLocked ? t.locked : t.open}
-                    </span>
+                    <SessionGroupLockToggleAction
+                      groupSelectionLocked={session.groupSelectionLocked}
+                      sessionId={session.id}
+                      sessionTitle={session.title}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     {submissionDeletionBySessionId.get(session.id) ? (
-                      <span className="ui-chip ui-chip-warning whitespace-normal text-left leading-5">
-                        {t.deletesOn.replace(
-                          '{date}',
-                          formatUiDateTime(submissionDeletionBySessionId.get(session.id)!, uiLanguage)
-                        )}
-                      </span>
+                      <SessionSubmissionsRetentionAction
+                        latestExpiryAt={submissionDeletionBySessionId.get(session.id)!.toISOString()}
+                        sessionId={session.id}
+                        sessionTitle={session.title}
+                        submissions={(groupBySessionId.get(session.id) ?? [])
+                          .map((group) => {
+                            const submission = submissionByGroupId.get(group.id);
+                            if (!submission?.fileName) {
+                              return null;
+                            }
+
+                            return {
+                              createdAt: submission.createdAt,
+                              fileName: submission.fileName,
+                              groupId: group.id,
+                              groupName: group.name,
+                              submittedAt: submission.submittedAt
+                            };
+                          })
+                          .filter((submission): submission is {
+                            createdAt: string;
+                            fileName: string;
+                            groupId: string;
+                            groupName: string;
+                            submittedAt: string | null;
+                          } => submission !== null)}
+                      />
                     ) : (
                       <span className="text-[color:var(--app-fg-muted)]">{t.noWorkUploaded}</span>
                     )}

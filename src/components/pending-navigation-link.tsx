@@ -66,7 +66,7 @@ export function PendingNavigationLink({
   const { beginNavigationPending } = useInteractionFeedback();
   const currentRouteKey = useCurrentRouteKey();
   const releaseRef = useRef<null | (() => void)>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<number | null>(null);
 
   const targetRouteKey = useMemo(() => normalizeRouteKey(href), [href]);
 

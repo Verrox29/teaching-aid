@@ -26,6 +26,15 @@ type RouteParams = {
   params: Promise<{ sessionId: string }>;
 };
 
+const MIN_CHALLENGE_QUESTION_SOURCE_WORDS = 30;
+
+function countGroundingWords(value: string) {
+  return value
+    .split(/\s+/g)
+    .map((entry) => entry.trim())
+    .filter((entry) => /[A-Za-zÀ-ÿ]/.test(entry)).length;
+}
+
 function buildSessionContextSummary(params: {
   className: string;
   instructions: string | null;
@@ -98,6 +107,30 @@ export async function POST(request: Request, { params }: RouteParams) {
           continue;
         }
 
+        const submissionText = group.submissionText?.trim() ?? '';
+        if (!submissionText) {
+          const fileLabel = group.submissionTitle ?? 'the uploaded file';
+          skipped.push({
+            groupId: group.groupId,
+            groupName: group.groupName,
+            reason:
+              group.submissionTextIssue === 'image_only_or_ocr_required'
+                ? `"${fileLabel}" appears to be image-only/scanned and requires OCR before Challenge Questions can be generated.`
+                : `Could not read usable text from "${fileLabel}".`
+          });
+          continue;
+        }
+
+        const sourceWordCount = countGroundingWords(submissionText);
+        if (sourceWordCount < MIN_CHALLENGE_QUESTION_SOURCE_WORDS) {
+          skipped.push({
+            groupId: group.groupId,
+            groupName: group.groupName,
+            reason: `"${group.submissionTitle ?? 'Uploaded file'}" has only ${sourceWordCount} readable words (minimum ${MIN_CHALLENGE_QUESTION_SOURCE_WORDS}).`
+          });
+          continue;
+        }
+
         await resetEvaluationAiQuestions(sessionId, group.groupId);
         const challengeQuestionsResult = await generateBranchingAiChallengeQuestions(
           {
@@ -105,7 +138,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             className: metadata.className || workspace.session.title,
             evaluationCriteria: workspace.rubric?.criteria ?? [],
             groupName: group.groupName,
-            presentationContent: group.submissionContent ?? group.submissionText ?? '',
+            presentationContent: submissionText,
             sessionContext: buildSessionContextSummary({
               className: metadata.className || workspace.session.title,
               instructions: sessionRecord?.instructions ?? null,
@@ -114,7 +147,7 @@ export async function POST(request: Request, { params }: RouteParams) {
               sessionTitle: sessionRecord?.title ?? workspace.session.title
             }),
             sessionLanguage: workspace.session.language,
-            submissionText: group.submissionText ?? group.submissionContent ?? '',
+            submissionText,
             subject: metadata.subject || workspace.session.title
           }
         );
@@ -135,7 +168,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         continue;
       }
 
-      if (!group.presentationComments.trim() && !group.submissionContent?.trim()) {
+      if (!group.presentationComments.trim() && !group.submissionText?.trim()) {
         skipped.push({
           groupId: group.groupId,
           groupName: group.groupName,
@@ -159,7 +192,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           sessionLanguage: workspace.session.language,
           sessionTitle: sessionRecord?.title ?? workspace.session.title
         }),
-        submissionContent: group.submissionContent,
+        submissionContent: group.submissionText,
         submissionTitle: group.submissionTitle,
         sessionLanguage: workspace.session.language,
         subject: metadata.subject || workspace.session.title

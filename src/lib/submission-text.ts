@@ -1,7 +1,45 @@
+import { createRequire } from 'node:module';
 import { inflateRawSync, inflateSync } from 'node:zlib';
 
 const MAX_READABLE_TEXT_LENGTH = 6000;
 const MIN_WORDS_FOR_TEXT = 3;
+
+export type SubmissionTextIssue = 'image_only_or_ocr_required' | 'unreadable' | 'missing';
+
+export type SubmissionTextExtractionResult = {
+  issue: SubmissionTextIssue | null;
+  text: string | null;
+};
+
+type PdfParseResult = {
+  text?: string;
+};
+
+type PdfParseFunction = (
+  buffer: Buffer,
+  options?: {
+    max?: number;
+  }
+) => Promise<PdfParseResult>;
+
+let cachedPdfParseFunction: PdfParseFunction | null = null;
+const requireFromSubmissionText = createRequire(import.meta.url);
+
+async function getPdfParseFunction() {
+  if (cachedPdfParseFunction) {
+    return cachedPdfParseFunction;
+  }
+
+  const loadedModule: unknown = requireFromSubmissionText('pdf-parse');
+  const candidate: unknown = loadedModule;
+
+  if (typeof candidate !== 'function') {
+    throw new Error('Could not load PDF parser function.');
+  }
+
+  cachedPdfParseFunction = candidate as PdfParseFunction;
+  return cachedPdfParseFunction;
+}
 
 function isBase64Whitespace(charCode: number) {
   return (
@@ -70,6 +108,14 @@ function countWords(value: string) {
     .split(/[^A-Za-z0-9À-ÿ]+/g)
     .map((entry) => entry.trim())
     .filter(Boolean).length;
+}
+
+function countReadableWordTokens(value: string) {
+  return stripDiacritics(value)
+    .toLowerCase()
+    .split(/[^a-z]+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function looksLikeNaturalWord(word: string) {
@@ -162,6 +208,42 @@ function isReadableLine(value: string) {
 }
 
 function sanitizeReadableText(value: string) {
+  function isLikelyNaturalTextBlock(candidate: string) {
+    const normalized = candidate.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return false;
+    }
+
+    const normalizedWords = countReadableWordTokens(normalized);
+    const meaningfulWords = normalizedWords.filter((word) => word.length >= 3);
+    const naturalWords = meaningfulWords.filter(looksLikeNaturalWord);
+    const naturalRatio =
+      meaningfulWords.length > 0 ? naturalWords.length / meaningfulWords.length : 0;
+    const unusualCharacterCount = (
+      normalized.match(/[^\x09\x0A\x0D\x20-\x7EÀ-ÿ]/g) ?? []
+    ).length;
+    const unusualCharacterRatio = unusualCharacterCount / Math.max(1, normalized.length);
+    const collapsed = stripDiacritics(normalized).toLowerCase();
+
+    if (countWords(normalized) < MIN_WORDS_FOR_TEXT && countLetters(normalized) < 20) {
+      return false;
+    }
+
+    if (meaningfulWords.length >= 6 && naturalRatio < 0.4) {
+      return false;
+    }
+
+    if (/(.)\1{5,}/.test(collapsed)) {
+      return false;
+    }
+
+    if (unusualCharacterRatio > 0.08) {
+      return false;
+    }
+
+    return true;
+  }
+
   const normalized = value.replace(/\u0000/g, ' ').replace(/\r/g, '\n');
   const lines = normalized
     .split('\n')
@@ -179,7 +261,7 @@ function sanitizeReadableText(value: string) {
   const joined = dedupedLines.join('\n').trim();
   if (joined) {
     const truncated = joined.slice(0, MAX_READABLE_TEXT_LENGTH).trim();
-    if (countWords(truncated) >= MIN_WORDS_FOR_TEXT || countLetters(truncated) >= 20) {
+    if (isLikelyNaturalTextBlock(truncated)) {
       return truncated;
     }
   }
@@ -187,7 +269,7 @@ function sanitizeReadableText(value: string) {
   const singleLine = normalized.replace(/\s+/g, ' ').trim();
   if (isReadableLine(singleLine)) {
     const truncated = singleLine.slice(0, MAX_READABLE_TEXT_LENGTH).trim();
-    if (countWords(truncated) >= MIN_WORDS_FOR_TEXT || countLetters(truncated) >= 20) {
+    if (isLikelyNaturalTextBlock(truncated)) {
       return truncated;
     }
   }
@@ -315,13 +397,34 @@ function decodePdfToken(token: string) {
   return decodePdfHexString(token);
 }
 
+function isPotentialPdfTextFragment(value: string) {
+  const line = value.replace(/\s+/g, ' ').trim();
+  if (!line) {
+    return false;
+  }
+
+  if (!/[A-Za-zÀ-ÿ]/.test(line)) {
+    return false;
+  }
+
+  if (/^[0-9./:;,\-]+$/.test(line)) {
+    return false;
+  }
+
+  if (/[A-Za-z0-9+/]{32,}={0,2}/.test(line)) {
+    return false;
+  }
+
+  return true;
+}
+
 function extractPdfContentText(content: string) {
   const tokens = content.match(/\((?:\\.|[^\\()])*\)|<[^>]*>/g) ?? [];
   const fragments = tokens
     .map((token) => decodePdfToken(token))
     .map((fragment) => fragment.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
-    .filter(isReadableLine);
+    .filter(isPotentialPdfTextFragment);
 
   const dedupedFragments: string[] = [];
   for (const fragment of fragments) {
@@ -355,10 +458,6 @@ function extractPdfReadableText(buffer: Buffer) {
     const objectText = match[1];
     const streamText = match[2];
 
-    if (!/(?:\bTj\b|\bTJ\b|['"])/.test(streamText)) {
-      continue;
-    }
-
     let streamBuffer = Buffer.from(streamText, 'latin1');
     if (/\/FlateDecode\b/.test(objectText)) {
       const inflated = inflatePdfStream(streamBuffer);
@@ -368,7 +467,12 @@ function extractPdfReadableText(buffer: Buffer) {
       streamBuffer = inflated;
     }
 
-    const extracted = extractPdfContentText(streamBuffer.toString('latin1'));
+    const decodedStream = streamBuffer.toString('latin1');
+    if (!/(?:\bTj\b|\bTJ\b|['"])/.test(decodedStream)) {
+      continue;
+    }
+
+    const extracted = extractPdfContentText(decodedStream);
     if (extracted) {
       fragments.push(extracted);
     }
@@ -385,28 +489,108 @@ function extractPlainReadableText(value: string) {
   return sanitizeReadableText(value);
 }
 
-export function extractSubmissionTextForAi(
-  rawContent: string | null | undefined,
-  fileName?: string | null
-) {
-  const normalized = rawContent?.trim() ?? '';
+function sanitizePdfParserExtractedText(value: string) {
+  const normalized = value.replace(/\u0000/g, ' ').replace(/\r/g, '\n').trim();
   if (!normalized) {
     return null;
+  }
+
+  const sanitized = sanitizeReadableText(normalized);
+  if (sanitized) {
+    return sanitized;
+  }
+
+  const cleaned = normalized
+    .replace(/[^\x09\x0A\x0D\x20-\x7EÀ-ÿ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const letters = countLetters(cleaned);
+  const words = countWords(cleaned);
+
+  if (words < MIN_WORDS_FOR_TEXT || letters < 20) {
+    return null;
+  }
+
+  return cleaned.slice(0, MAX_READABLE_TEXT_LENGTH).trim();
+}
+
+async function extractPdfReadableTextWithParser(buffer: Buffer) {
+  const pdfParse = await getPdfParseFunction();
+  const parsed = await pdfParse(buffer, { max: 0 });
+  return sanitizePdfParserExtractedText(parsed.text ?? '');
+}
+
+function isLikelyImageOnlyPdf(buffer: Buffer) {
+  const source = buffer.toString('latin1');
+  const hasImageObjects = /\/Subtype\s*\/Image\b/.test(source);
+  const hasTextOperators = /\bBT\b/.test(source) && /(?:\bTj\b|\bTJ\b|["'])/.test(source);
+
+  return hasImageObjects && !hasTextOperators;
+}
+
+export async function extractSubmissionTextForAi(
+  rawContent: string | null | undefined,
+  fileName?: string | null
+): Promise<SubmissionTextExtractionResult> {
+  const normalized = rawContent?.trim() ?? '';
+  if (!normalized) {
+    return {
+      issue: 'missing',
+      text: null
+    };
   }
 
   if (isLikelyBase64(normalized)) {
     const decoded = Buffer.from(normalized, 'base64');
     if (decoded.length === 0) {
-      return null;
+      return {
+        issue: 'unreadable',
+        text: null
+      };
     }
 
     if (isPdfBuffer(decoded, fileName)) {
-      return extractPdfReadableText(decoded);
+      try {
+        const parserText = await extractPdfReadableTextWithParser(decoded);
+        if (parserText) {
+          return {
+            issue: null,
+            text: parserText
+          };
+        }
+      } catch {
+        // Fall through to the local heuristic parser.
+      }
+
+      const heuristicText = extractPdfReadableText(decoded);
+      if (heuristicText) {
+        return {
+          issue: null,
+          text: heuristicText
+        };
+      }
+
+      return {
+        issue: isLikelyImageOnlyPdf(decoded) ? 'image_only_or_ocr_required' : 'unreadable',
+        text: null
+      };
     }
 
     const text = decoded.toString('utf8');
-    return isReadableLine(text) ? extractPlainReadableText(text) : null;
+    const readableText = isReadableLine(text) ? extractPlainReadableText(text) : null;
+    return {
+      issue: readableText ? null : 'unreadable',
+      text: readableText
+    };
   }
 
-  return extractPlainReadableText(normalized);
+  const readableText = extractPlainReadableText(normalized);
+  return {
+    issue: readableText ? null : 'unreadable',
+    text: readableText
+  };
 }

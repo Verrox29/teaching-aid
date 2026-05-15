@@ -66,7 +66,7 @@ function parseRetryAfterHeader(value: string | null) {
 async function executeChatCompletion(
   requestConfig: OpenAiCompatibleRequest,
   options: BranchingAiChatCompletionOptions
-) {
+): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestConfig.timeoutMs);
 
@@ -116,6 +116,8 @@ async function executeChatCompletion(
 
       return content;
     }
+
+    throw new Error('Provider response did not include message content.');
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('AI request timed out.');

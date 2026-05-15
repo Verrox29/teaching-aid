@@ -1,10 +1,11 @@
 import { eq } from 'drizzle-orm';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AdminShell } from '@/components/admin-shell';
 import { ExportDownloadButton } from '@/components/export-download-button';
+import { PendingNavigationLink } from '@/components/pending-navigation-link';
 import { db, sessions } from '@/db';
+import { shouldShowAdminDiagnostics } from '@/lib/admin-diagnostics';
 import {
   getActiveExportVersions,
   getPairagogieExportContext,
@@ -52,6 +53,7 @@ export default async function SessionExportsPage({
   const active = await getActiveExportVersions();
   const context = await getPairagogieExportContext(sessionId);
   const metadata = await getSessionExportMetadataRecord(sessionId, session.title);
+  const showAdminDiagnostics = shouldShowAdminDiagnostics();
   const exportReady =
     context.groups.length > 0 &&
     context.groups.every(
@@ -66,9 +68,9 @@ export default async function SessionExportsPage({
     <AdminShell
       actions={
         <>
-          <Link className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
+          <PendingNavigationLink className="ui-button ui-button-secondary" href={`/sessions/${sessionId}/evaluation`}>
             AI scoring
-          </Link>
+          </PendingNavigationLink>
         </>
       }
       currentStep={4}
@@ -173,12 +175,14 @@ export default async function SessionExportsPage({
             label="Download Pairagogie Excel"
             variant="primary"
           />
-          <ExportDownloadButton
-            downloadName={`pairagogie-debug-${session.slug}.xlsx`}
-            disabled={!exportReady}
-            href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
-            label="Download debug preview"
-          />
+          {showAdminDiagnostics ? (
+            <ExportDownloadButton
+              downloadName={`pairagogie-debug-${session.slug}.xlsx`}
+              disabled={!exportReady}
+              href={`/api/sessions/${sessionId}/exports/pairagogie?debug=1`}
+              label="Download debug preview"
+            />
+          ) : null}
           <ExportDownloadButton
             downloadName={`grades-${session.slug}.csv`}
             disabled={!exportReady}

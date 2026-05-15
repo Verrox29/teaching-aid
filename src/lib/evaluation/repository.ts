@@ -14,7 +14,10 @@ import { cleanupExpiredSubmissions } from '@/lib/submission-retention';
 
 import { parseFeedbackSections } from './engine';
 import { ensurePairagogieRubric } from './rubric';
-import { extractSubmissionTextForAi } from '@/lib/submission-text';
+import {
+  extractSubmissionTextForAi,
+  type SubmissionTextExtractionResult
+} from '@/lib/submission-text';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -215,7 +218,12 @@ async function getSubmissions(sessionId: string) {
       title: submissions.title
     })
     .from(submissions)
-    .where(eq(submissions.sessionId, sessionId));
+    .where(eq(submissions.sessionId, sessionId))
+    .orderBy(
+      desc(submissions.submittedAt),
+      desc(submissions.updatedAt),
+      desc(submissions.createdAt)
+    );
 }
 
 async function getEvaluationRows(sessionId: string) {
@@ -272,7 +280,15 @@ function buildGroupWorkspace(params: {
   sessionLanguage: string;
   submissionByGroupId: Map<
     string,
-    { content: string | null; groupId: string; id: string; submittedAt: Date | null; title: string }
+    {
+      content: string | null;
+      groupId: string;
+      id: string;
+      submittedAt: Date | null;
+      title: string;
+      submissionText: string | null;
+      submissionTextIssue: SubmissionTextExtractionResult['issue'];
+    }
   >;
 }) {
   const {
@@ -285,8 +301,10 @@ function buildGroupWorkspace(params: {
     submissionByGroupId
   } = params;
   const submission = submissionByGroupId.get(group.id) ?? null;
-  const submissionText = extractSubmissionTextForAi(submission?.content ?? null, submission?.title ?? null);
+  const submissionText = submission?.submissionText ?? null;
+  const submissionTextIssue = submission?.submissionTextIssue ?? null;
   const evaluation = evaluationByGroupKey.get(group.id) ?? null;
+  const questionSourceMatchesCurrentSubmission = !evaluation?.submissionId || evaluation.submissionId === submission?.id;
   const scoreRows = evaluation ? scoreRowsByEvaluationId.get(evaluation.id) ?? [] : [];
   const criteria = rubric?.criteria ?? [];
   const criteriaWithScores = hydrateCriterionScores({
@@ -306,7 +324,9 @@ function buildGroupWorkspace(params: {
     aiLastError: evaluation?.aiLastError ?? null,
     aiRecommendedCriteria: evaluation?.aiRecommendedCriteria ?? [],
     aiRecommendedFeedback: evaluation?.aiRecommendedFeedback ?? null,
-    aiRecommendedQuestions: evaluation?.aiRecommendedQuestions ?? [],
+    aiRecommendedQuestions: questionSourceMatchesCurrentSubmission
+      ? evaluation?.aiRecommendedQuestions ?? []
+      : [],
     aiStatus: evaluation?.aiStatus ?? 'idle',
     aiStatusUpdatedAt: evaluation?.aiStatusUpdatedAt ?? null,
     capacity: group.capacity,
@@ -328,6 +348,7 @@ function buildGroupWorkspace(params: {
     submittedAt: evaluation?.submittedAt ?? null,
     submissionId: submission?.id ?? null,
     submissionContent: submission?.content ?? null,
+    submissionTextIssue,
     submissionText,
     submissionTitle: submission?.title ?? null,
     totalScore
@@ -359,7 +380,20 @@ export async function getEvaluationWorkspace(sessionId: string): Promise<Evaluat
   const evaluationsRows = await getEvaluationRows(sessionId);
   const scoreRows = await getEvaluationScoreRows(evaluationsRows.map((evaluation) => evaluation.id));
 
-  const submissionByGroupId = new Map(submissionsRows.map((submission) => [submission.groupId, submission]));
+  const submissionEntries = await Promise.all(
+    submissionsRows.map(async (submission) => {
+      const extraction = await extractSubmissionTextForAi(submission.content, submission.title);
+      return [
+        submission.groupId,
+        {
+          ...submission,
+          submissionText: extraction.text,
+          submissionTextIssue: extraction.issue
+        }
+      ] as const;
+    })
+  );
+  const submissionByGroupId = new Map(submissionEntries);
   const evaluationByGroupKey = new Map<string, EvaluationRow>();
   for (const evaluation of evaluationsRows) {
     if (!evaluationByGroupKey.has(evaluation.evaluatorGroupId)) {
@@ -440,10 +474,19 @@ export async function getEvaluationContext(sessionId: string, groupId: string) {
     })
     .from(submissions)
     .where(and(eq(submissions.sessionId, sessionId), eq(submissions.groupId, groupId)))
+    .orderBy(
+      desc(submissions.submittedAt),
+      desc(submissions.updatedAt),
+      desc(submissions.createdAt)
+    )
     .limit(1);
 
   const submission = submissionRows[0] ?? null;
-  const submissionText = extractSubmissionTextForAi(submission?.content ?? null, submission?.title ?? null);
+  const submissionExtraction = await extractSubmissionTextForAi(
+    submission?.content ?? null,
+    submission?.title ?? null
+  );
+  const submissionText = submissionExtraction.text;
 
   const evaluationRows = await db
     .select({
@@ -490,6 +533,7 @@ export async function getEvaluationContext(sessionId: string, groupId: string) {
     scoreRows,
     session,
     submission,
+    submissionTextIssue: submissionExtraction.issue,
     submissionText
   };
 }
@@ -536,6 +580,7 @@ export async function saveEvaluationDraft(
         .set({
           comments: qaComments,
           finalFeedback,
+          submissionId: context.submission?.id ?? null,
           teacherNotes: presentationComments,
           updatedAt: now
         })
@@ -644,6 +689,7 @@ export async function saveEvaluationAiResult(params: {
       aiRecommendedQuestions: nextAiRecommendedQuestions,
       aiStatus: 'ready',
       aiStatusUpdatedAt: params.aiGeneratedAt,
+      submissionId: context.submission?.id ?? null,
       updatedAt: params.aiGeneratedAt
     })
     .where(eq(evaluations.id, evaluationId));

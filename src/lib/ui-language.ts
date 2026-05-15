@@ -314,6 +314,8 @@ const UI_TEXT = {
       regenerateQuestions: 'Regenerate questions',
       generatingQuestions: 'Generating...',
       pleaseUploadWork: "Please upload the group's work to enable question recommendation.",
+      reviewChallengeQuestions:
+        'Questions proposed are suggestions only. Review them before asking students.',
       couldNotGenerateChallengeQuestions: 'Could not generate challenge questions.',
       generateQuestionsFromWork: 'Generate questions from the uploaded work to prepare the oral defense.',
       challengeQuestions: 'Challenge questions',

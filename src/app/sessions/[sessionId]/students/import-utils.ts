@@ -344,6 +344,27 @@ function parseGroupedCsvRows(text: string, delimiter: ',' | ';') {
   return rows;
 }
 
+function unwrapGroupedSingleCellRows(rows: string[][], delimiter: ',' | ';') {
+  return rows.map((row) => {
+    if (row.length !== 1) {
+      return row;
+    }
+
+    const [onlyCell = ''] = row;
+    if (!onlyCell.includes(delimiter) || !onlyCell.includes('"')) {
+      return row;
+    }
+
+    const reparsedRows = parseGroupedCsvRows(onlyCell, delimiter);
+    if (!reparsedRows || reparsedRows.length !== 1) {
+      return row;
+    }
+
+    const [reparsedRow = []] = reparsedRows;
+    return reparsedRow.length > 1 ? reparsedRow : row;
+  });
+}
+
 function scoreGroupedHeaderRow(headerRow: string[]) {
   const headerMatches: BoostcampGroupedHeaderMatchState = {
     firstName: null,
@@ -449,7 +470,15 @@ function parseBoostcampGroupedTextInput(
   const candidates = delimiters
     .map((delimiter) => {
       const rows = parseGroupedCsvRows(text, delimiter);
-      return rows ? { decodingUsed, delimiter, rows } : null;
+      if (!rows) {
+        return null;
+      }
+
+      return {
+        decodingUsed,
+        delimiter,
+        rows: unwrapGroupedSingleCellRows(rows, delimiter)
+      };
     })
     .filter(
       (

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { BranchingAiHelpModal } from '@/components/branching-ai-help-modal';
+import { shouldShowAdminDiagnostics } from '@/lib/admin-diagnostics';
 import type {
   BranchingAiAdminView,
   BranchingAiChallengeQuestionValidationSettings,
@@ -100,6 +101,7 @@ export function BranchingAiSettingsPanel({
   accessState,
   initialView
 }: BranchingAiSettingsPanelProps) {
+  const showAdminDiagnostics = shouldShowAdminDiagnostics();
   const router = useRouter();
   const { runPending } = useInteractionFeedback();
   const [view, setView] = useState<BranchingAiAdminView | null>(initialView);
@@ -810,26 +812,28 @@ export function BranchingAiSettingsPanel({
                           </label>
                         </div>
 
-                        <div className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
-                          <p className="font-medium text-[color:var(--app-fg)]">
-                            Latest validation failures
-                          </p>
-                          {view.settings.latestQuestionRejectionReasons &&
-                          view.settings.latestQuestionRejectionReasons.length > 0 ? (
-                            <div className="flex flex-col gap-2">
-                              {view.settings.latestQuestionRejectionReasons.map((reason, index) => (
-                                <div
-                                  key={`${reason}-${index}`}
-                                  className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg)]"
-                                >
-                                  {reason}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p>No validation failures recorded yet.</p>
-                          )}
-                        </div>
+                        {showAdminDiagnostics ? (
+                          <div className="grid gap-2 text-sm text-[color:var(--app-fg-muted)]">
+                            <p className="font-medium text-[color:var(--app-fg)]">
+                              Latest validation failures
+                            </p>
+                            {view.settings.latestQuestionRejectionReasons &&
+                            view.settings.latestQuestionRejectionReasons.length > 0 ? (
+                              <div className="flex flex-col gap-2">
+                                {view.settings.latestQuestionRejectionReasons.map((reason, index) => (
+                                  <div
+                                    key={`${reason}-${index}`}
+                                    className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-fg)]"
+                                  >
+                                    {reason}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p>No validation failures recorded yet.</p>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
 

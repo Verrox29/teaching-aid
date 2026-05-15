@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-import { db, groups, sessions, submissions } from '@/db';
+import { db, evaluations, groups, sessions, submissions } from '@/db';
 import { GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES } from '@/lib/group-submission';
 import { getOrderedGroups, randomizePresentationOrder } from './presentation-order';
 
@@ -88,19 +88,38 @@ async function persistGroupSubmission(input: {
     .limit(1);
 
   const content = Buffer.from(await input.file.arrayBuffer()).toString('base64');
+  const now = new Date();
 
   await db.transaction(async (tx) => {
     if (existingSubmission.length > 0) {
       await tx.delete(submissions).where(eq(submissions.id, existingSubmission[0].id));
     }
 
-    await tx.insert(submissions).values({
+    const insertedSubmission = await tx
+      .insert(submissions)
+      .values({
       sessionId: input.sessionId,
       groupId: input.groupId,
       title: input.file.name,
       content,
-      submittedAt: new Date()
-    });
+      submittedAt: now
+      })
+      .returning({ id: submissions.id });
+    const submissionId = insertedSubmission[0]?.id ?? null;
+
+    await tx
+      .update(evaluations)
+      .set({
+        aiRecommendedQuestions: [],
+        submissionId,
+        updatedAt: now
+      })
+      .where(
+        and(
+          eq(evaluations.sessionId, input.sessionId),
+          eq(evaluations.evaluatorGroupId, input.groupId)
+        )
+      );
   });
 }
 

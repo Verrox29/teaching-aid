@@ -1,9 +1,13 @@
 import {
   buildChallengeQuestions,
+  deriveChallengePresentationUnderstanding,
   buildEvaluationRecommendations,
   getChallengeQuestionAnchorDebug
 } from '@/lib/evaluation/engine';
-import type { ChallengeQuestionAnchorDebug } from '@/lib/evaluation/engine';
+import type {
+  ChallengePresentationUnderstanding,
+  ChallengeQuestionAnchorDebug
+} from '@/lib/evaluation/engine';
 import type {
   EvaluationAiCriterionRecommendation,
   EvaluationAiFeedbackSections,
@@ -43,7 +47,10 @@ type EvaluationChallengeQuestionPromptInput = {
   className: string;
   evaluationCriteria: EvaluationCriterionRow[];
   groupName: string;
+  previousQuestions?: string[];
+  presentationUnderstanding?: ChallengePresentationUnderstanding;
   presentationContent: string;
+  regenerationAttempt?: number;
   sessionContext: string;
   sessionLanguage: string;
   submissionText: string | null;
@@ -122,6 +129,13 @@ export type BranchingAiChallengeQuestionsResult = {
 };
 
 export type BranchingAiChallengeQuestionsDebug = {
+  derivedMainConcept: string;
+  derivedSummary: string;
+  derivedKeyDecisions: string[];
+  derivedEvidencePoints: string[];
+  derivedRisksOrTradeoffs: string[];
+  derivedNamedEntities: string[];
+  derivedPresentationStructure: string[];
   fallbackReason: string | null;
   model: string | null;
   promptKeyUsed: 'generate_challenge_questions';
@@ -203,12 +217,201 @@ const QUESTION_VARIATION_FOCI: Record<'en' | 'fr', string[]> = {
   ]
 };
 
+const LOW_VALUE_CHALLENGE_FRAGMENT_PATTERNS = [
+  /\btest questions challenge\b/i,
+  /\bsend attestation inscription\b/i,
+  /\b(?:presented|submitted)\s+by\b/i,
+  /\b(?:présenté|présentée)\s+par\b/i,
+  /\bpresented(?:\s+[a-zà-ÿ]{3,}){4,}/i
+];
+
+const LOW_VALUE_CHALLENGE_METADATA_TERMS = new Set([
+  'attestation',
+  'challenge',
+  'class',
+  'email',
+  'group',
+  'groupe',
+  'inscription',
+  'member',
+  'members',
+  'nom',
+  'noms',
+  'name',
+  'names',
+  'presented',
+  'presentation',
+  'presenter',
+  'presenters',
+  'professor',
+  'question',
+  'questions',
+  'sales',
+  'session',
+  'student',
+  'students',
+  'submission',
+  'submitted',
+  'team',
+  'teacher'
+]);
+
+const LOW_VALUE_CHALLENGE_ACTION_HINTS = new Set([
+  'alimente',
+  'alimenter',
+  'appear',
+  'appears',
+  'adopted',
+  'adopte',
+  'adoptée',
+  'adoptes',
+  'analyse',
+  'analyze',
+  'build',
+  'built',
+  'calcule',
+  'calculé',
+  'choisi',
+  'choisie',
+  'choisies',
+  'chose',
+  'compares',
+  'compare',
+  'conclut',
+  'conclude',
+  'defend',
+  'défend',
+  'develop',
+  'developed',
+  'est',
+  'explain',
+  'explique',
+  'impact',
+  'implique',
+  'improve',
+  'improves',
+  'improved',
+  'increase',
+  'increases',
+  'is',
+  'justifie',
+  'justify',
+  'measure',
+  'mesure',
+  'montre',
+  'optimize',
+  'permet',
+  'propose',
+  'proposé',
+  'produit',
+  'produite',
+  'réduit',
+  'reduce',
+  'trigger',
+  'triggers',
+  'shows',
+  'sont',
+  'supports',
+  'use',
+  'used',
+  'utilise',
+  'value'
+]);
+
+const FR_QUESTION_MARKERS = new Set([
+  'de',
+  'des',
+  'du',
+  'et',
+  'la',
+  'le',
+  'les',
+  'avec',
+  'choix',
+  'données',
+  'enjeux',
+  'impact',
+  'méthode',
+  'objectif',
+  'preuve',
+  'projet',
+  'résultat',
+  'solution',
+  'stratégie',
+  'vous'
+]);
+
+const EN_QUESTION_MARKERS = new Set([
+  'access',
+  'activity',
+  'active',
+  'and',
+  'between',
+  'clear',
+  'coaching',
+  'company',
+  'course',
+  'customer',
+  'data',
+  'digital',
+  'efficiency',
+  'employees',
+  'engagement',
+  'evidence',
+  'for',
+  'from',
+  'immediate',
+  'learning',
+  'leading',
+  'main',
+  'module',
+  'modules',
+  'page',
+  'performance',
+  'produc',
+  'score',
+  'scores',
+  'section',
+  'sections',
+  'significantly',
+  'strong',
+  'support',
+  'the',
+  'trigger',
+  'want',
+  'with'
+]);
+
+const PROMPT_TEXT_LIMITS = {
+  assignmentBrief: 1200,
+  peerQuestionsObserved: 800,
+  presentationComments: 2000,
+  qaComments: 2000,
+  sessionContext: 1200,
+  submissionText: 2800
+} as const;
+
 function normalizeLanguage(language: string) {
   return language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
 }
 
 function normalizeText(value: string | null | undefined) {
   return value?.trim() ?? '';
+}
+
+function limitPromptText(value: string | null | undefined, maxLength: number) {
+  const normalized = normalizeText(value);
+  if (!normalized || normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  const headSize = Math.floor(maxLength * 0.7);
+  const tailSize = Math.max(0, maxLength - headSize - 64);
+  const head = normalized.slice(0, headSize).trim();
+  const tail = tailSize > 0 ? normalized.slice(-tailSize).trim() : '';
+  const marker = `[truncated from ${normalized.length} chars]`;
+
+  return tail ? `${head}\n...\n${marker}\n...\n${tail}` : `${head}\n...\n${marker}`;
 }
 
 function joinNonEmpty(parts: string[]) {
@@ -506,46 +709,134 @@ function parseModelPayload(rawContent: string): ParseOutcome {
 
 function buildPromptVariables(input: EvaluationGradingPromptInput) {
   const sessionLanguage = normalizeLanguage(input.sessionLanguage);
+  const compactSessionContext = limitPromptText(input.sessionContext, PROMPT_TEXT_LIMITS.sessionContext);
+  const compactPeerQuestions = limitPromptText(
+    input.peerQuestionsObserved,
+    PROMPT_TEXT_LIMITS.peerQuestionsObserved
+  );
+  const compactSubmissionText = limitPromptText(
+    input.submissionContent,
+    PROMPT_TEXT_LIMITS.submissionText
+  );
+  const compactQaComments = limitPromptText(input.qaComments, PROMPT_TEXT_LIMITS.qaComments);
+  const compactPresentationComments = limitPromptText(
+    input.presentationComments,
+    PROMPT_TEXT_LIMITS.presentationComments
+  );
 
   return {
     class_name: input.className,
     evaluation_criteria: stringifyCriteria(input.criteria),
     group_name: input.groupName,
-    peer_questions_observed: normalizeText(input.peerQuestionsObserved) || 'No peer questions were recorded.',
-    project_brief: normalizeText(input.sessionContext) || 'No project brief was provided.',
+    peer_questions_observed: compactPeerQuestions || 'No peer questions were recorded.',
+    project_brief: compactSessionContext || 'No project brief was provided.',
     rubric: stringifyRubric(input.rubric),
     rubric_criteria_json: stringifyCriteriaJson(input.criteria),
-    session_context: normalizeText(input.sessionContext) || 'No session context was provided.',
+    session_context: compactSessionContext || 'No session context was provided.',
     session_language: sessionLanguage,
     subject: input.subject,
-    submission_text: normalizeText(input.submissionContent) || 'No submission text was provided.',
+    submission_text: compactSubmissionText || 'No submission text was provided.',
     submission_title: normalizeText(input.submissionTitle) || 'No submission title was provided.',
-    teacher_qa_comments:
-      normalizeText(input.qaComments) || 'No teacher Q&A comments were recorded.',
+    teacher_qa_comments: compactQaComments || 'No teacher Q&A comments were recorded.',
     teacher_presentation_comments:
-      normalizeText(input.presentationComments) || 'No teacher presentation comments were recorded.'
+      compactPresentationComments || 'No teacher presentation comments were recorded.'
   };
 }
 
 function buildChallengeQuestionPromptVariables(input: EvaluationChallengeQuestionPromptInput) {
   const sessionLanguage = normalizeLanguage(input.sessionLanguage);
+  const compactPresentationContent = limitPromptText(
+    input.presentationContent,
+    PROMPT_TEXT_LIMITS.presentationComments
+  );
+  const compactSubmissionText = limitPromptText(
+    input.submissionText,
+    PROMPT_TEXT_LIMITS.submissionText
+  );
+  const compactSessionContext = limitPromptText(input.sessionContext, PROMPT_TEXT_LIMITS.sessionContext);
+  const compactAssignmentBrief = limitPromptText(
+    input.assignmentBrief,
+    PROMPT_TEXT_LIMITS.assignmentBrief
+  );
+  const resolvedUnderstanding =
+    input.presentationUnderstanding ??
+    buildFallbackPresentationUnderstanding(sessionLanguage, input.subject, input.className);
+  const presentationUnderstanding = formatPresentationUnderstandingForPrompt(
+    resolvedUnderstanding,
+    sessionLanguage
+  );
 
   return {
-    assignment_brief: normalizeText(input.assignmentBrief) || 'No assignment brief was provided.',
+    assignment_brief: compactAssignmentBrief,
     class_name: input.className,
     evaluation_criteria: stringifyCriteria(input.evaluationCriteria),
     group_name: input.groupName,
-    presentation_content: normalizeText(input.presentationContent) || 'No presentation content was provided.',
+    previous_questions:
+      input.previousQuestions && input.previousQuestions.length > 0
+        ? input.previousQuestions.join('\n')
+        : 'No previous challenge questions for this group.',
+    regeneration_attempt: String(input.regenerationAttempt ?? 0),
+    presentation_content: compactPresentationContent,
+    presentation_understanding: presentationUnderstanding,
     question_variation_focus: pickQuestionVariationFocus(sessionLanguage),
-    session_context: normalizeText(input.sessionContext) || 'No session context was provided.',
+    session_context: compactSessionContext,
     session_language: sessionLanguage,
-    submission_text: normalizeText(input.submissionText) || 'No submission text was provided.',
+    submission_text: compactSubmissionText,
     subject: input.subject
+  };
+}
+
+function formatPresentationUnderstandingForPrompt(
+  understanding: ChallengePresentationUnderstanding,
+  language: 'en' | 'fr'
+) {
+  const emptyLabel = language === 'fr' ? '[non détecté]' : '[not detected]';
+  const formatList = (items: string[]) =>
+    items.length > 0 ? items.map((item) => `- ${item}`).join('\n') : `- ${emptyLabel}`;
+
+  return [
+    `summary: ${understanding.summary}`,
+    `main_concept: ${understanding.mainConcept}`,
+    'key_decisions:',
+    formatList(understanding.keyDecisions),
+    'evidence_points:',
+    formatList(understanding.evidencePoints),
+    'risks_or_tradeoffs:',
+    formatList(understanding.risksOrTradeoffs),
+    'presentation_structure:',
+    formatList(understanding.presentationStructure),
+    'named_entities:',
+    formatList(understanding.namedEntities)
+  ].join('\n');
+}
+
+function buildFallbackPresentationUnderstanding(
+  language: 'en' | 'fr',
+  subject: string,
+  className: string
+): ChallengePresentationUnderstanding {
+  const concept =
+    normalizeText(subject) ||
+    normalizeText(className) ||
+    (language === 'fr' ? 'la stratégie proposée' : 'the proposed strategy');
+
+  return {
+    evidencePoints: [],
+    keyDecisions: [],
+    mainConcept: concept,
+    namedEntities: [],
+    presentationStructure: [],
+    risksOrTradeoffs: [],
+    summary:
+      language === 'fr'
+        ? `Le groupe présente ${concept}.`
+        : `The group presents ${concept}.`
   };
 }
 
 function buildChallengeQuestionDebug(params: {
   anchorDebug: ChallengeQuestionAnchorDebug;
+  understanding: ChallengePresentationUnderstanding;
   fallbackReason: string | null;
   model: string | null;
   parseDebug: ChallengeQuestionParseDebug;
@@ -559,6 +850,13 @@ function buildChallengeQuestionDebug(params: {
 }): BranchingAiChallengeQuestionsDebug {
   const renderedPromptSnippet = snippetText(redactPromptSecrets(params.renderedPrompt), 500);
   return {
+    derivedEvidencePoints: params.understanding.evidencePoints,
+    derivedKeyDecisions: params.understanding.keyDecisions,
+    derivedMainConcept: params.understanding.mainConcept,
+    derivedNamedEntities: params.understanding.namedEntities,
+    derivedPresentationStructure: params.understanding.presentationStructure,
+    derivedRisksOrTradeoffs: params.understanding.risksOrTradeoffs,
+    derivedSummary: params.understanding.summary,
     fallbackReason: params.fallbackReason,
     critiqueAnchor: params.anchorDebug.critiqueAnchor,
     model: params.model,
@@ -611,7 +909,8 @@ function buildRuntimeScaffold(renderedPrompt: string, input: EvaluationGradingPr
     renderedPrompt.trim() || 'No editable prompt template was provided.',
     '',
     'Session context:',
-    normalizeText(input.sessionContext) || 'No session context was provided.',
+    limitPromptText(input.sessionContext, PROMPT_TEXT_LIMITS.sessionContext) ||
+      'No session context was provided.',
     '',
     'Canonical Pairagogie rubric criteria JSON:',
     criteriaJson,
@@ -757,6 +1056,94 @@ function stringifyDebugQuestionValue(value: unknown) {
   }
 }
 
+function tokenizeQuestionWords(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[\u2019']/g, ' ')
+    .split(/[^a-z0-9àâçéèêëîïôùûüÿœæ]+/i)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function extractAnchorCandidatesFromQuestion(value: string) {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  const candidates: string[] = [];
+  const patterns = [
+    /quand vous parlez de\s+(.+?)(?:,|\?|$)/i,
+    /pourquoi avez-vous retenu\s+(.+?)(?:,|\?|$)/i,
+    /comment justifiez-vous l'idée principale de\s+(.+?)(?:\s+face à|,|\?|$)/i,
+    /when you discuss\s+(.+?)(?:,|\?|$)/i,
+    /why did you choose\s+(.+?)(?:\s+instead of|,|\?|$)/i,
+    /how do you justify the main idea of\s+(.+?)(?:\s+when challenged|,|\?|$)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = compact.match(pattern);
+    const candidate = match?.[1]?.trim();
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates;
+}
+
+function looksLikeLowValueChallengeFragment(value: string) {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (!compact) {
+    return true;
+  }
+
+  if (LOW_VALUE_CHALLENGE_FRAGMENT_PATTERNS.some((pattern) => pattern.test(compact))) {
+    return true;
+  }
+
+  if (/\b(?:https?:\/\/|www\.|@)\S+/i.test(compact)) {
+    return true;
+  }
+
+  const words = tokenizeQuestionWords(compact);
+  if (words.length < 4) {
+    return false;
+  }
+
+  const metadataHits = words.filter((word) =>
+    LOW_VALUE_CHALLENGE_METADATA_TERMS.has(word)
+  ).length;
+  const actionHits = words.filter((word) =>
+    LOW_VALUE_CHALLENGE_ACTION_HINTS.has(word)
+  ).length;
+
+  if (metadataHits >= 2 && actionHits === 0) {
+    return true;
+  }
+
+  if (metadataHits >= 1 && actionHits === 0 && words.length >= 6) {
+    return true;
+  }
+
+  if (metadataHits === 0 && actionHits === 0 && words.length >= 8) {
+    return true;
+  }
+
+  const frHits = words.filter((word) => FR_QUESTION_MARKERS.has(word)).length;
+  const enHits = words.filter((word) => EN_QUESTION_MARKERS.has(word)).length;
+  if (enHits >= 2 && frHits === 0) {
+    return true;
+  }
+
+  return false;
+}
+
+function looksLikeLowValueChallengeQuestion(value: string) {
+  if (looksLikeLowValueChallengeFragment(value)) {
+    return true;
+  }
+
+  const anchorCandidates = extractAnchorCandidatesFromQuestion(value);
+  return anchorCandidates.some((candidate) => looksLikeLowValueChallengeFragment(candidate));
+}
+
 function validateChallengeQuestionText(
   value: unknown,
   language: 'en' | 'fr',
@@ -798,6 +1185,12 @@ function validateChallengeQuestionText(
     if (settings.requireFrenchVous && !/\bvous\b/i.test(normalized)) {
       rejectionReasons.push('Missing "vous" in the French question.');
     }
+  }
+
+  if (looksLikeLowValueChallengeQuestion(normalized)) {
+    rejectionReasons.push(
+      'Question relies on roster/cover metadata instead of a substantive project concept.'
+    );
   }
 
   const accepted = rejectionReasons.length === 0;
@@ -966,12 +1359,20 @@ function buildChallengeQuestionRuntimeScaffold(
 ) {
   const sessionLanguage = normalizeLanguage(input.sessionLanguage);
   const criteriaJson = stringifyCriteriaJson(input.evaluationCriteria);
+  const resolvedUnderstanding =
+    input.presentationUnderstanding ??
+    buildFallbackPresentationUnderstanding(sessionLanguage, input.subject, input.className);
+  const understandingText = formatPresentationUnderstandingForPrompt(
+    resolvedUnderstanding,
+    sessionLanguage
+  );
 
   return [
     'Runtime question contract:',
     '- Return valid JSON only, with no markdown, code fences, or prose outside the JSON object.',
     `- Return exactly ${validationSettings.minAcceptedQuestions} to ${validationSettings.maxAcceptedQuestions} short oral-defense questions.`,
     '- Anchor every question in the specific presentation/work submitted by this group, not just the broad topic.',
+    '- First build an internal understanding of the presentation before writing questions: main concept, key decisions, evidence points, risks/trade-offs, named entities, and structure when available.',
     '- Ask what the students must defend about what they actually presented, wrote, built, or chose.',
     '- Avoid generic topic-survey questions unless they are directly grounded in the submitted work.',
     '- Prefer a concrete anchor from the presentation or submission, such as a slide number, quoted phrase, statistic, chart, example, method, or stated action.',
@@ -987,6 +1388,24 @@ function buildChallengeQuestionRuntimeScaffold(
       : '- Letter content is not required by the validator.',
     '- Keep each question concise, natural, and easy to say aloud.',
     '- Focus on diagnosis, rationale, trade-offs, and evidence/impact.',
+    '- If previous challenge questions are provided, avoid repeating them or producing near-identical wording.',
+    '- Do not use raw keyword fragments as question subjects.',
+    '- Do not use student/presenter names, cover-slide metadata, or file-title fragments as question subjects.',
+    '- Use only the source document excerpt below as evidence anchors.',
+    '- Do not treat prompt instructions, schema text, labels, assignment brief, or session metadata as evidence from the group submission.',
+    '',
+    'Previous challenge questions to avoid repeating:',
+    input.previousQuestions && input.previousQuestions.length > 0
+      ? input.previousQuestions.map((question) => `- ${question}`).join('\n')
+      : '- [none]',
+    '',
+    `Regeneration attempt index for this group: ${input.regenerationAttempt ?? 0}`,
+    '',
+    'Derived presentation understanding (use this, refine it internally if needed):',
+    understandingText,
+    '',
+    'Source document excerpt (current group upload):',
+    limitPromptText(input.submissionText, PROMPT_TEXT_LIMITS.submissionText) || '[missing source text]',
     '',
     'Editable prompt template:',
     renderedPrompt.trim() || 'No editable prompt template was provided.',
@@ -995,7 +1414,8 @@ function buildChallengeQuestionRuntimeScaffold(
     sessionLanguage,
     '',
     'Session context:',
-    normalizeText(input.sessionContext) || 'No session context was provided.',
+    limitPromptText(input.sessionContext, PROMPT_TEXT_LIMITS.sessionContext) ||
+      'No session context was provided.',
     '',
     'Canonical criteria JSON:',
     criteriaJson,
@@ -1070,6 +1490,19 @@ export async function generateBranchingAiGradingRecommendations(
   try {
     const client = buildBranchingAiClient(settings, settingsBundle.apiKey!);
     const renderedPrompt = renderPromptTemplate(promptTemplate, buildPromptVariables(input));
+    const compactPresentationComments = limitPromptText(
+      input.presentationComments,
+      PROMPT_TEXT_LIMITS.presentationComments
+    );
+    const compactQaComments = limitPromptText(input.qaComments, PROMPT_TEXT_LIMITS.qaComments);
+    const compactPeerQuestions = limitPromptText(
+      input.peerQuestionsObserved,
+      PROMPT_TEXT_LIMITS.peerQuestionsObserved
+    );
+    const compactSubmissionText = limitPromptText(
+      input.submissionContent,
+      PROMPT_TEXT_LIMITS.submissionText
+    );
     const systemPrompt = [
       'You grade Pairagogie presentations.',
       'Return valid JSON only.',
@@ -1089,19 +1522,19 @@ export async function generateBranchingAiGradingRecommendations(
           buildRuntimeScaffold(renderedPrompt, input),
           '',
           'Teacher presentation comments:',
-          normalizeText(input.presentationComments) || 'No teacher presentation comments were recorded.',
+          compactPresentationComments || 'No teacher presentation comments were recorded.',
           '',
           'Teacher Q&A comments:',
-          normalizeText(input.qaComments) || 'No teacher Q&A comments were recorded.',
+          compactQaComments || 'No teacher Q&A comments were recorded.',
           '',
           'Peer questions observed:',
-          normalizeText(input.peerQuestionsObserved) || 'No peer questions were recorded.',
+          compactPeerQuestions || 'No peer questions were recorded.',
           '',
           'Submission title:',
           normalizeText(input.submissionTitle) || 'No submission title was provided.',
           '',
           'Submission text:',
-          normalizeText(input.submissionContent) || 'No submission text was provided.'
+          compactSubmissionText || 'No submission text was provided.'
         ]
           .filter((part) => part !== '')
           .join('\n'),
@@ -1192,28 +1625,27 @@ export async function generateBranchingAiChallengeQuestions(
   input: EvaluationChallengeQuestionPromptInput
 ): Promise<BranchingAiChallengeQuestionsResult> {
   const language = normalizeLanguage(input.sessionLanguage);
-  const anchorDebug = getChallengeQuestionAnchorDebug(
-    {
-      className: input.className,
-      groupName: input.groupName,
-      teacherComments: input.presentationContent,
-      sessionLanguage: input.sessionLanguage,
-      submissionText: input.submissionText,
-      subject: input.subject
-    },
+  const fallbackInput = {
+    className: input.className,
+    groupName: input.groupName,
+    teacherComments: input.presentationContent,
+    sessionLanguage: input.sessionLanguage,
+    submissionText: input.submissionText,
+    subject: input.subject
+  };
+  const presentationUnderstanding = deriveChallengePresentationUnderstanding(
+    fallbackInput,
     language
   );
-  const fallback = buildChallengeQuestions(
-    {
-      className: input.className,
-      groupName: input.groupName,
-      teacherComments: input.presentationContent,
-      sessionLanguage: input.sessionLanguage,
-      submissionText: input.submissionText,
-      subject: input.subject
-    },
-    language
-  );
+  const challengeInput: EvaluationChallengeQuestionPromptInput = {
+    ...input,
+    presentationUnderstanding
+  };
+  const anchorDebug = getChallengeQuestionAnchorDebug(fallbackInput, language);
+  const fallback = buildChallengeQuestions(fallbackInput, language, {
+    previousQuestions: input.previousQuestions,
+    variationSeed: `${input.groupName}:${input.regenerationAttempt ?? 0}`
+  });
 
   let settingsBundle: Awaited<ReturnType<typeof getBranchingAiFullSettings>>;
 
@@ -1223,6 +1655,7 @@ export async function generateBranchingAiChallengeQuestions(
     const reason = error instanceof Error ? error.message : 'Could not load Branching AI settings.';
     const fallbackDebug = buildChallengeQuestionDebug({
       anchorDebug,
+      understanding: presentationUnderstanding,
       fallbackReason: buildQuestionFallbackReason(reason),
       model: null,
       parseDebug: {
@@ -1257,7 +1690,7 @@ export async function generateBranchingAiChallengeQuestions(
     getPromptTemplate(settingsBundle.prompts, 'generate_challenge_questions') ?? '';
   const renderedPrompt = renderPromptTemplate(
     promptTemplate,
-    buildChallengeQuestionPromptVariables(input)
+    buildChallengeQuestionPromptVariables(challengeInput)
   );
 
   if (
@@ -1271,6 +1704,7 @@ export async function generateBranchingAiChallengeQuestions(
   ) {
     const fallbackDebug = buildChallengeQuestionDebug({
       anchorDebug,
+      understanding: presentationUnderstanding,
       fallbackReason: buildQuestionFallbackReason('Branching AI is not fully configured or verified.'),
       model: settings.model,
       parseDebug: {
@@ -1300,6 +1734,7 @@ export async function generateBranchingAiChallengeQuestions(
   if (!promptTemplate?.trim()) {
     const fallbackDebug = buildChallengeQuestionDebug({
       anchorDebug,
+      understanding: presentationUnderstanding,
       fallbackReason: buildQuestionFallbackReason('The challenge question prompt template is missing.'),
       model: settings.model,
       parseDebug: {
@@ -1333,6 +1768,7 @@ export async function generateBranchingAiChallengeQuestions(
       'Return valid JSON only.',
       'Do not wrap the response in markdown, code fences, or prose.',
       'Follow the output schema exactly.',
+      'First derive a structured understanding of the presentation (main concept, key decisions, evidence points, risks/trade-offs, named entities, and structure), then write questions from that understanding.',
       `Return ${validationSettings.minAcceptedQuestions} to ${validationSettings.maxAcceptedQuestions} concise oral-defense questions.`,
       'Anchor every question in the specific presentation/work submitted by this group.',
       'Do not drift into generic overview questions about the broad topic unless they are directly tied to the submitted work.',
@@ -1348,13 +1784,18 @@ export async function generateBranchingAiChallengeQuestions(
         ? 'Each question must contain readable letters.'
         : 'Letter content is not required by the validator.',
       'Avoid long copied fragments from the submission.',
-      'Make the question set feel fresh by varying the emphasis.'
+      'Make the question set feel fresh by varying the emphasis.',
+      'If previous challenge questions are provided, do not repeat them or return near-identical rewrites.'
     ].join(' ');
 
     const requestMessages = [
       { content: systemPrompt, role: 'system' as const },
       {
-        content: buildChallengeQuestionRuntimeScaffold(renderedPrompt, input, validationSettings),
+        content: buildChallengeQuestionRuntimeScaffold(
+          renderedPrompt,
+          challengeInput,
+          validationSettings
+        ),
         role: 'user' as const
       }
     ];
@@ -1397,6 +1838,7 @@ export async function generateBranchingAiChallengeQuestions(
       );
       const debug = buildChallengeQuestionDebug({
         anchorDebug,
+        understanding: presentationUnderstanding,
         fallbackReason: reason,
         model: settings.model,
         parseDebug: parsedOutcome.debug,
@@ -1404,7 +1846,7 @@ export async function generateBranchingAiChallengeQuestions(
         provider: settings.provider,
         rawModelResponse: content,
         renderedPrompt,
-        submissionText: input.submissionText,
+        submissionText: challengeInput.submissionText,
         usedBranchingAi: true,
         verificationStatus: settings.verificationStatus
       });
@@ -1421,6 +1863,7 @@ export async function generateBranchingAiChallengeQuestions(
 
     const debug = buildChallengeQuestionDebug({
       anchorDebug,
+      understanding: presentationUnderstanding,
       fallbackReason: null,
       model: settings.model,
       parseDebug: parsedOutcome.debug,
@@ -1428,7 +1871,7 @@ export async function generateBranchingAiChallengeQuestions(
       provider: settings.provider,
       rawModelResponse: content,
       renderedPrompt,
-      submissionText: input.submissionText,
+      submissionText: challengeInput.submissionText,
       usedBranchingAi: true,
       verificationStatus: settings.verificationStatus
     });
@@ -1445,6 +1888,7 @@ export async function generateBranchingAiChallengeQuestions(
     const reason = error instanceof Error ? error.message : 'The Branching AI request failed.';
     const debug = buildChallengeQuestionDebug({
       anchorDebug,
+      understanding: presentationUnderstanding,
       fallbackReason: buildQuestionFallbackReason(reason),
       model: settings.model,
       parseDebug: {
@@ -1456,7 +1900,7 @@ export async function generateBranchingAiChallengeQuestions(
       provider: settings.provider,
       rawModelResponse: '',
       renderedPrompt,
-      submissionText: input.submissionText,
+      submissionText: challengeInput.submissionText,
       usedBranchingAi: true,
       verificationStatus: settings.verificationStatus
     });

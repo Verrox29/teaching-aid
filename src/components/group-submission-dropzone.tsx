@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { uploadGroupSubmissionAction } from '@/app/sessions/[sessionId]/order/actions';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
@@ -10,19 +10,25 @@ import { useUiLanguage } from '@/components/ui-language-toggle';
 
 type GroupSubmissionDropzoneProps = {
   fileName?: string | null;
+  fileInputName?: string;
   groupId: string;
   groupName: string;
+  onSelectedFileNameChange?: (fileName: string | null) => void;
   returnPath?: string;
   sessionId: string;
+  submissionMode?: 'deferred' | 'immediate';
   submittedAt?: string | null;
 };
 
 export function GroupSubmissionDropzone({
   fileName,
+  fileInputName = 'file',
   groupId,
   groupName,
+  onSelectedFileNameChange,
   returnPath,
   sessionId,
+  submissionMode = 'immediate',
   submittedAt
 }: GroupSubmissionDropzoneProps) {
   const inputId = useId();
@@ -35,9 +41,11 @@ export function GroupSubmissionDropzone({
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const dragDepthRef = useRef(0);
+  const submitImmediately = submissionMode === 'immediate';
 
   function rejectFile(fileName: string) {
     setSelectedFileName(null);
+    onSelectedFileNameChange?.(null);
     setErrorMessage(t.fileTooLarge.replace('{size}', String(GROUP_SUBMISSION_MAX_FILE_SIZE_MB)));
 
     if (inputRef.current) {
@@ -63,9 +71,10 @@ export function GroupSubmissionDropzone({
     }
 
     setSelectedFileName(file.name);
+    onSelectedFileNameChange?.(file.name);
     setErrorMessage(null);
 
-    if (submitImmediately) {
+    if (submitImmediately && formRef.current) {
       formRef.current?.requestSubmit();
     }
   }
@@ -87,53 +96,20 @@ export function GroupSubmissionDropzone({
     inputRef.current?.click();
   }
 
-  return (
-    <form
-      action={uploadGroupSubmissionAction}
-      className={`grid gap-3 rounded-2xl border border-dashed p-4 text-sm transition ${
-        isDragging
-          ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
-          : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
-      }`}
-      ref={formRef}
-      onSubmit={handleSubmit}
-      onClick={openFilePicker}
-      onDragEnter={(event) => {
-        event.preventDefault();
-        dragDepthRef.current += 1;
-        setIsDragging(true);
-      }}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setIsDragging(true);
-      }}
-      onDragLeave={(event) => {
-        event.preventDefault();
-        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-        if (dragDepthRef.current === 0) {
-          setIsDragging(false);
-        }
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        dragDepthRef.current = 0;
-        setIsDragging(false);
-        const file = event.dataTransfer.files[0] ?? null;
-        syncFile(file, true);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          openFilePicker();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      <AppPendingFormBridge />
-      <input name="sessionId" type="hidden" value={sessionId} />
-      <input name="groupId" type="hidden" value={groupId} />
-      {returnPath ? <input name="returnTo" type="hidden" value={returnPath} /> : null}
+  const cardClassName = `grid gap-3 rounded-2xl border border-dashed p-4 text-sm transition ${
+    isDragging
+      ? 'border-[color:var(--app-accent)] bg-[color:var(--app-accent-soft)]'
+      : 'border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] hover:border-[color:var(--app-accent)]'
+  }`;
+
+  const content = (
+    <>
+      {submissionMode === 'immediate' ? <AppPendingFormBridge /> : null}
+      {submissionMode === 'immediate' ? <input name="sessionId" type="hidden" value={sessionId} /> : null}
+      {submissionMode === 'immediate' ? <input name="groupId" type="hidden" value={groupId} /> : null}
+      {submissionMode === 'immediate' && returnPath ? (
+        <input name="returnTo" type="hidden" value={returnPath} />
+      ) : null}
 
       <div className="grid gap-2 text-[color:var(--app-fg-muted)]">
         <p className="font-medium text-[color:var(--app-fg)]">{t.uploadGroupWork}</p>
@@ -148,7 +124,7 @@ export function GroupSubmissionDropzone({
             target="_blank"
             onClick={(event) => event.stopPropagation()}
           >
-          iLovePDF
+            iLovePDF
           </a>
           .
         </p>
@@ -168,7 +144,7 @@ export function GroupSubmissionDropzone({
         ref={inputRef}
         className="sr-only"
         id={inputId}
-        name="file"
+        name={fileInputName}
         type="file"
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => {
@@ -189,15 +165,68 @@ export function GroupSubmissionDropzone({
         </p>
       ) : null}
 
-      <div className="flex justify-end">
-        <button
-          className="ui-button ui-button-primary"
-          type="submit"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {t.uploadButton}
-        </button>
-      </div>
+      {submissionMode === 'immediate' ? (
+        <div className="flex justify-end">
+          <button
+            className="ui-button ui-button-primary"
+            type="submit"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {t.uploadButton}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+
+  const sharedProps = {
+    className: cardClassName,
+    onClick: openFilePicker,
+    onDragEnter: (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      dragDepthRef.current += 1;
+      setIsDragging(true);
+    },
+    onDragOver: (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      setIsDragging(true);
+    },
+    onDragLeave: (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) {
+        setIsDragging(false);
+      }
+    },
+    onDrop: (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      dragDepthRef.current = 0;
+      setIsDragging(false);
+      const file = event.dataTransfer.files[0] ?? null;
+      syncFile(file, submitImmediately);
+    },
+    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openFilePicker();
+      }
+    },
+    role: 'button' as const,
+    tabIndex: 0
+  };
+
+  if (submissionMode === 'deferred') {
+    return <div {...sharedProps}>{content}</div>;
+  }
+
+  return (
+    <form
+      {...sharedProps}
+      action={uploadGroupSubmissionAction}
+      ref={formRef}
+      onSubmit={handleSubmit}
+    >
+      {content}
     </form>
   );
 }

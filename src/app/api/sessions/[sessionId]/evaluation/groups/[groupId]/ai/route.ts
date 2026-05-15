@@ -28,6 +28,15 @@ type RouteParams = {
   params: Promise<{ groupId: string; sessionId: string }>;
 };
 
+const MIN_CHALLENGE_QUESTION_SOURCE_WORDS = 30;
+
+function countGroundingWords(value: string) {
+  return value
+    .split(/\s+/g)
+    .map((entry) => entry.trim())
+    .filter((entry) => /[A-Za-zÀ-ÿ]/.test(entry)).length;
+}
+
 function buildSessionContextSummary(params: {
   className: string;
   instructions: string | null;
@@ -81,7 +90,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const sessionRecord = sessionRows[0] ?? null;
     const mode = parsed.data.mode;
     const hasTeacherComments = Boolean(context.evaluation?.presentationComments?.trim());
-    const hasSubmissionContent = Boolean(context.submission?.content?.trim());
+    const hasSubmissionContent = Boolean(context.submissionText?.trim());
     let challengeQuestionsResult: Awaited<
       ReturnType<typeof generateBranchingAiChallengeQuestions>
     > | null = null;
@@ -93,6 +102,31 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     if (mode === 'questions') {
+      if (!context.submission?.id) {
+        throw new Error('Upload work for this group before generating challenge questions.');
+      }
+
+      const submissionText = context.submissionText?.trim() ?? '';
+      if (!submissionText) {
+        const fileLabel = context.submission?.title ?? 'this uploaded file';
+        if (context.submissionTextIssue === 'image_only_or_ocr_required') {
+          throw new Error(
+            `The uploaded file "${fileLabel}" appears to be image-only/scanned. OCR is required before Challenge Questions can be generated from it.`
+          );
+        }
+        throw new Error(
+          `Could not read usable text from "${fileLabel}".`
+        );
+      }
+      const sourceWordCount = countGroundingWords(submissionText);
+      if (sourceWordCount < MIN_CHALLENGE_QUESTION_SOURCE_WORDS) {
+        throw new Error(
+          `The uploaded file "${context.submission?.title ?? 'this uploaded file'}" has only ${sourceWordCount} readable words. At least ${MIN_CHALLENGE_QUESTION_SOURCE_WORDS} readable words are required for grounded challenge questions.`
+        );
+      }
+
+      const previousQuestions = context.evaluation?.aiRecommendedQuestions ?? [];
+      const regenerationAttempt = Date.now();
       await resetEvaluationAiQuestions(sessionId, groupId);
       challengeQuestionsResult = await generateBranchingAiChallengeQuestions(
         {
@@ -100,7 +134,9 @@ export async function POST(request: Request, { params }: RouteParams) {
           className: metadata.className || context.session.title,
           evaluationCriteria: context.rubric?.criteria ?? [],
           groupName: context.group.name,
-          presentationContent: context.submission?.content ?? context.submissionText ?? '',
+          previousQuestions,
+          presentationContent: submissionText,
+          regenerationAttempt,
           sessionContext: buildSessionContextSummary({
             className: metadata.className || context.session.title,
             instructions: sessionRecord?.instructions ?? null,
@@ -109,7 +145,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             sessionTitle: sessionRecord?.title ?? context.session.title
           }),
           sessionLanguage: context.session.language,
-          submissionText: context.submissionText ?? context.submission?.content ?? '',
+          submissionText,
           subject: metadata.subject || context.session.title
         }
       );
@@ -141,7 +177,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           sessionLanguage: context.session.language,
           sessionTitle: sessionRecord?.title ?? context.session.title
         }),
-        submissionContent: context.submission?.content ?? null,
+        submissionContent: context.submissionText ?? null,
         submissionTitle: context.submission?.title ?? null,
         sessionLanguage: context.session.language,
         subject: metadata.subject || context.session.title

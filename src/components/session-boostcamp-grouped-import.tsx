@@ -6,6 +6,7 @@ import type { ChangeEvent, DragEvent } from 'react';
 import { importBoostcampGroupedStudentsAction } from '@/app/sessions/[sessionId]/students/actions';
 import { AppPendingFormBridge } from '@/components/app-interaction-feedback';
 import { BoostcampExportGuide } from '@/components/boostcamp-export-guide';
+import { shouldShowAdminDiagnostics } from '@/lib/admin-diagnostics';
 import {
   parseBoostcampGroupedFile,
   type BoostcampGroupedMetadataSuggestions,
@@ -95,6 +96,7 @@ export function SessionBoostcampGroupedImport({
   onMetadataSuggestionsChange,
   sessionId
 }: SessionBoostcampGroupedImportProps) {
+  const showAdminDiagnostics = shouldShowAdminDiagnostics();
   const [rows, setRows] = useState<BoostcampGroupedImportPreviewRow[]>([]);
   const [normalizationPreview, setNormalizationPreview] = useState<
     BoostcampGroupedNormalizationPreviewRow[]
@@ -530,7 +532,7 @@ export function SessionBoostcampGroupedImport({
         </p>
       ) : null}
 
-      {debugInfo ? (
+      {showAdminDiagnostics && debugInfo ? (
         <section className="grid gap-3 rounded-2xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] p-4 text-sm">
           <div className="space-y-1">
             <h3 className="text-base font-semibold">Temporary parser debug</h3>

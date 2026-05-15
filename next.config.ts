@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       bodySizeLimit: SERVER_ACTION_BODY_SIZE_LIMIT
     }
   },
+  serverExternalPackages: ['pdf-parse'],
   output: 'standalone'
 };
 
