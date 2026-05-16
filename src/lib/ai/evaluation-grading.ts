@@ -384,6 +384,8 @@ const EN_QUESTION_MARKERS = new Set([
 
 const PROMPT_TEXT_LIMITS = {
   assignmentBrief: 1200,
+  challengePresentationContent: 5600,
+  challengeSubmissionText: 5600,
   peerQuestionsObserved: 800,
   presentationComments: 2000,
   qaComments: 2000,
@@ -747,11 +749,11 @@ function buildChallengeQuestionPromptVariables(input: EvaluationChallengeQuestio
   const sessionLanguage = normalizeLanguage(input.sessionLanguage);
   const compactPresentationContent = limitPromptText(
     input.presentationContent,
-    PROMPT_TEXT_LIMITS.presentationComments
+    PROMPT_TEXT_LIMITS.challengePresentationContent
   );
   const compactSubmissionText = limitPromptText(
     input.submissionText,
-    PROMPT_TEXT_LIMITS.submissionText
+    PROMPT_TEXT_LIMITS.challengeSubmissionText
   );
   const compactSessionContext = limitPromptText(input.sessionContext, PROMPT_TEXT_LIMITS.sessionContext);
   const compactAssignmentBrief = limitPromptText(
@@ -1405,7 +1407,8 @@ function buildChallengeQuestionRuntimeScaffold(
     understandingText,
     '',
     'Source document excerpt (current group upload):',
-    limitPromptText(input.submissionText, PROMPT_TEXT_LIMITS.submissionText) || '[missing source text]',
+    limitPromptText(input.submissionText, PROMPT_TEXT_LIMITS.challengeSubmissionText) ||
+      '[missing source text]',
     '',
     'Editable prompt template:',
     renderedPrompt.trim() || 'No editable prompt template was provided.',
