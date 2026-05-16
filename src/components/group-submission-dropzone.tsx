@@ -13,10 +13,17 @@ type GroupSubmissionDropzoneProps = {
   fileInputName?: string;
   groupId: string;
   groupName: string;
+  onUploadSuccess?: (payload: {
+    fileName: string;
+    message: string;
+    submissionId: string | null;
+    submittedAt: string;
+  }) => void;
   onSelectedFileNameChange?: (fileName: string | null) => void;
   returnPath?: string;
   sessionId: string;
   submissionMode?: 'deferred' | 'immediate';
+  uploadBehavior?: 'server-action' | 'inline-api';
   submittedAt?: string | null;
 };
 
@@ -25,10 +32,12 @@ export function GroupSubmissionDropzone({
   fileInputName = 'file',
   groupId,
   groupName,
+  onUploadSuccess,
   onSelectedFileNameChange,
   returnPath,
   sessionId,
   submissionMode = 'immediate',
+  uploadBehavior = 'server-action',
   submittedAt
 }: GroupSubmissionDropzoneProps) {
   const inputId = useId();
@@ -38,15 +47,19 @@ export function GroupSubmissionDropzone({
   const t = getUiText(uiLanguage).groupSubmission;
   const formattedSubmittedAt = submittedAt ? formatUiDateTime(submittedAt, uiLanguage) : null;
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const dragDepthRef = useRef(0);
   const submitImmediately = submissionMode === 'immediate';
+  const useInlineApiUpload = submitImmediately && uploadBehavior === 'inline-api';
 
   function rejectFile(fileName: string) {
     setSelectedFileName(null);
     onSelectedFileNameChange?.(null);
     setErrorMessage(t.fileTooLarge.replace('{size}', String(GROUP_SUBMISSION_MAX_FILE_SIZE_MB)));
+    setSuccessMessage(null);
 
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -73,13 +86,14 @@ export function GroupSubmissionDropzone({
     setSelectedFileName(file.name);
     onSelectedFileNameChange?.(file.name);
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     if (submitImmediately && formRef.current) {
       formRef.current?.requestSubmit();
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const file = inputRef.current?.files?.[0] ?? null;
 
     if (!file) {
@@ -89,6 +103,67 @@ export function GroupSubmissionDropzone({
     if (file.size > GROUP_SUBMISSION_MAX_FILE_SIZE_BYTES) {
       event.preventDefault();
       rejectFile(file.name);
+      return;
+    }
+
+    if (!useInlineApiUpload) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsUploading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const uploadFormData = new FormData();
+    uploadFormData.set('file', file);
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/submissions/${groupId}`, {
+        body: uploadFormData,
+        method: 'POST'
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setErrorMessage(
+          typeof payload.message === 'string' && payload.message.trim().length > 0
+            ? payload.message
+            : 'Could not upload the file.'
+        );
+        return;
+      }
+
+      const submissionId =
+        typeof payload.submissionId === 'string' && payload.submissionId.trim().length > 0
+          ? payload.submissionId
+          : null;
+      const submittedAt =
+        typeof payload.submittedAt === 'string' && payload.submittedAt.trim().length > 0
+          ? payload.submittedAt
+          : new Date().toISOString();
+      const uploadedFileName =
+        typeof payload.fileName === 'string' && payload.fileName.trim().length > 0
+          ? payload.fileName
+          : file.name;
+      const message =
+        typeof payload.message === 'string' && payload.message.trim().length > 0
+          ? payload.message
+          : `${uploadedFileName} uploaded.`;
+
+      setSuccessMessage(message);
+      setErrorMessage(null);
+      setSelectedFileName(uploadedFileName);
+      onUploadSuccess?.({
+        fileName: uploadedFileName,
+        message,
+        submissionId,
+        submittedAt
+      });
+    } catch {
+      setErrorMessage('Could not upload the file.');
+    } finally {
+      setIsUploading(false);
     }
   }
 
@@ -104,10 +179,14 @@ export function GroupSubmissionDropzone({
 
   const content = (
     <>
-      {submissionMode === 'immediate' ? <AppPendingFormBridge /> : null}
-      {submissionMode === 'immediate' ? <input name="sessionId" type="hidden" value={sessionId} /> : null}
-      {submissionMode === 'immediate' ? <input name="groupId" type="hidden" value={groupId} /> : null}
-      {submissionMode === 'immediate' && returnPath ? (
+      {submissionMode === 'immediate' && !useInlineApiUpload ? <AppPendingFormBridge /> : null}
+      {submissionMode === 'immediate' && !useInlineApiUpload ? (
+        <input name="sessionId" type="hidden" value={sessionId} />
+      ) : null}
+      {submissionMode === 'immediate' && !useInlineApiUpload ? (
+        <input name="groupId" type="hidden" value={groupId} />
+      ) : null}
+      {submissionMode === 'immediate' && !useInlineApiUpload && returnPath ? (
         <input name="returnTo" type="hidden" value={returnPath} />
       ) : null}
 
@@ -164,15 +243,21 @@ export function GroupSubmissionDropzone({
           {errorMessage}
         </p>
       ) : null}
+      {successMessage ? (
+        <p className="text-xs font-medium text-[color:var(--app-success)]" aria-live="polite">
+          {successMessage}
+        </p>
+      ) : null}
 
       {submissionMode === 'immediate' ? (
         <div className="flex justify-end">
           <button
-            className="ui-button ui-button-primary"
+            className="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isUploading}
             type="submit"
             onClick={(event) => event.stopPropagation()}
           >
-            {t.uploadButton}
+            {isUploading ? `${t.uploadButton}...` : t.uploadButton}
           </button>
         </div>
       ) : null}
@@ -222,7 +307,7 @@ export function GroupSubmissionDropzone({
   return (
     <form
       {...sharedProps}
-      action={uploadGroupSubmissionAction}
+      action={useInlineApiUpload ? undefined : uploadGroupSubmissionAction}
       ref={formRef}
       onSubmit={handleSubmit}
     >

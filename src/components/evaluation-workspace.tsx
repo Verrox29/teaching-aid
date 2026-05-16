@@ -12,7 +12,7 @@ import { RandomizeOrderButton } from '@/components/randomize-order-button';
 import { useUiLanguage } from '@/components/ui-language-toggle';
 import { shouldShowAdminDiagnostics } from '@/lib/admin-diagnostics';
 import { formatFeedbackSections } from '@/lib/evaluation/engine';
-import { formatUiDateTime, getUiText } from '@/lib/ui-language';
+import { getUiText } from '@/lib/ui-language';
 import type { UiLanguage } from '@/lib/ui-language';
 import type {
   EvaluationAiCriterionRecommendation,
@@ -123,7 +123,22 @@ function getTimestampLabel(value: string | null, language: UiLanguage) {
     return language === 'fr' ? 'Non enregistré pour le moment' : 'Not saved yet';
   }
 
-  return formatUiDateTime(value, language);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+
+  if (language === 'fr') {
+    return `${day}/${month}/${year} ${hours}:${minutes} UTC`;
+  }
+
+  return `${day}/${month}/${year}, ${hours}:${minutes} UTC`;
 }
 
 function scoreStateLabel(state: SaveState, language: UiLanguage) {
@@ -256,6 +271,7 @@ export function EvaluationWorkspaceClient({
   const [spellcheckReady, setSpellcheckReady] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(initialGroups.map((group) => [group.groupId, false]))
   );
+  const [uploadNoticeByGroupId, setUploadNoticeByGroupId] = useState<Record<string, string>>({});
   const [challengeQuestionsBatchState, setChallengeQuestionsBatchState] = useState<BatchState>({
     kind: 'idle',
     message: ''
@@ -363,6 +379,7 @@ export function EvaluationWorkspaceClient({
   const selectedGroupCanSpellCheck = Boolean(
     selectedGroup?.aiRecommendedFeedback && spellcheckReady[selectedGroup?.groupId ?? '']
   );
+  const selectedGroupUploadNotice = selectedGroup ? uploadNoticeByGroupId[selectedGroup.groupId] : '';
   const tabGroupsForRandomization = displayGroups.map((group) => ({
     groupId: group.groupId,
     groupName: group.groupName
@@ -1384,6 +1401,15 @@ export function EvaluationWorkspaceClient({
                       title={t.challengeQuestions}
                       titleClassName="text-base font-semibold"
                     >
+                      {selectedGroupUploadNotice ? (
+                        <div
+                          aria-live="polite"
+                          className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-sm text-[color:var(--app-success)]"
+                        >
+                          {selectedGroupUploadNotice}
+                        </div>
+                      ) : null}
+
                       {selectedGroupHasUploadedWork ? (
                         <div className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
                           {challengeQuestionsDescription}
@@ -1410,8 +1436,28 @@ export function EvaluationWorkspaceClient({
                           fileName={selectedGroup.submissionTitle}
                           groupId={selectedGroup.groupId}
                           groupName={t.thisGroup}
+                          onUploadSuccess={({ fileName, message, submissionId, submittedAt }) => {
+                            setUploadNoticeByGroupId((current) => ({
+                              ...current,
+                              [selectedGroup.groupId]: message
+                            }));
+                            setGroups((current) =>
+                              current.map((group) =>
+                                group.groupId === selectedGroup.groupId
+                                  ? {
+                                      ...group,
+                                      aiLastError: null,
+                                      submissionId: submissionId ?? group.submissionId,
+                                      submissionTitle: fileName,
+                                      submittedAt
+                                    }
+                                  : group
+                              )
+                            );
+                          }}
                           sessionId={sessionId}
                           submittedAt={selectedGroup.submittedAt}
+                          uploadBehavior="inline-api"
                         />
                       ) : selectedGroup.aiStatus === 'failed' ? (
                         <div className="rounded-xl border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm text-[color:var(--app-danger)]">
