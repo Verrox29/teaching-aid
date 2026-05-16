@@ -463,6 +463,34 @@ export function EvaluationWorkspaceClient({
   const challengeQuestionsDescription = selectedGroupHasUploadedWork
     ? t.reviewChallengeQuestions
     : t.pleaseUploadWork;
+  const challengeQuestionSourceEntries = selectedGroup
+    ? [
+        selectedGroup.groupName.trim()
+          ? {
+              label: uiLanguage === 'fr' ? 'Groupe' : 'Group',
+              value: selectedGroup.groupName.trim()
+            }
+          : null,
+        selectedGroup.submissionTitle
+          ? {
+              label: uiLanguage === 'fr' ? 'Fichier' : 'File',
+              value: selectedGroup.submissionTitle
+            }
+          : null,
+        selectedGroup.submittedAt
+          ? {
+              label: uiLanguage === 'fr' ? 'Importé' : 'Uploaded',
+              value: getTimestampLabel(selectedGroup.submittedAt, uiLanguage, mounted)
+            }
+          : null,
+        selectedGroup.aiGeneratedAt
+          ? {
+              label: uiLanguage === 'fr' ? 'Généré' : 'Generated',
+              value: getTimestampLabel(selectedGroup.aiGeneratedAt, uiLanguage, mounted)
+            }
+          : null
+      ].filter((entry): entry is { label: string; value: string } => Boolean(entry?.value))
+    : [];
   const selectedGroupHasFeedbackInputs = Boolean(
     selectedGroup?.presentationComments.trim() || selectedGroup?.submissionContent?.trim()
   );
@@ -1681,8 +1709,21 @@ export function EvaluationWorkspaceClient({
                       ) : null}
 
                       {selectedGroupHasUploadedWork ? (
-                        <div className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
-                          {challengeQuestionsDescription}
+                        <div className="grid gap-2 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-3 py-2 text-sm text-[color:var(--app-fg-muted)]">
+                          <p>{challengeQuestionsDescription}</p>
+                          {challengeQuestionSourceEntries.length > 0 ? (
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {challengeQuestionSourceEntries.map((entry) => (
+                                <span
+                                  key={`${entry.label}-${entry.value}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-2 py-0.5"
+                                >
+                                  <span className="font-medium text-[color:var(--app-fg)]">{entry.label}:</span>
+                                  <span>{entry.value}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
 
