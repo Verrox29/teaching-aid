@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { saveSessionInstructionsAction } from '@/app/sessions/actions';
-import { AppPendingFormBridge, useInteractionFeedback } from '@/components/app-interaction-feedback';
+import { useInteractionFeedback } from '@/components/app-interaction-feedback';
 import { CollapsiblePanel } from '@/components/collapsible-panel';
 import { EvaluationRosterDialog } from '@/components/evaluation-roster-dialog';
 import { GroupSubmissionDropzone } from '@/components/group-submission-dropzone';
@@ -118,9 +118,13 @@ function buildFeedbackString(sections: EvaluationAiFeedbackSections, language: s
   return formatFeedbackSections(sections, language);
 }
 
-function getTimestampLabel(value: string | null, language: UiLanguage) {
+function getTimestampLabel(value: string | null, language: UiLanguage, mounted: boolean) {
   if (!value) {
     return language === 'fr' ? 'Non enregistré pour le moment' : 'Not saved yet';
+  }
+
+  if (!mounted) {
+    return '';
   }
 
   const date = new Date(value);
@@ -128,30 +132,83 @@ function getTimestampLabel(value: string | null, language: UiLanguage) {
     return value;
   }
 
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  const hours = String(date.getUTCHours()).padStart(2, '0');
-  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-
-  if (language === 'fr') {
-    return `${day}/${month}/${year} ${hours}:${minutes} UTC`;
-  }
-
-  return `${day}/${month}/${year}, ${hours}:${minutes} UTC`;
+  return new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-GB', {
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).format(date);
 }
 
-function scoreStateLabel(state: SaveState, language: UiLanguage) {
+function scoreStateLabel(state: SaveState, language: UiLanguage, mounted: boolean) {
   switch (state.kind) {
     case 'failed':
       return language === 'fr' ? `Échec de l’enregistrement : ${state.message}` : `Save failed: ${state.message}`;
-    case 'saved':
-      return `${language === 'fr' ? 'Enregistré' : 'Saved'} ${getTimestampLabel(state.at, language)}`;
+    case 'saved': {
+      const timestamp = getTimestampLabel(state.at, language, mounted);
+      return timestamp
+        ? `${language === 'fr' ? 'Enregistré' : 'Saved'} ${timestamp}`
+        : language === 'fr'
+          ? 'Enregistré'
+          : 'Saved';
+    }
     case 'saving':
       return language === 'fr' ? 'Enregistrement...' : 'Saving...';
     default:
       return language === 'fr' ? 'En attente' : 'Idle';
   }
+}
+
+function AutoSaveIndicatorIcon({
+  ariaLabel,
+  disabled = false,
+  onClick,
+  state,
+  title
+}: {
+  ariaLabel: string;
+  disabled?: boolean;
+  onClick: () => void;
+  state: SaveState;
+  title: string;
+}) {
+  const toneClass =
+    state.kind === 'failed'
+      ? 'text-[color:var(--app-danger)]'
+      : state.kind === 'saving'
+        ? 'text-[color:var(--app-warning)]'
+        : 'text-[color:var(--app-success)]';
+
+  return (
+    <button
+      aria-label={ariaLabel}
+      className={`inline-flex h-5 w-5 items-center justify-center rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface)] ${toneClass} disabled:cursor-not-allowed disabled:opacity-60`}
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      type="button"
+    >
+      {state.kind === 'failed' ? (
+        <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 16 16">
+          <path d="M8 2.25L14 13.25H2L8 2.25Z" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M8 5.5V9.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+          <circle cx="8" cy="11.5" fill="currentColor" r="0.9" />
+        </svg>
+      ) : state.kind === 'saving' ? (
+        <svg aria-hidden="true" className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" opacity="0.25" r="6" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+        </svg>
+      ) : (
+        <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M5 8.1L7.1 10.2L11.1 6.2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 function formatScoreTotal(value: number) {
@@ -160,6 +217,14 @@ function formatScoreTotal(value: number) {
 
 function safeTrim(value: string | null | undefined) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+const ASSIGNMENT_BRIEF_AUTOSAVE_DELAY_MS = 3000;
+const GROUP_TEXT_AUTOSAVE_DELAY_MS = 3000;
+const GROUP_DEFAULT_AUTOSAVE_DELAY_MS = 650;
+
+function normalizeAssignmentBrief(value: string | null | undefined) {
+  return safeTrim(value);
 }
 
 function PencilIcon({ className }: { className?: string }) {
@@ -311,6 +376,19 @@ export function EvaluationWorkspaceClient({
   );
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const requestVersions = useRef<Record<string, number>>({});
+  const [assignmentBriefDraft, setAssignmentBriefDraft] = useState(sessionInstructions ?? '');
+  const [assignmentBriefSaveState, setAssignmentBriefSaveState] = useState<SaveState>({ kind: 'idle' });
+  const [mounted, setMounted] = useState(false);
+  const assignmentBriefDraftRef = useRef(sessionInstructions ?? '');
+  const assignmentBriefLastSavedRef = useRef(normalizeAssignmentBrief(sessionInstructions ?? ''));
+  const assignmentBriefSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const assignmentBriefInFlightRef = useRef(false);
+  const assignmentBriefPendingSaveRef = useRef(false);
+  const assignmentBriefRequestVersionRef = useRef(0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setGroups((current) => {
@@ -349,6 +427,24 @@ export function EvaluationWorkspaceClient({
     editingGroupNameInputRef.current?.focus();
     editingGroupNameInputRef.current?.select();
   }, [editingGroupId]);
+
+  useEffect(() => {
+    assignmentBriefDraftRef.current = assignmentBriefDraft;
+  }, [assignmentBriefDraft]);
+
+  useEffect(() => {
+    const incomingValue = sessionInstructions ?? '';
+    const hasLocalDraftChanges =
+      normalizeAssignmentBrief(assignmentBriefDraftRef.current) !== assignmentBriefLastSavedRef.current;
+
+    if (assignmentBriefInFlightRef.current || hasLocalDraftChanges) {
+      return;
+    }
+
+    assignmentBriefLastSavedRef.current = normalizeAssignmentBrief(incomingValue);
+    setAssignmentBriefDraft(incomingValue);
+    setAssignmentBriefSaveState((current) => (current.kind === 'failed' ? current : { kind: 'idle' }));
+  }, [sessionInstructions]);
 
   const tabGroups = sortGroupsByPresentationOrder(groups);
   const displayGroups = tabGroups.map((group) => ({
@@ -395,11 +491,134 @@ export function EvaluationWorkspaceClient({
     ? displayGroups.find((group) => group.groupId === rosterGroupId) ?? null
     : null;
   const workspaceTitle = `${safeTrim(sessionSubject) || 'Session'} Groups`;
+  const assignmentBriefDirty =
+    normalizeAssignmentBrief(assignmentBriefDraft) !== assignmentBriefLastSavedRef.current;
+  const groupSaveState: SaveState = selectedGroup
+    ? (saveStates[selectedGroup.groupId] ?? ({ kind: 'idle' } as SaveState))
+    : ({ kind: 'idle' } as SaveState);
+  const assignmentIndicatorTitle =
+    assignmentBriefSaveState.kind === 'saved'
+      ? `${uiLanguage === 'fr' ? 'Enregistré' : 'Saved'} ${
+          getTimestampLabel(assignmentBriefSaveState.at, uiLanguage, mounted) || ''
+        }`.trim()
+      : assignmentBriefSaveState.kind === 'saving'
+        ? (uiLanguage === 'fr' ? 'Enregistrement en cours…' : 'Saving in progress…')
+        : assignmentBriefSaveState.kind === 'failed'
+          ? assignmentBriefSaveState.message
+          : (uiLanguage === 'fr' ? 'Enregistrement automatique' : 'Autosave');
+  const groupIndicatorTitle =
+    groupSaveState.kind === 'saved'
+      ? `${uiLanguage === 'fr' ? 'Enregistré' : 'Saved'} ${
+          getTimestampLabel(groupSaveState.at, uiLanguage, mounted) || ''
+        }`.trim()
+      : groupSaveState.kind === 'saving'
+        ? (uiLanguage === 'fr' ? 'Enregistrement en cours…' : 'Saving in progress…')
+        : groupSaveState.kind === 'failed'
+          ? groupSaveState.message
+          : (uiLanguage === 'fr' ? 'Enregistrement automatique' : 'Autosave');
 
   function updateUrl(groupId: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set('groupId', groupId);
     router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  }
+
+  const persistAssignmentBrief = useCallback(async () => {
+    const draftToSave = assignmentBriefDraftRef.current;
+    const normalizedDraft = normalizeAssignmentBrief(draftToSave);
+
+    if (normalizedDraft === assignmentBriefLastSavedRef.current) {
+      return;
+    }
+
+    if (assignmentBriefInFlightRef.current) {
+      assignmentBriefPendingSaveRef.current = true;
+      return;
+    }
+
+    assignmentBriefInFlightRef.current = true;
+    assignmentBriefPendingSaveRef.current = false;
+    const requestVersion = assignmentBriefRequestVersionRef.current + 1;
+    assignmentBriefRequestVersionRef.current = requestVersion;
+    setAssignmentBriefSaveState({ kind: 'saving' });
+
+    try {
+      const formData = new FormData();
+      formData.set('sessionId', sessionId);
+      formData.set('instructions', draftToSave);
+      await saveSessionInstructionsAction(formData);
+
+      if (assignmentBriefRequestVersionRef.current !== requestVersion) {
+        return;
+      }
+
+      assignmentBriefLastSavedRef.current = normalizedDraft;
+      if (normalizeAssignmentBrief(assignmentBriefDraftRef.current) === normalizedDraft) {
+        setAssignmentBriefSaveState({ kind: 'saved', at: new Date().toISOString() });
+      } else {
+        assignmentBriefPendingSaveRef.current = true;
+      }
+    } catch (error) {
+      if (assignmentBriefRequestVersionRef.current !== requestVersion) {
+        return;
+      }
+
+      setAssignmentBriefSaveState({
+        kind: 'failed',
+        message: error instanceof Error ? error.message : t.errors.saveChanges
+      });
+    } finally {
+      assignmentBriefInFlightRef.current = false;
+      if (assignmentBriefPendingSaveRef.current) {
+        assignmentBriefPendingSaveRef.current = false;
+        void persistAssignmentBrief();
+      }
+    }
+  }, [sessionId, t.errors.saveChanges]);
+
+  useEffect(() => {
+    if (!assignmentBriefDirty) {
+      if (assignmentBriefSaveTimerRef.current) {
+        clearTimeout(assignmentBriefSaveTimerRef.current);
+        assignmentBriefSaveTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (assignmentBriefSaveTimerRef.current) {
+      clearTimeout(assignmentBriefSaveTimerRef.current);
+    }
+
+    assignmentBriefSaveTimerRef.current = setTimeout(() => {
+      void persistAssignmentBrief();
+    }, ASSIGNMENT_BRIEF_AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (assignmentBriefSaveTimerRef.current) {
+        clearTimeout(assignmentBriefSaveTimerRef.current);
+        assignmentBriefSaveTimerRef.current = null;
+      }
+    };
+  }, [assignmentBriefDirty, assignmentBriefDraft, persistAssignmentBrief]);
+
+  async function persistGroupTextNow(groupId: string) {
+    const snapshot = groups.find((entry) => entry.groupId === groupId);
+    if (!snapshot) {
+      return;
+    }
+
+    const currentState: SaveState = saveStates[groupId] ?? ({ kind: 'idle' } as SaveState);
+    if (currentState.kind === 'saving') {
+      return;
+    }
+
+    const hasPendingDebounce = Boolean(saveTimers.current[groupId]);
+    const canRetryFailedSave = currentState.kind === 'failed';
+    if (!hasPendingDebounce && !canRetryFailedSave) {
+      return;
+    }
+
+    await saveGroupNow(groupId, snapshot);
   }
 
   async function renameGroup(groupId: string, currentName: string) {
@@ -648,7 +867,11 @@ export function EvaluationWorkspaceClient({
     }
   }
 
-  function queueSave(groupId: string, snapshot: GroupDraft) {
+  function queueSave(
+    groupId: string,
+    snapshot: GroupDraft,
+    delayMs: number = GROUP_DEFAULT_AUTOSAVE_DELAY_MS
+  ) {
     const nextVersion = (requestVersions.current[groupId] ?? 0) + 1;
     requestVersions.current[groupId] = nextVersion;
 
@@ -660,7 +883,7 @@ export function EvaluationWorkspaceClient({
 
     saveTimers.current[groupId] = setTimeout(() => {
       void persistGroup(groupId, snapshot, nextVersion);
-    }, 650);
+    }, delayMs);
   }
 
   async function saveGroupNow(groupId: string, snapshot: GroupDraft) {
@@ -675,11 +898,19 @@ export function EvaluationWorkspaceClient({
     await persistGroup(groupId, snapshot, nextVersion);
   }
 
-  function updateGroup(groupId: string, updater: (group: GroupDraft) => GroupDraft) {
+  function updateGroup(
+    groupId: string,
+    updater: (group: GroupDraft) => GroupDraft,
+    delayMs: number = GROUP_DEFAULT_AUTOSAVE_DELAY_MS
+  ) {
     const nextSnapshot = setGroupState(groupId, updater);
     if (nextSnapshot) {
-      queueSave(groupId, nextSnapshot);
+      queueSave(groupId, nextSnapshot, delayMs);
     }
+  }
+
+  function updateGroupText(groupId: string, updater: (group: GroupDraft) => GroupDraft) {
+    updateGroup(groupId, updater, GROUP_TEXT_AUTOSAVE_DELAY_MS);
   }
 
   function setGroupPanelState(groupId: string, updater: (state: PanelState) => PanelState) {
@@ -1095,25 +1326,53 @@ export function EvaluationWorkspaceClient({
           <p className="text-sm text-[color:var(--app-fg-muted)]">
             {t.briefUsedByAi}
           </p>
-          <form action={saveSessionInstructionsAction} className="grid gap-3">
-            <AppPendingFormBridge />
-            <input name="sessionId" type="hidden" value={sessionId} />
+          <div className="grid gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <span>{t.assignmentBrief}</span>
+              <AutoSaveIndicatorIcon
+                ariaLabel={uiLanguage === 'fr' ? 'Forcer l’enregistrement de la consigne' : 'Force-save assignment brief'}
+                disabled={assignmentBriefSaveState.kind === 'saving'}
+                onClick={() => {
+                  void persistAssignmentBrief();
+                }}
+                state={assignmentBriefSaveState}
+                title={assignmentIndicatorTitle}
+              />
+            </div>
             <textarea
               aria-label={t.assignmentBrief}
               className="ui-textarea min-h-[140px]"
-              defaultValue={sessionInstructions ?? ''}
-              name="instructions"
+              onChange={(event) => {
+                setAssignmentBriefDraft(event.target.value);
+                setAssignmentBriefSaveState((current) =>
+                  current.kind === 'saved' ? { kind: 'idle' } : current
+                );
+              }}
               placeholder={t.describeActivity}
+              value={assignmentBriefDraft}
             />
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm text-[color:var(--app-fg-muted)]">
+                {assignmentBriefSaveState.kind === 'saving'
+                  ? t.saving
+                  : assignmentBriefSaveState.kind === 'saved'
+                    ? `${t.saved} ${getTimestampLabel(assignmentBriefSaveState.at, uiLanguage, mounted)}`.trim()
+                    : assignmentBriefSaveState.kind === 'failed'
+                      ? assignmentBriefSaveState.message
+                      : ''}
+              </div>
               <button
                 className="ui-button ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                type="submit"
+                disabled={!assignmentBriefDirty || assignmentBriefSaveState.kind === 'saving'}
+                onClick={() => {
+                  void persistAssignmentBrief();
+                }}
+                type="button"
               >
-                {t.saveBrief}
+                {assignmentBriefSaveState.kind === 'saving' ? t.saving : t.saveBrief}
               </button>
             </div>
-          </form>
+          </div>
           {challengeQuestionsBatchState.message ? (
             <p className="text-sm text-[color:var(--app-fg-muted)]">
               {challengeQuestionsBatchState.message}
@@ -1336,10 +1595,10 @@ export function EvaluationWorkspaceClient({
                   <CollapsiblePanel
                     actions={
                       <div className="text-right text-sm text-[color:var(--app-fg-muted)]">
-                        <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' }, uiLanguage)}</div>
+                        <div>{scoreStateLabel(saveStates[selectedGroup.groupId] ?? { kind: 'idle' }, uiLanguage, mounted)}</div>
                         <div>
                           {t.finalized}{' '}
-                          {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt, uiLanguage) : t.no}
+                          {selectedGroup.submittedAt ? getTimestampLabel(selectedGroup.submittedAt, uiLanguage, mounted) : t.no}
                         </div>
                       </div>
                     }
@@ -1356,11 +1615,22 @@ export function EvaluationWorkspaceClient({
                     titleClassName="text-lg font-semibold"
                   >
                     <label className="grid gap-2 text-sm font-medium">
-                      {t.writePresentationNotes}
+                      <span className="flex items-center gap-2">
+                        <span>{t.writePresentationNotes}</span>
+                        <AutoSaveIndicatorIcon
+                          ariaLabel={uiLanguage === 'fr' ? 'Forcer l’enregistrement des notes de présentation' : 'Force-save presentation notes'}
+                          disabled={groupSaveState.kind === 'saving'}
+                          onClick={() => {
+                            void persistGroupTextNow(selectedGroup.groupId);
+                          }}
+                          state={groupSaveState}
+                          title={groupIndicatorTitle}
+                        />
+                      </span>
                       <textarea
                         className="ui-textarea min-h-[140px]"
                         onChange={(event) =>
-                          updateGroup(selectedGroup.groupId, (current) => ({
+                          updateGroupText(selectedGroup.groupId, (current) => ({
                             ...current,
                             presentationComments: event.target.value
                           }))
@@ -1624,11 +1894,22 @@ export function EvaluationWorkspaceClient({
                     </CollapsiblePanel>
 
                     <label className="grid gap-2 text-sm font-medium">
-                      {t.qaComments}
+                      <span className="flex items-center gap-2">
+                        <span>{t.qaComments}</span>
+                        <AutoSaveIndicatorIcon
+                          ariaLabel={uiLanguage === 'fr' ? 'Forcer l’enregistrement des commentaires Q&R' : 'Force-save Q&A notes'}
+                          disabled={groupSaveState.kind === 'saving'}
+                          onClick={() => {
+                            void persistGroupTextNow(selectedGroup.groupId);
+                          }}
+                          state={groupSaveState}
+                          title={groupIndicatorTitle}
+                        />
+                      </span>
                       <textarea
                         className="ui-textarea min-h-[120px]"
                         onChange={(event) =>
-                          updateGroup(selectedGroup.groupId, (current) => ({
+                          updateGroupText(selectedGroup.groupId, (current) => ({
                             ...current,
                             qaComments: event.target.value
                           }))
@@ -1704,7 +1985,7 @@ export function EvaluationWorkspaceClient({
                       ) : null}
                       {selectedGroup.aiGeneratedAt ? (
                         <p className="text-[color:var(--app-fg-muted)]">
-                          {t.generated} {getTimestampLabel(selectedGroup.aiGeneratedAt, uiLanguage)}
+                          {t.generated} {getTimestampLabel(selectedGroup.aiGeneratedAt, uiLanguage, mounted)}
                         </p>
                       ) : null}
                     </div>
@@ -1809,7 +2090,22 @@ export function EvaluationWorkspaceClient({
                           ['general', t.general]
                         ].map(([key, label]) => (
                           <label key={key} className="grid gap-2 text-sm font-medium">
-                            {label}
+                            <span className="flex items-center gap-2">
+                              <span>{label}</span>
+                              <AutoSaveIndicatorIcon
+                                ariaLabel={
+                                  uiLanguage === 'fr'
+                                    ? `Forcer l’enregistrement de ${label}`
+                                    : `Force-save ${label}`
+                                }
+                                disabled={groupSaveState.kind === 'saving'}
+                                onClick={() => {
+                                  void persistGroupTextNow(selectedGroup.groupId);
+                                }}
+                                state={groupSaveState}
+                                title={groupIndicatorTitle}
+                              />
+                            </span>
                             <textarea
                               className="ui-textarea min-h-[120px]"
                               onChange={(event) => {
@@ -1817,7 +2113,7 @@ export function EvaluationWorkspaceClient({
                                   ...current,
                                   [selectedGroup.groupId]: true
                                 }));
-                                updateGroup(selectedGroup.groupId, (current) => {
+                                updateGroupText(selectedGroup.groupId, (current) => {
                                   const nextSections = {
                                     ...current.finalFeedbackSections,
                                     [key]: event.target.value
